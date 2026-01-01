@@ -1,0 +1,2793 @@
+"use client";
+
+import { useState, useEffect, useRef } from "react";
+import type { Equipment } from "@/hooks/useDndContent";
+import { useRouter, useSearchParams } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
+import { useRaces, useClasses, useEquipment, useCreateCharacter, useBackgrounds } from "@/hooks/useDndContent";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Navbar } from "@/components/shared/navbar";
+import { ChevronLeft, ChevronRight, Check, Upload, X, Loader2, Info, Star } from "lucide-react";
+import { useInfoSheet } from "@/hooks/useInfoSheet";
+import { InfoSheetDialog } from "@/components/shared/info-sheet-dialog";
+import { toast } from "sonner";
+import { Artificer, Barbarian, Bard, Cleric, Druid, Fighter, Monk, Paladin, Ranger, Rogue, Sorcerer, Warlock, Wizard } from "dnd-icons/class";
+import { Strength, Dexterity, Constitution, Intelligence, Wisdom, Charisma } from "dnd-icons/ability";
+import { Character, Campaign } from "dnd-icons/game";
+import { Weapon, Armor, Book, Person } from "dnd-icons/entity";
+import {
+  getAbilityModifier,
+  getAbilityModifierString,
+  getProficiencyBonus,
+  STANDARD_ARRAY,
+  POINT_BUY_COSTS,
+  POINT_BUY_TOTAL,
+  POINT_BUY_MIN,
+  POINT_BUY_MAX,
+  rollAbilityScore,
+  DND_SKILLS,
+} from "@/lib/utils/character";
+import type { Race, DndClass } from "@/hooks/useDndContent";
+import type { Character } from "@/hooks/useDndContent";
+
+type AbilityScoreMethod = "point-buy" | "standard-array" | "manual";
+
+interface CharacterFormData {
+  campaignId: string | null;
+  raceSource: "srd" | "homebrew" | null;
+  raceIndex: string | null;
+  classSource: "srd" | "homebrew" | null;
+  classIndex: string | null;
+  subclassSource: "srd" | "homebrew" | null;
+  subclassIndex: string | null;
+  abilityScores: {
+    strength: number;
+    dexterity: number;
+    constitution: number;
+    intelligence: number;
+    wisdom: number;
+    charisma: number;
+  };
+  abilityScoreMethod: AbilityScoreMethod;
+  background: string;
+  alignment: string;
+  name: string;
+  level: number;
+  selectedEquipment: Array<{
+    itemIndex: string;
+    itemSource: "srd" | "homebrew";
+    quantity: number;
+  }>;
+  imageUrl: string | null;
+  featureChoices: {
+    skillProficiencies: string[]; // Selected skill names
+    asiImprovements: Array<{ level: number; ability: string; bonus: number }>; // ASI choices
+    otherChoices: Array<{ level: number; choiceName: string; selected: string }>; // Other feature choices
+  };
+}
+
+const ALIGNMENTS = [
+  "Lawful Good",
+  "Neutral Good",
+  "Chaotic Good",
+  "Lawful Neutral",
+  "True Neutral",
+  "Chaotic Neutral",
+  "Lawful Evil",
+  "Neutral Evil",
+  "Chaotic Evil",
+];
+
+export default function CharacterCreatorPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const campaignId = searchParams.get("campaignId");
+
+  const [step, setStep] = useState(1);
+  const [user, setUser] = useState<any>(null);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const [formData, setFormData] = useState<CharacterFormData>({
+    campaignId: campaignId || null,
+    raceSource: null,
+    raceIndex: null,
+    classSource: null,
+    classIndex: null,
+    subclassSource: null,
+    subclassIndex: null,
+    abilityScores: {
+      strength: 10,
+      dexterity: 10,
+      constitution: 10,
+      intelligence: 10,
+      wisdom: 10,
+      charisma: 10,
+    },
+    abilityScoreMethod: "point-buy",
+    background: "",
+    alignment: "True Neutral",
+    name: "",
+    level: 1,
+    selectedEquipment: [],
+    imageUrl: null,
+    featureChoices: {
+      skillProficiencies: [],
+      asiImprovements: [],
+      otherChoices: [],
+    },
+  });
+
+  const { races, loading: racesLoading, error: racesError } = useRaces(campaignId);
+  const { classes, loading: classesLoading, error: classesError } = useClasses(campaignId);
+  const { equipment, loading: equipmentLoading } = useEquipment(campaignId);
+  const { createCharacter, loading: creating } = useCreateCharacter();
+  const { backgrounds, loading: backgroundsLoading } = useBackgrounds();
+  const infoSheet = useInfoSheet();
+
+  useEffect(() => {
+    async function getUser() {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        setUser(user);
+        setUserId(user.id);
+      } else {
+        router.push("/auth/login?redirect=/character-creator");
+      }
+      setLoading(false);
+    }
+    getUser();
+  }, [router]);
+
+
+  const selectedRace = formData.raceSource && formData.raceIndex
+    ? races.find(r => r.source === formData.raceSource && r.index === formData.raceIndex)
+    : null;
+
+  const selectedClass = formData.classSource && formData.classIndex
+    ? classes.find(c => c.source === formData.classSource && c.index === formData.classIndex)
+    : null;
+
+  // Calculate ability modifiers with racial bonuses and ASI improvements
+  const getFinalAbilityScore = (ability: keyof typeof formData.abilityScores): number => {
+    let base = formData.abilityScores[ability];
+    
+    // Add racial bonuses
+    if (selectedRace?.ability_bonuses) {
+      const bonuses = selectedRace.ability_bonuses as Array<{ ability: string; bonus: number }>;
+      const abilityAbbrev = ability.toUpperCase().slice(0, 3);
+      const raceBonus = bonuses.find(b => b.ability && b.ability.toUpperCase() === abilityAbbrev);
+      if (raceBonus) {
+        base += raceBonus.bonus;
+      }
+    }
+    
+    // Add ASI improvements
+    const asiBonus = formData.featureChoices.asiImprovements
+      .filter(asi => asi.ability === ability)
+      .reduce((sum, asi) => sum + asi.bonus, 0);
+    base += asiBonus;
+    
+    return base;
+  };
+
+  const handleNext = () => {
+    if (step < 7) {
+      setStep(step + 1);
+    }
+  };
+
+  const handleBack = () => {
+    if (step > 1) {
+      setStep(step - 1);
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!userId) {
+      toast.error("Missing user ID");
+      return;
+    }
+
+    if (!formData.raceSource || !formData.raceIndex || !formData.classSource || !formData.classIndex) {
+      toast.error("Please complete all required fields");
+      return;
+    }
+
+    const finalAbilityScores = {
+      strength: getFinalAbilityScore("strength"),
+      dexterity: getFinalAbilityScore("dexterity"),
+      constitution: getFinalAbilityScore("constitution"),
+      intelligence: getFinalAbilityScore("intelligence"),
+      wisdom: getFinalAbilityScore("wisdom"),
+      charisma: getFinalAbilityScore("charisma"),
+    };
+
+    const proficiencyBonus = getProficiencyBonus(formData.level);
+    const hitDie = selectedClass?.hit_die || 8;
+    const constitutionMod = getAbilityModifier(finalAbilityScores.constitution);
+    const hpMax = hitDie + constitutionMod;
+
+    const characterData: Partial<Character> & Omit<Character, "id" | "created_at" | "updated_at"> = {
+      campaign_id: formData.campaignId,
+      user_id: userId,
+      name: formData.name || "Unnamed Character",
+      race_source: formData.raceSource,
+      race_index: formData.raceIndex,
+      class_source: formData.classSource,
+      class_index: formData.classIndex,
+      subclass_source: formData.subclassSource || "srd",
+      subclass_index: formData.subclassIndex || "",
+      level: formData.level,
+      experience_points: 0,
+      background: formData.background && formData.background !== "custom" ? formData.background : null as string | null,
+      alignment: formData.alignment || null as string | null,
+      strength: finalAbilityScores.strength,
+      dexterity: finalAbilityScores.dexterity,
+      constitution: finalAbilityScores.constitution,
+      intelligence: finalAbilityScores.intelligence,
+      wisdom: finalAbilityScores.wisdom,
+      charisma: finalAbilityScores.charisma,
+      armor_class: 10,
+      initiative: 0,
+      speed: selectedRace?.speed || 30,
+      hp_max: hpMax,
+      hp_current: hpMax,
+      hp_temp: 0,
+      hit_dice_total: `${formData.level}d${hitDie}`,
+      hit_dice_current: `${formData.level}d${hitDie}`,
+      proficiency_bonus: proficiencyBonus,
+      inspiration: false,
+      conditions: [],
+      notes: "",
+      strength_save_prof: false,
+      dexterity_save_prof: false,
+      constitution_save_prof: false,
+      intelligence_save_prof: false,
+      wisdom_save_prof: false,
+      charisma_save_prof: false,
+      image_url: formData.imageUrl,
+    };
+
+    // Set saving throw proficiencies from class
+    if (selectedClass?.saving_throws) {
+      selectedClass.saving_throws.forEach(ability => {
+        const abilityKey = `${ability.toLowerCase().slice(0, 3)}_save_prof` as keyof typeof characterData;
+        if (abilityKey in characterData) {
+          (characterData as any)[abilityKey] = true;
+        }
+      });
+    }
+
+    const result = await createCharacter(characterData);
+
+    if (result.success && result.data?.id) {
+      const supabase = createClient();
+      const characterId = result.data.id;
+      console.log('Character created with ID:', characterId);
+
+      // Add selected equipment to character inventory
+      const inventoryItems: Array<{
+        character_id: string;
+        item_source: 'srd' | 'homebrew';
+        item_index: string;
+        quantity: number;
+        equipped: boolean;
+        attuned: boolean;
+      }> = [];
+
+      // Add manually selected equipment
+      if (formData.selectedEquipment.length > 0) {
+        console.log('Adding manually selected equipment:', formData.selectedEquipment.length, 'items');
+        formData.selectedEquipment.forEach(item => {
+          inventoryItems.push({
+            character_id: characterId,
+            item_source: item.itemSource,
+            item_index: item.itemIndex,
+            quantity: item.quantity,
+            equipped: false,
+            attuned: false,
+          });
+        });
+      } else {
+        // If no equipment was manually selected, try to add starting equipment from class
+        console.log('No manually selected equipment, checking for starting equipment...');
+        if (selectedClass?.starting_equipment) {
+          const startingEq = selectedClass.starting_equipment as any;
+          const autoItems = startingEq.starting_equipment || startingEq;
+          
+          if (Array.isArray(autoItems)) {
+            console.log('Found starting equipment array:', autoItems.length, 'items');
+            for (const item of autoItems) {
+              const eqData = item.equipment || item;
+              const itemIndex = eqData.index || eqData.name?.toLowerCase().replace(/\s+/g, '-');
+              const quantity = item.quantity || eqData.quantity || 1;
+              
+              if (itemIndex) {
+                // Try to find the equipment in the database to verify it exists
+                const { data: equipmentCheck } = await supabase
+                  .from('srd_equipment')
+                  .select('index')
+                  .eq('index', itemIndex)
+                  .single();
+                
+                if (equipmentCheck) {
+                  inventoryItems.push({
+                    character_id: characterId,
+                    item_source: 'srd',
+                    item_index: itemIndex,
+                    quantity: quantity,
+                    equipped: false,
+                    attuned: false,
+                  });
+                  console.log(`Added starting equipment: ${itemIndex} x${quantity}`);
+                } else {
+                  console.warn(`Starting equipment item not found in database: ${itemIndex}`);
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // Insert inventory items
+      if (inventoryItems.length > 0) {
+        const { error: inventoryError } = await supabase
+          .from('character_inventory')
+          .insert(inventoryItems);
+
+        if (inventoryError) {
+          console.error('Failed to add equipment to inventory:', inventoryError);
+          toast.error('Character created but failed to add equipment');
+        } else {
+          console.log(`Successfully added ${inventoryItems.length} inventory items`);
+        }
+      } else {
+        console.log('No inventory items to add');
+      }
+
+      // Add skill proficiencies from feature choices
+      if (formData.featureChoices.skillProficiencies.length > 0) {
+        const skillProficiencies = formData.featureChoices.skillProficiencies.map(skillName => ({
+          character_id: characterId,
+          skill_name: skillName,
+          proficient: true,
+          expertise: false,
+        }));
+
+        const { error: skillsError } = await supabase
+          .from('character_skills')
+          .insert(skillProficiencies);
+
+        if (skillsError) {
+          console.error('Failed to add skill proficiencies:', skillsError);
+          toast.error('Character created but failed to add skill proficiencies');
+        } else {
+          console.log(`Successfully added ${skillProficiencies.length} skill proficiencies`);
+        }
+      }
+
+      // Auto-attach spells for spellcasting classes
+      if (selectedClass?.spellcasting) {
+        try {
+          console.log('Class has spellcasting, attempting to attach spells...');
+          const spellcasting = selectedClass.spellcasting as any;
+          const classIndex = selectedClass.index.toLowerCase();
+          console.log('Class index:', classIndex);
+          console.log('Spellcasting data:', spellcasting);
+          
+          // Get all spells for this class
+          // Note: classes is a TEXT[] array, so we need to check if it contains the class name
+          const { data: classSpells, error: spellsError } = await supabase
+            .from('srd_spells')
+            .select('index, level, name, classes')
+            .order('level', { ascending: true })
+            .order('name', { ascending: true });
+
+          if (spellsError) {
+            console.error('Error fetching spells:', spellsError);
+          } else {
+            console.log(`Fetched ${classSpells?.length || 0} total spells from database`);
+          }
+
+          // Filter spells that have this class in their classes array
+          const filteredSpells = classSpells?.filter(spell => {
+            if (!spell.classes || !Array.isArray(spell.classes)) return false;
+            const matches = spell.classes.some((cls: string) => cls.toLowerCase() === classIndex);
+            return matches;
+          }) || [];
+
+          console.log(`Found ${filteredSpells.length} spells for class ${classIndex}`);
+
+          if (!spellsError && filteredSpells.length > 0) {
+            const spellsToAdd: Array<{
+              character_id: string;
+              spell_source: 'srd';
+              spell_index: string;
+              prepared: boolean;
+              always_prepared: boolean;
+            }> = [];
+
+            // Determine spell slots based on level
+            const spellSlotsToAdd: Array<{
+              character_id: string;
+              spell_level: number;
+              slots_total: number;
+              slots_used: number;
+            }> = [];
+
+            // Get cantrips (level 0)
+            const cantrips = filteredSpells.filter(s => s.level === 0);
+            const cantripsKnown = spellcasting.cantrips_known?.[formData.level - 1] || 
+                                 spellcasting.cantrips_known?.[0] || 
+                                 3;
+            const cantripsToAdd = cantrips.slice(0, cantripsKnown);
+            console.log(`Adding ${cantripsToAdd.length} cantrips (out of ${cantrips.length} available, ${cantripsKnown} known at level ${formData.level})`);
+            
+            cantripsToAdd.forEach(cantrip => {
+              spellsToAdd.push({
+                character_id: characterId,
+                spell_source: 'srd',
+                spell_index: cantrip.index,
+                prepared: false, // Cantrips are always available
+                always_prepared: false,
+              });
+            });
+
+            // Get 1st level spells
+            const firstLevelSpells = filteredSpells.filter(s => s.level === 1);
+            console.log(`Found ${firstLevelSpells.length} first-level spells available`);
+            
+            // For prepared casters (wizard, cleric, druid, paladin), add spells to spellbook
+            // For known casters (sorcerer, bard, ranger, warlock), add known spells
+            if (['wizard'].includes(classIndex)) {
+              // Wizard: Add 6 first-level spells to spellbook at level 1
+              const spellsForSpellbook = firstLevelSpells.slice(0, 6);
+              spellsForSpellbook.forEach(spell => {
+                spellsToAdd.push({
+                  character_id: characterId,
+                  spell_source: 'srd',
+                  spell_index: spell.index,
+                  prepared: false, // Wizards prepare spells daily
+                  always_prepared: false,
+                });
+              });
+              
+              // Add spell slots: 2 first-level slots at level 1
+              spellSlotsToAdd.push({
+                character_id: characterId,
+                spell_level: 1,
+                slots_total: 2,
+                slots_used: 0,
+              });
+            } else if (['cleric', 'druid'].includes(classIndex)) {
+              // Prepared casters: Add all 1st level spells (they prepare daily)
+              firstLevelSpells.forEach(spell => {
+                spellsToAdd.push({
+                  character_id: characterId,
+                  spell_source: 'srd',
+                  spell_index: spell.index,
+                  prepared: true, // Auto-prepare at creation
+                  always_prepared: false,
+                });
+              });
+              
+              spellSlotsToAdd.push({
+                character_id: characterId,
+                spell_level: 1,
+                slots_total: 2,
+                slots_used: 0,
+              });
+            } else if (['sorcerer', 'bard', 'ranger', 'warlock'].includes(classIndex)) {
+              // Known casters: Add limited number of known spells
+              const knownSpells = firstLevelSpells.slice(0, spellcasting.spells_known?.[formData.level - 1] || 2);
+              knownSpells.forEach(spell => {
+                spellsToAdd.push({
+                  character_id: characterId,
+                  spell_source: 'srd',
+                  spell_index: spell.index,
+                  prepared: true,
+                  always_prepared: false,
+                });
+              });
+              
+              if (classIndex !== 'warlock') {
+                spellSlotsToAdd.push({
+                  character_id: characterId,
+                  spell_level: 1,
+                  slots_total: 2,
+                  slots_used: 0,
+                });
+              } else {
+                // Warlock has pact magic (different slot system)
+                spellSlotsToAdd.push({
+                  character_id: characterId,
+                  spell_level: 1,
+                  slots_total: 1,
+                  slots_used: 0,
+                });
+              }
+            }
+
+            // Insert spells
+            if (spellsToAdd.length > 0) {
+              const { error: spellsInsertError } = await supabase
+                .from('character_spells')
+                .insert(spellsToAdd);
+
+              if (spellsInsertError) {
+                console.error('Failed to add spells:', spellsInsertError);
+                toast.error('Character created but failed to add spells');
+              } else {
+                console.log(`Successfully added ${spellsToAdd.length} spells to character`);
+              }
+            }
+
+            // Insert spell slots
+            if (spellSlotsToAdd.length > 0) {
+              const { error: slotsError } = await supabase
+                .from('character_spell_slots')
+                .insert(spellSlotsToAdd);
+
+              if (slotsError) {
+                console.error('Failed to add spell slots:', slotsError);
+                toast.error('Character created but failed to add spell slots');
+              } else {
+                console.log(`Successfully added ${spellSlotsToAdd.length} spell slot entries`);
+              }
+            }
+          } else {
+            console.warn('No spells found for class:', classIndex, 'Error:', spellsError);
+          }
+        } catch (error) {
+          console.error('Error attaching spells:', error);
+          toast.error('Character created but failed to attach spells');
+          // Don't fail character creation if spells fail
+        }
+      }
+
+      // Build JSONB data for character record
+      const spellsJsonb: Array<{
+        source: 'srd' | 'homebrew';
+        index: string;
+        prepared: boolean;
+        always_prepared: boolean;
+      }> = [];
+
+      const inventoryJsonb: Array<{
+        source: 'srd' | 'homebrew';
+        index: string;
+        quantity: number;
+        equipped: boolean;
+        attuned: boolean;
+        notes?: string | null;
+      }> = [];
+
+      const classFeaturesJsonb: Array<{
+        level: number;
+        name: string;
+        description: string;
+      }> = [];
+
+      // Build spells JSONB from spellsToAdd (if spells were added)
+      if (selectedClass?.spellcasting) {
+        try {
+          const spellcasting = selectedClass.spellcasting as any;
+          const classIndex = selectedClass.index.toLowerCase();
+          
+          const { data: classSpells } = await supabase
+            .from('srd_spells')
+            .select('index, level, name, classes')
+            .order('level', { ascending: true })
+            .order('name', { ascending: true });
+
+          const filteredSpells = classSpells?.filter(spell => {
+            if (!spell.classes || !Array.isArray(spell.classes)) return false;
+            return spell.classes.some((cls: string) => cls.toLowerCase() === classIndex);
+          }) || [];
+
+          if (filteredSpells.length > 0) {
+            const cantrips = filteredSpells.filter(s => s.level === 0);
+            const cantripsKnown = spellcasting.cantrips_known?.[formData.level - 1] || 
+                                 spellcasting.cantrips_known?.[0] || 
+                                 3;
+            const cantripsToAdd = cantrips.slice(0, cantripsKnown);
+            
+            cantripsToAdd.forEach(cantrip => {
+              spellsJsonb.push({
+                source: 'srd',
+                index: cantrip.index,
+                prepared: false,
+                always_prepared: false,
+              });
+            });
+
+            const firstLevelSpells = filteredSpells.filter(s => s.level === 1);
+            
+            if (['wizard'].includes(classIndex)) {
+              const spellsForSpellbook = firstLevelSpells.slice(0, 6);
+              spellsForSpellbook.forEach(spell => {
+                spellsJsonb.push({
+                  source: 'srd',
+                  index: spell.index,
+                  prepared: false,
+                  always_prepared: false,
+                });
+              });
+            } else if (['cleric', 'druid'].includes(classIndex)) {
+              firstLevelSpells.forEach(spell => {
+                spellsJsonb.push({
+                  source: 'srd',
+                  index: spell.index,
+                  prepared: true,
+                  always_prepared: false,
+                });
+              });
+            } else if (['sorcerer', 'bard', 'ranger', 'warlock'].includes(classIndex)) {
+              const knownSpells = firstLevelSpells.slice(0, spellcasting.spells_known?.[formData.level - 1] || 2);
+              knownSpells.forEach(spell => {
+                spellsJsonb.push({
+                  source: 'srd',
+                  index: spell.index,
+                  prepared: true,
+                  always_prepared: false,
+                });
+              });
+            }
+          }
+        } catch (error) {
+          console.error('Error building spells JSONB:', error);
+        }
+      }
+
+      // Build inventory JSONB from inventoryItems
+      inventoryItems.forEach(item => {
+        inventoryJsonb.push({
+          source: item.item_source,
+          index: item.item_index,
+          quantity: item.quantity,
+          equipped: item.equipped,
+          attuned: item.attuned,
+          notes: null,
+        });
+      });
+
+      // Build class features JSONB from class levels
+      if (selectedClass?.class_levels) {
+        try {
+          const classLevels = selectedClass.class_levels as any;
+          
+          for (let lvl = 1; lvl <= formData.level; lvl++) {
+            const levelData = classLevels[lvl] || 
+                             classLevels[`level_${lvl}`] || 
+                             classLevels[`${lvl}`] ||
+                             (Array.isArray(classLevels) ? classLevels[lvl - 1] : null);
+            
+            if (!levelData) continue;
+            
+            // Extract features from level data
+            if (levelData.features) {
+              if (Array.isArray(levelData.features)) {
+                levelData.features.forEach((feat: any) => {
+                  if (typeof feat === 'string') {
+                    classFeaturesJsonb.push({ level: lvl, name: feat, description: '' });
+                  } else if (feat.name || feat.index) {
+                    classFeaturesJsonb.push({
+                      level: lvl,
+                      name: feat.name || feat.index || 'Feature',
+                      description: feat.desc || feat.description || '',
+                    });
+                  }
+                });
+              } else if (typeof levelData.features === 'object') {
+                Object.entries(levelData.features).forEach(([key, value]: [string, any]) => {
+                  classFeaturesJsonb.push({
+                    level: lvl,
+                    name: value.name || key,
+                    description: value.desc || value.description || '',
+                  });
+                });
+              }
+            }
+
+            // Also check for feature_choices
+            if (levelData.feature_choices) {
+              if (Array.isArray(levelData.feature_choices)) {
+                levelData.feature_choices.forEach((choice: any) => {
+                  classFeaturesJsonb.push({
+                    level: lvl,
+                    name: choice.name || 'Feature Choice',
+                    description: choice.desc || choice.description || 'Choose a feature',
+                  });
+                });
+              }
+            }
+
+            // Display class-specific features
+            if (levelData.class_specific) {
+              Object.entries(levelData.class_specific).forEach(([key, value]: [string, any]) => {
+                classFeaturesJsonb.push({
+                  level: lvl,
+                  name: key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+                  description: typeof value === 'object' ? JSON.stringify(value) : String(value),
+                });
+              });
+            }
+          }
+        } catch (error) {
+          console.error('Error building class features JSONB:', error);
+        }
+      }
+
+      // Build background_details JSONB
+      const backgroundDetailsJsonb = {
+        personality_traits: [],
+        ideals: [],
+        bonds: [],
+        flaws: [],
+        appearance: "",
+        characteristics: {
+          alignment: formData.alignment || null,
+          gender: "",
+          eyes: "",
+          size: "",
+          height: "",
+          faith: "",
+          hair: "",
+          skin: "",
+          age: "",
+          weight: "",
+        },
+      };
+
+      // Build extras JSONB
+      const extrasJsonb = {
+        custom_actions: [],
+        custom_features: [],
+        notes: {},
+      };
+
+      // Update character record with JSONB columns
+      const { error: updateError } = await supabase
+        .from('characters')
+        .update({
+          spells: spellsJsonb,
+          inventory: inventoryJsonb,
+          class_features: classFeaturesJsonb,
+          background_details: backgroundDetailsJsonb,
+          extras: extrasJsonb,
+        })
+        .eq('id', characterId);
+
+      if (updateError) {
+        console.error('Failed to update character JSONB columns:', updateError);
+        toast.error('Character created but failed to update data columns');
+      } else {
+        console.log('Successfully updated character JSONB columns');
+      }
+
+      toast.success("Character created successfully!");
+      if (formData.campaignId) {
+        router.push(`/campaigns/${formData.campaignId}/characters/${result.data.id}`);
+      } else {
+        router.push(`/characters/${result.data.id}`);
+      }
+    } else {
+      toast.error(result.error?.message || "Failed to create character");
+    }
+  };
+
+  if (loading || !user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Skeleton className="h-8 w-32" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen flex flex-col">
+      <Navbar user={user} />
+      <main className="flex-1 container py-8 px-4 md:px-6 max-w-4xl mx-auto">
+        <div className="mb-8">
+          <h1 className="font-serif text-3xl font-bold">Character Creator</h1>
+          <p className="text-muted-foreground mt-1">Create your D&D 5e character</p>
+        </div>
+
+        {/* Step Progress */}
+        <div className="mb-6 flex items-center justify-between">
+          {[1, 2, 3, 4, 5, 6, 7].map((s) => (
+            <div key={s} className="flex items-center flex-1">
+              <div className="flex flex-col items-center flex-1">
+                <div
+                  className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                    step === s
+                      ? "bg-primary text-primary-foreground"
+                      : step > s
+                      ? "bg-primary/20 text-primary"
+                      : "bg-muted text-muted-foreground"
+                  }`}
+                >
+                  {step > s ? <Check className="h-5 w-5" /> : s}
+                </div>
+                <span className="text-xs mt-1 text-muted-foreground hidden sm:block flex items-center gap-1">
+                  {s === 1 && (
+                    <>
+                      <Character size={12} />
+                      Race
+                    </>
+                  )}
+                  {s === 2 && (
+                    <>
+                      <Fighter size={12} />
+                      Class
+                    </>
+                  )}
+                  {s === 3 && (
+                    <>
+                      <Star size={12} />
+                      Features
+                    </>
+                  )}
+                  {s === 4 && (
+                    <>
+                      <Strength size={12} />
+                      Ability Scores
+                    </>
+                  )}
+                  {s === 5 && (
+                    <>
+                      <Book size={12} />
+                      Background
+                    </>
+                  )}
+                  {s === 6 && (
+                    <>
+                      <Weapon size={12} />
+                      Equipment
+                    </>
+                  )}
+                  {s === 7 && (
+                    <>
+                      <Check size={12} />
+                      Review
+                    </>
+                  )}
+                </span>
+              </div>
+              {s < 7 && <div className={`h-1 flex-1 mx-2 ${step > s ? "bg-primary" : "bg-muted"}`} />}
+            </div>
+          ))}
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              Step {step}:{" "}
+              {step === 1 && (
+                <>
+                  <Character size={20} />
+                  Choose Race
+                </>
+              )}
+              {step === 2 && (
+                <>
+                  <Fighter size={20} />
+                  Choose Class
+                </>
+              )}
+              {step === 3 && (
+                <>
+                  <Star size={20} />
+                  Feature Choices
+                </>
+              )}
+              {step === 4 && (
+                <>
+                  <Strength size={20} />
+                  Assign Ability Scores
+                </>
+              )}
+              {step === 5 && (
+                <>
+                  <Book size={20} />
+                  Background & Details
+                </>
+              )}
+              {step === 6 && (
+                <>
+                  <Weapon size={20} />
+                  Starting Equipment
+                </>
+              )}
+              {step === 7 && (
+                <>
+                  <Check size={20} />
+                  Review & Create
+                </>
+              )}
+            </CardTitle>
+            <CardDescription>
+              {step === 1 && "Select your character's race"}
+              {step === 2 && "Select your character's class"}
+              {step === 3 && "Choose skill proficiencies and other features"}
+              {step === 4 && "Assign your ability scores using your preferred method"}
+              {step === 5 && "Choose background and add character details"}
+              {step === 6 && "Select starting equipment"}
+              {step === 7 && "Review your character before creating"}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Step 1: Race Selection */}
+            {step === 1 && (
+              <RaceSelectionStep
+                races={races}
+                loading={racesLoading}
+                selectedRace={selectedRace}
+                error={racesError}
+                infoSheet={infoSheet}
+                onSelect={(race) => {
+                  setFormData({
+                    ...formData,
+                    raceSource: race.source,
+                    raceIndex: race.index,
+                  });
+                }}
+              />
+            )}
+
+            {/* Step 2: Class Selection */}
+            {step === 2 && (
+              <ClassSelectionStep
+                classes={classes}
+                loading={classesLoading}
+                selectedClass={selectedClass}
+                error={classesError}
+                infoSheet={infoSheet}
+                onSelect={(cls) => {
+                  setFormData({
+                    ...formData,
+                    classSource: cls.source,
+                    classIndex: cls.index,
+                  });
+                }}
+              />
+            )}
+
+            {/* Step 3: Feature Choices */}
+            {step === 3 && (
+              <FeatureChoicesStep
+                formData={formData}
+                setFormData={setFormData}
+                selectedClass={selectedClass}
+              />
+            )}
+
+            {/* Step 4: Ability Scores */}
+            {step === 4 && (
+              <AbilityScoresStep
+                formData={formData}
+                setFormData={setFormData}
+                selectedRace={selectedRace}
+                getFinalAbilityScore={getFinalAbilityScore}
+              />
+            )}
+
+            {/* Step 5: Background & Details */}
+            {step === 5 && (
+              <BackgroundStep
+                formData={formData}
+                setFormData={setFormData}
+                backgrounds={backgrounds}
+                backgroundsLoading={backgroundsLoading}
+              />
+            )}
+
+            {/* Step 6: Equipment */}
+            {step === 6 && (
+              <EquipmentStep
+                selectedClass={selectedClass}
+                formData={formData}
+                setFormData={setFormData}
+                equipment={equipment}
+                loading={equipmentLoading}
+                campaignId={campaignId}
+              />
+            )}
+
+            {/* Step 7: Review */}
+            {step === 7 && (
+              <ReviewStep
+                formData={formData}
+                selectedRace={selectedRace}
+                selectedClass={selectedClass}
+                getFinalAbilityScore={getFinalAbilityScore}
+              />
+            )}
+
+            {/* Navigation Buttons */}
+            <div className="flex justify-between pt-4 border-t">
+              <Button
+                variant="outline"
+                onClick={handleBack}
+                disabled={step === 1}
+              >
+                <ChevronLeft className="h-4 w-4 mr-2" />
+                Back
+              </Button>
+              {step < 7 ? (
+                <Button onClick={handleNext}>
+                  Next
+                  <ChevronRight className="h-4 w-4 ml-2" />
+                </Button>
+              ) : (
+                <Button onClick={handleSubmit} disabled={creating}>
+                  {creating ? "Creating..." : "Create Character"}
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </main>
+      <InfoSheetDialog
+        open={infoSheet.open}
+        onOpenChange={infoSheet.setOpen}
+        content={infoSheet.content}
+      />
+    </div>
+  );
+}
+
+// Step Components
+
+function RaceSelectionStep({
+  races,
+  loading,
+  selectedRace,
+  onSelect,
+  error,
+  infoSheet,
+}: {
+  races: Race[];
+  loading: boolean;
+  selectedRace: Race | null | undefined;
+  onSelect: (race: Race) => void;
+  error?: Error | null;
+  infoSheet: ReturnType<typeof useInfoSheet>;
+}) {
+  if (loading) {
+    return <Skeleton className="h-64 w-full" />;
+  }
+
+  if (error) {
+    return (
+      <div className="p-4 border border-destructive rounded-md bg-destructive/10">
+        <p className="text-destructive font-medium">Error loading races</p>
+        <p className="text-sm text-muted-foreground mt-1">{error.message}</p>
+      </div>
+    );
+  }
+
+  if (races.length === 0) {
+    return (
+      <div className="p-4 border border-muted rounded-md">
+        <p className="text-muted-foreground">No races available. Please check your database connection.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {races.map((race) => {
+        const bonuses = race.ability_bonuses as Array<{ ability: string; bonus: number }> | null;
+        return (
+          <Card
+            key={`${race.source}-${race.index}`}
+            className={`cursor-pointer transition-all hover:shadow-md ${
+              selectedRace?.source === race.source && selectedRace?.index === race.index
+                ? "ring-2 ring-primary"
+                : ""
+            }`}
+            onClick={() => onSelect(race)}
+          >
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg">{race.name}</CardTitle>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      infoSheet.showRace(race);
+                    }}
+                  >
+                    <Info className="h-4 w-4" />
+                  </Button>
+                  <Badge variant={race.source === "srd" ? "default" : "secondary"}>
+                    {race.source}
+                  </Badge>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2 text-sm">
+                <div>
+                  <span className="font-medium">Speed:</span> {race.speed} ft
+                </div>
+                <div>
+                  <span className="font-medium">Size:</span> {race.size}
+                </div>
+                {bonuses && bonuses.length > 0 && (
+                  <div>
+                    <span className="font-medium">Ability Bonuses:</span>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {bonuses.map((b, i) => (
+                        <Badge key={i} variant="outline">
+                          {b.ability} +{b.bonus}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })}
+    </div>
+  );
+}
+
+function ClassSelectionStep({
+  classes,
+  loading,
+  selectedClass,
+  onSelect,
+  error,
+  infoSheet,
+}: {
+  classes: DndClass[];
+  loading: boolean;
+  selectedClass: DndClass | null | undefined;
+  onSelect: (cls: DndClass) => void;
+  error?: Error | null;
+  infoSheet: ReturnType<typeof useInfoSheet>;
+}) {
+  if (loading) {
+    return <Skeleton className="h-64 w-full" />;
+  }
+
+  if (error) {
+    return (
+      <div className="p-4 border border-destructive rounded-md bg-destructive/10">
+        <p className="text-destructive font-medium">Error loading classes</p>
+        <p className="text-sm text-muted-foreground mt-1">{error.message}</p>
+      </div>
+    );
+  }
+
+  if (classes.length === 0) {
+    return (
+      <div className="p-4 border border-muted rounded-md">
+        <p className="text-muted-foreground">No classes available. Please check your database connection.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {classes.map((cls) => {
+        const savingThrows = cls.saving_throws || [];
+        return (
+          <Card
+            key={`${cls.source}-${cls.index}`}
+            className={`cursor-pointer transition-all hover:shadow-md ${
+              selectedClass?.source === cls.source && selectedClass?.index === cls.index
+                ? "ring-2 ring-primary"
+                : ""
+            }`}
+            onClick={() => onSelect(cls)}
+          >
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg">{cls.name}</CardTitle>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      infoSheet.showClass(cls);
+                    }}
+                  >
+                    <Info className="h-4 w-4" />
+                  </Button>
+                  <Badge variant={cls.source === "srd" ? "default" : "secondary"}>
+                    {cls.source}
+                  </Badge>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2 text-sm">
+                <div>
+                  <span className="font-medium">Hit Die:</span> d{cls.hit_die}
+                </div>
+                {savingThrows.length > 0 && (
+                  <div>
+                    <span className="font-medium">Saving Throws:</span>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {savingThrows.map((st, i) => (
+                        <Badge key={i} variant="outline">
+                          {st}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })}
+    </div>
+  );
+}
+
+function FeatureChoicesStep({
+  formData,
+  setFormData,
+  selectedClass,
+}: {
+  formData: CharacterFormData;
+  setFormData: (data: CharacterFormData) => void;
+  selectedClass: DndClass | null | undefined;
+}) {
+  if (!selectedClass) {
+    return (
+      <div className="p-4 border border-muted rounded-md">
+        <p className="text-muted-foreground">Please select a class first.</p>
+      </div>
+    );
+  }
+
+  // Get skill proficiency choices from class
+  const proficiencyChoices = selectedClass.proficiency_choices as any;
+  const skillChoices = Array.isArray(proficiencyChoices) 
+    ? proficiencyChoices.find((choice: any) => 
+        choice.type === 'skills' || choice.from?.option_set_type === 'options_array'
+      )
+    : null;
+
+  // Calculate ASI levels (4, 8, 12, 16, 19)
+  const asiLevels = [4, 8, 12, 16, 19].filter(level => level <= formData.level);
+  const hasASI = asiLevels.length > 0;
+
+  // Get feature choices from class levels
+  const featureChoices: Array<{ level: number; name: string; options: any[] }> = [];
+  if (selectedClass.class_levels) {
+    const classLevels = selectedClass.class_levels as any;
+    for (let lvl = 1; lvl <= formData.level; lvl++) {
+      const levelData = classLevels[lvl] || classLevels[`level_${lvl}`] || classLevels[`${lvl}`] || 
+                       (Array.isArray(classLevels) ? classLevels[lvl - 1] : null);
+      if (levelData?.feature_choices) {
+        if (Array.isArray(levelData.feature_choices)) {
+          levelData.feature_choices.forEach((choice: any) => {
+            featureChoices.push({
+              level: lvl,
+              name: choice.name || 'Feature Choice',
+              options: choice.from?.options || choice.options || [],
+            });
+          });
+        }
+      }
+    }
+  }
+
+  const handleSkillProficiencyToggle = (skillName: string) => {
+    const current = formData.featureChoices.skillProficiencies;
+    const maxChoices = skillChoices?.choose || 0;
+    
+    if (current.includes(skillName)) {
+      setFormData({
+        ...formData,
+        featureChoices: {
+          ...formData.featureChoices,
+          skillProficiencies: current.filter(s => s !== skillName),
+        },
+      });
+    } else if (current.length < maxChoices) {
+      setFormData({
+        ...formData,
+        featureChoices: {
+          ...formData.featureChoices,
+          skillProficiencies: [...current, skillName],
+        },
+      });
+    }
+  };
+
+  const handleASIChange = (level: number, ability: string, bonus: number) => {
+    const levelASIs = formData.featureChoices.asiImprovements.filter(asi => asi.level === level);
+    const existing = levelASIs.find(asi => asi.ability === ability);
+    const totalBonus = levelASIs.reduce((sum, asi) => sum + asi.bonus, 0);
+    
+    if (existing) {
+      // Remove existing
+      setFormData({
+        ...formData,
+        featureChoices: {
+          ...formData.featureChoices,
+          asiImprovements: formData.featureChoices.asiImprovements.filter(asi => 
+            !(asi.level === level && asi.ability === ability)
+          ),
+        },
+      });
+    } else {
+      // Add new (limit to +2 total per ASI level)
+      if (totalBonus + bonus <= 2) {
+        setFormData({
+          ...formData,
+          featureChoices: {
+            ...formData.featureChoices,
+            asiImprovements: [
+              ...formData.featureChoices.asiImprovements,
+              { level, ability, bonus },
+            ],
+          },
+        });
+      }
+    }
+  };
+
+  // Get available skill options
+  const availableSkills = skillChoices?.from?.options?.map((opt: any) => {
+    if (typeof opt === 'string') return opt;
+    if (opt.item?.name) return opt.item.name;
+    if (opt.item?.index) {
+      const skill = DND_SKILLS.find(s => s.name === opt.item.index);
+      return skill?.name || opt.item.index;
+    }
+    return opt.name || opt;
+  }) || [];
+
+  return (
+    <div className="space-y-6">
+      {/* Skill Proficiency Choices */}
+      {skillChoices && availableSkills.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Skill Proficiencies</CardTitle>
+            <CardDescription>
+              Choose {skillChoices.choose || 0} skill(s) from your class options
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+              {availableSkills.map((skillOption: string) => {
+                const skill = DND_SKILLS.find(s => 
+                  s.name === skillOption.toLowerCase().replace(/\s+/g, '-') ||
+                  s.name === skillOption
+                );
+                const skillName = skill?.name || skillOption.toLowerCase().replace(/\s+/g, '-');
+                const isSelected = formData.featureChoices.skillProficiencies.includes(skillName);
+                const maxReached = formData.featureChoices.skillProficiencies.length >= (skillChoices.choose || 0);
+                
+                return (
+                  <Button
+                    key={skillOption}
+                    type="button"
+                    variant={isSelected ? "default" : "outline"}
+                    className="justify-start"
+                    onClick={() => handleSkillProficiencyToggle(skillName)}
+                    disabled={!isSelected && maxReached}
+                  >
+                    {skill?.name ? skill.name.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') : skillOption}
+                  </Button>
+                );
+              })}
+            </div>
+            {formData.featureChoices.skillProficiencies.length > 0 && (
+              <div className="mt-4 p-2 bg-muted/30 rounded">
+                <p className="text-sm font-medium">Selected: {formData.featureChoices.skillProficiencies.length} / {skillChoices.choose || 0}</p>
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {formData.featureChoices.skillProficiencies.map(skill => (
+                    <Badge key={skill} variant="default">
+                      {skill.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Ability Score Improvements */}
+      {hasASI && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Ability Score Improvements</CardTitle>
+            <CardDescription>
+              At levels {asiLevels.join(', ')}, you can increase ability scores. Choose +1 to two abilities or +2 to one ability per ASI.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {asiLevels.map(level => {
+              const levelASIs = formData.featureChoices.asiImprovements.filter(asi => asi.level === level);
+              const totalBonus = levelASIs.reduce((sum, asi) => sum + asi.bonus, 0);
+              const remaining = 2 - totalBonus;
+              
+              return (
+                <div key={level} className="p-3 border rounded-md">
+                  <div className="font-medium mb-2">Level {level} ASI (Remaining: {remaining}/2)</div>
+                  <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
+                    {['strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma'].map(ability => {
+                      const abilityASI = levelASIs.find(asi => asi.ability === ability);
+                      const currentBonus = abilityASI?.bonus || 0;
+                      
+                      return (
+                        <div key={ability} className="space-y-1">
+                          <div className="text-xs font-medium capitalize">{ability.slice(0, 3).toUpperCase()}</div>
+                          <div className="flex gap-1">
+                            <Button
+                              type="button"
+                              variant={currentBonus >= 1 ? "default" : "outline"}
+                              size="sm"
+                              className="flex-1 text-xs"
+                              onClick={() => handleASIChange(level, ability, 1)}
+                              disabled={remaining < 1 && currentBonus < 1}
+                            >
+                              +1
+                            </Button>
+                            <Button
+                              type="button"
+                              variant={currentBonus >= 2 ? "default" : "outline"}
+                              size="sm"
+                              className="flex-1 text-xs"
+                              onClick={() => handleASIChange(level, ability, 2)}
+                              disabled={(remaining < 2 && currentBonus < 2) || currentBonus >= 1}
+                            >
+                              +2
+                            </Button>
+                          </div>
+                          {currentBonus > 0 && (
+                            <div className="text-xs text-center text-muted-foreground">+{currentBonus}</div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Other Feature Choices */}
+      {featureChoices.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Other Feature Choices</CardTitle>
+            <CardDescription>
+              Additional choices available from your class features
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {featureChoices.map((choice, idx) => (
+              <div key={idx} className="p-3 border rounded-md">
+                <div className="font-medium mb-2">
+                  Level {choice.level}: {choice.name}
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Feature choice options available (specific implementation depends on feature type)
+                </p>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {!skillChoices && !hasASI && featureChoices.length === 0 && (
+        <div className="p-4 border border-muted rounded-md">
+          <p className="text-muted-foreground">No feature choices available for this class at level {formData.level}.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AbilityScoresStep({
+  formData,
+  setFormData,
+  selectedRace,
+  getFinalAbilityScore,
+}: {
+  formData: CharacterFormData;
+  setFormData: (data: CharacterFormData) => void;
+  selectedRace: Race | null | undefined;
+  getFinalAbilityScore: (ability: keyof typeof formData.abilityScores) => number;
+}) {
+  const abilities = ["strength", "dexterity", "constitution", "intelligence", "wisdom", "charisma"] as const;
+  const [standardArrayAssignments, setStandardArrayAssignments] = useState<Map<string, number>>(new Map());
+
+  const handleMethodChange = (method: AbilityScoreMethod) => {
+    if (method === "standard-array") {
+      // Don't auto-assign, let user choose
+      setFormData({
+        ...formData,
+        abilityScoreMethod: method,
+        abilityScores: {
+          strength: 8,
+          dexterity: 8,
+          constitution: 8,
+          intelligence: 8,
+          wisdom: 8,
+          charisma: 8,
+        },
+      });
+      setStandardArrayAssignments(new Map());
+    } else if (method === "manual") {
+      // Roll ability scores
+      setFormData({
+        ...formData,
+        abilityScoreMethod: method,
+        abilityScores: {
+          strength: rollAbilityScore(),
+          dexterity: rollAbilityScore(),
+          constitution: rollAbilityScore(),
+          intelligence: rollAbilityScore(),
+          wisdom: rollAbilityScore(),
+          charisma: rollAbilityScore(),
+        },
+      });
+    } else {
+      // Point buy - reset to 8s
+      setFormData({
+        ...formData,
+        abilityScoreMethod: method,
+        abilityScores: {
+          strength: 8,
+          dexterity: 8,
+          constitution: 8,
+          intelligence: 8,
+          wisdom: 8,
+          charisma: 8,
+        },
+      });
+    }
+  };
+
+  const calculatePointBuyTotal = () => {
+    return abilities.reduce((total, ability) => {
+      const score = formData.abilityScores[ability];
+      return total + (POINT_BUY_COSTS[score] || 0);
+    }, 0);
+  };
+
+  const pointBuyTotal = calculatePointBuyTotal();
+  const pointBuyRemaining = POINT_BUY_TOTAL - pointBuyTotal;
+
+  const adjustScore = (ability: typeof abilities[number], delta: number) => {
+    if (formData.abilityScoreMethod !== "point-buy") return;
+
+    const current = formData.abilityScores[ability];
+    const newScore = current + delta;
+
+    if (newScore < POINT_BUY_MIN || newScore > POINT_BUY_MAX) return;
+    if (delta > 0 && pointBuyRemaining < (POINT_BUY_COSTS[newScore] || 0) - (POINT_BUY_COSTS[current] || 0)) {
+      return;
+    }
+
+    setFormData({
+      ...formData,
+      abilityScores: {
+        ...formData.abilityScores,
+        [ability]: newScore,
+      },
+    });
+  };
+
+  const handleStandardArraySelect = (ability: typeof abilities[number], value: string) => {
+    const numValue = parseInt(value);
+    if (isNaN(numValue)) return;
+
+    const newAssignments = new Map(standardArrayAssignments);
+    const oldValue = newAssignments.get(ability);
+    
+    // Remove old assignment if exists
+    if (oldValue !== undefined) {
+      newAssignments.delete(ability);
+    }
+    
+    // Check if value is already assigned to another ability
+    const alreadyAssigned = Array.from(newAssignments.values()).includes(numValue);
+    if (alreadyAssigned && oldValue !== numValue) {
+      // Find and remove the conflicting assignment
+      for (const [key, val] of newAssignments.entries()) {
+        if (val === numValue) {
+          newAssignments.delete(key);
+          break;
+        }
+      }
+    }
+    
+    // Add new assignment
+    newAssignments.set(ability, numValue);
+    setStandardArrayAssignments(newAssignments);
+    
+    // Update form data
+    setFormData({
+      ...formData,
+      abilityScores: {
+        ...formData.abilityScores,
+        [ability]: numValue,
+      },
+    });
+  };
+
+  const handleReroll = () => {
+    if (formData.abilityScoreMethod !== "manual") return;
+    setFormData({
+      ...formData,
+      abilityScores: {
+        strength: rollAbilityScore(),
+        dexterity: rollAbilityScore(),
+        constitution: rollAbilityScore(),
+        intelligence: rollAbilityScore(),
+        wisdom: rollAbilityScore(),
+        charisma: rollAbilityScore(),
+      },
+    });
+  };
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <Label>Ability Score Generation Method</Label>
+        <Select
+          value={formData.abilityScoreMethod}
+          onValueChange={(value) => handleMethodChange(value as AbilityScoreMethod)}
+        >
+          <SelectTrigger className="w-full mt-2">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="point-buy">Point Buy (27 points)</SelectItem>
+            <SelectItem value="standard-array">Standard Array</SelectItem>
+            <SelectItem value="manual">Roll 4d6 (Manual)</SelectItem>
+          </SelectContent>
+        </Select>
+        {formData.abilityScoreMethod === "point-buy" && (
+          <p className="text-sm text-muted-foreground mt-2">
+            Points remaining: <strong>{pointBuyRemaining}</strong> / {POINT_BUY_TOTAL}
+          </p>
+        )}
+        {formData.abilityScoreMethod === "standard-array" && (
+          <div className="mt-2 p-3 bg-muted/30 rounded-md">
+            <p className="text-sm font-medium mb-2">Available Values: {STANDARD_ARRAY.join(", ")}</p>
+            <p className="text-xs text-muted-foreground">
+              Select a value for each ability. Each value can only be used once.
+            </p>
+          </div>
+        )}
+        {formData.abilityScoreMethod === "manual" && (
+          <div className="mt-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleReroll}
+              className="w-full"
+            >
+              Reroll All Ability Scores
+            </Button>
+          </div>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {abilities.map((ability) => {
+          const baseScore = formData.abilityScores[ability];
+          const finalScore = getFinalAbilityScore(ability);
+          const modifier = getAbilityModifierString(finalScore);
+          
+          const abilityIcons: Record<string, React.ComponentType<{ size?: number; className?: string }>> = {
+            strength: Strength,
+            dexterity: Dexterity,
+            constitution: Constitution,
+            intelligence: Intelligence,
+            wisdom: Wisdom,
+            charisma: Charisma,
+          };
+          const AbilityIcon = abilityIcons[ability];
+
+          return (
+            <Card key={ability}>
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between mb-2">
+                  <Label className="text-base capitalize flex items-center gap-2">
+                    {AbilityIcon && <AbilityIcon size={20} />}
+                    {ability}
+                  </Label>
+                  {formData.abilityScoreMethod === "point-buy" && (
+                    <div className="flex gap-1">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={() => adjustScore(ability, -1)}
+                        disabled={baseScore <= POINT_BUY_MIN}
+                      >
+                        -
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={() => adjustScore(ability, 1)}
+                        disabled={baseScore >= POINT_BUY_MAX || pointBuyRemaining <= 0}
+                      >
+                        +
+                      </Button>
+                    </div>
+                  )}
+                </div>
+                {formData.abilityScoreMethod === "standard-array" && (
+                  <div className="mb-3">
+                    <Label className="text-xs text-muted-foreground mb-1 block">Select Value</Label>
+                    <Select
+                      value={baseScore.toString()}
+                      onValueChange={(value) => handleStandardArraySelect(ability, value)}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Choose value" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {STANDARD_ARRAY.map((val) => {
+                          const isUsed = Array.from(standardArrayAssignments.values()).includes(val) && standardArrayAssignments.get(ability) !== val;
+                          return (
+                            <SelectItem
+                              key={val}
+                              value={val.toString()}
+                              disabled={isUsed}
+                            >
+                              {val} {isUsed && "(Already assigned)"}
+                            </SelectItem>
+                          );
+                        })}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-2xl font-bold">{finalScore}</span>
+                    <span className="text-lg text-muted-foreground">({modifier})</span>
+                  </div>
+                  {selectedRace && baseScore !== finalScore && (
+                    <p className="text-xs text-muted-foreground">
+                      Base: {baseScore} + Racial Bonus
+                    </p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function BackgroundStep({
+  formData,
+  setFormData,
+  backgrounds,
+  backgroundsLoading,
+}: {
+  formData: CharacterFormData;
+  setFormData: (data: CharacterFormData) => void;
+  backgrounds: Array<{ id: string; index: string; name: string; description: string | null; skill_proficiencies: string | null; tool_proficiencies: string | null; languages: string | null; equipment: string | null; feature: string | null; ability_score_increase: string | null; created_at: string }>;
+  backgroundsLoading: boolean;
+}) {
+  const selectedBackground = backgrounds.find(bg => bg.name === formData.background || bg.index === formData.background.toLowerCase().replace(/\s+/g, '-'));
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <Label htmlFor="name" className="flex items-center gap-2">
+          <Character size={18} />
+          Character Name *
+        </Label>
+        <Input
+          id="name"
+          value={formData.name}
+          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+          placeholder="Enter character name"
+          className="mt-2"
+        />
+      </div>
+
+      <div>
+        <Label htmlFor="background" className="flex items-center gap-2">
+          <Book size={18} />
+          Background
+        </Label>
+        <Select
+          value={formData.background}
+          onValueChange={(value) => setFormData({ ...formData, background: value })}
+          disabled={backgroundsLoading}
+        >
+          <SelectTrigger className="w-full mt-2">
+            <SelectValue placeholder={backgroundsLoading ? "Loading backgrounds..." : "Select a background"} />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="custom">None (Custom)</SelectItem>
+            {backgrounds.map((bg) => (
+              <SelectItem key={bg.index} value={bg.name}>
+                {bg.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {selectedBackground && (
+          <div className="mt-2 p-3 bg-muted/50 rounded-md text-xs space-y-1">
+            {selectedBackground.skill_proficiencies && (
+              <div><strong>Skills:</strong> {selectedBackground.skill_proficiencies}</div>
+            )}
+            {selectedBackground.tool_proficiencies && (
+              <div><strong>Tools:</strong> {selectedBackground.tool_proficiencies}</div>
+            )}
+            {selectedBackground.languages && (
+              <div><strong>Languages:</strong> {selectedBackground.languages}</div>
+            )}
+            {selectedBackground.feature && (
+              <div className="mt-2 pt-2 border-t border-border/50">
+                <strong>Feature:</strong> {selectedBackground.feature}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div>
+        <Label htmlFor="alignment" className="flex items-center gap-2">
+          <Book size={18} />
+          Alignment
+        </Label>
+        <Select
+          value={formData.alignment}
+          onValueChange={(value) => setFormData({ ...formData, alignment: value })}
+        >
+          <SelectTrigger className="w-full mt-2">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {ALIGNMENTS.map((align) => (
+              <SelectItem key={align} value={align}>
+                {align}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div>
+        <Label htmlFor="level" className="flex items-center gap-2">
+          <Character size={18} />
+          Starting Level
+        </Label>
+        <Input
+          id="level"
+          type="number"
+          min={1}
+          max={20}
+          value={formData.level}
+          onChange={(e) => setFormData({ ...formData, level: parseInt(e.target.value) || 1 })}
+          className="mt-2"
+        />
+      </div>
+
+      <div>
+        <Label className="flex items-center gap-2">
+          <Person size={18} />
+          Character Portrait (Optional)
+        </Label>
+        <CharacterImageUpload
+          imageUrl={formData.imageUrl}
+          onImageChange={(url: string | null) => setFormData({ ...formData, imageUrl: url })}
+        />
+      </div>
+    </div>
+  );
+}
+
+// Character Image Upload Component
+function CharacterImageUpload({
+  imageUrl,
+  onImageChange,
+}: {
+  imageUrl: string | null;
+  onImageChange: (url: string | null) => void;
+}) {
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please select an image file");
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Image size must be less than 5MB");
+      return;
+    }
+
+    setUploading(true);
+
+    try {
+      const supabase = createClient();
+      
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error("Not authenticated");
+      }
+
+      // Get file extension
+      const fileExt = file.name.split(".").pop();
+      const fileName = `temp_${user.id}_${Date.now()}.${fileExt}`;
+      const filePath = fileName;
+
+      // Delete old image if it exists
+      if (imageUrl) {
+        try {
+          const urlParts = imageUrl.split("/character-portraits/");
+          if (urlParts.length > 1) {
+            const oldFileName = urlParts[1].split("?")[0];
+            await supabase.storage.from("character-portraits").remove([oldFileName]);
+          }
+        } catch (err) {
+          console.warn("Failed to delete old image:", err);
+        }
+      }
+
+      // Upload new image
+      const { error: uploadError } = await supabase.storage
+        .from("character-portraits")
+        .upload(filePath, file, {
+          cacheControl: "3600",
+          upsert: false,
+        });
+
+      if (uploadError) throw uploadError;
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from("character-portraits")
+        .getPublicUrl(filePath);
+
+      // Update form data with new image URL
+      onImageChange(publicUrl);
+      toast.success("Image uploaded successfully");
+    } catch (error: any) {
+      console.error("Error uploading image:", error);
+      toast.error(error.message || "Failed to upload image");
+    } finally {
+      setUploading(false);
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  };
+
+  const handleRemoveImage = async () => {
+    if (!imageUrl) return;
+
+    try {
+      const supabase = createClient();
+      
+      // Extract filename from URL
+      const urlParts = imageUrl.split("/character-portraits/");
+      if (urlParts.length > 1) {
+        const fileName = urlParts[1].split("?")[0];
+        
+        // Try to delete from storage (ignore errors for temp files)
+        try {
+          await supabase.storage.from("character-portraits").remove([fileName]);
+        } catch (err) {
+          console.warn("Failed to delete file from storage:", err);
+        }
+      }
+
+      // Update form data
+      onImageChange(null);
+      toast.success("Image removed");
+    } catch (error: any) {
+      console.error("Error removing image:", error);
+      toast.error(error.message || "Failed to remove image");
+    }
+  };
+
+  const getInitials = (name: string) => {
+    return name
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
+  return (
+    <div className="mt-2 space-y-4">
+      <div className="relative group">
+        <div className="relative h-32 w-32 rounded-lg overflow-hidden border-2 border-border bg-muted">
+          {imageUrl ? (
+            <img
+              src={imageUrl}
+              alt="Character portrait"
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary/20 to-primary/5">
+              <span className="text-2xl font-bold text-primary/60">
+                {getInitials("Character")}
+              </span>
+            </div>
+          )}
+
+          {uploading && (
+            <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-10">
+              <Loader2 className="h-6 w-6 animate-spin text-white" />
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="flex gap-2">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          onChange={handleFileSelect}
+          className="hidden"
+        />
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={uploading}
+        >
+          <Upload className="h-4 w-4 mr-2" />
+          {imageUrl ? "Change Image" : "Upload Image"}
+        </Button>
+        {imageUrl && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleRemoveImage}
+            disabled={uploading}
+          >
+            <X className="h-4 w-4 mr-2" />
+            Remove
+          </Button>
+        )}
+      </div>
+      <p className="text-sm text-muted-foreground">
+        Upload a character portrait (optional). Max size: 5MB
+      </p>
+    </div>
+  );
+}
+
+function EquipmentStep({
+  selectedClass,
+  formData,
+  setFormData,
+  equipment,
+  loading,
+  campaignId,
+}: {
+  selectedClass: DndClass | null | undefined;
+  formData: CharacterFormData;
+  setFormData: (data: CharacterFormData) => void;
+  equipment: Equipment[];
+  loading: boolean;
+  campaignId: string | null;
+}) {
+  const [selectedItems, setSelectedItems] = useState<Map<string, number>>(
+    new Map(formData.selectedEquipment.map(item => [`${item.itemSource}-${item.itemIndex}`, item.quantity]))
+  );
+
+  useEffect(() => {
+    // Initialize with class starting equipment if available and no equipment selected yet
+    if (selectedClass?.starting_equipment && formData.selectedEquipment.length === 0) {
+      const startingEq = selectedClass.starting_equipment as any;
+      const initialItems = new Map<string, number>();
+
+      // Handle automatic starting equipment
+      // Structure can be: { starting_equipment: [...] } or just an array
+      const autoItems = startingEq.starting_equipment || startingEq;
+      if (Array.isArray(autoItems)) {
+        autoItems.forEach((item: any) => {
+          // Handle different structures: { equipment: { index: "..." }, quantity: 1 } or { index: "...", quantity: 1 }
+          const eqData = item.equipment || item;
+          const itemIndex = eqData.index || eqData.name?.toLowerCase().replace(/\s+/g, '-');
+          if (itemIndex) {
+            const key = `srd-${itemIndex}`;
+            initialItems.set(key, item.quantity || eqData.quantity || 1);
+          }
+        });
+      }
+
+      if (initialItems.size > 0) {
+        setSelectedItems(initialItems);
+        setFormData({
+          ...formData,
+          selectedEquipment: Array.from(initialItems.entries()).map(([key, quantity]) => {
+            const [source, ...indexParts] = key.split('-');
+            const index = indexParts.join('-');
+            return {
+              itemIndex: index,
+              itemSource: source as "srd" | "homebrew",
+              quantity,
+            };
+          }),
+        });
+      }
+    }
+  }, [selectedClass?.starting_equipment]);
+
+  const handleItemToggle = (itemIndex: string, itemSource: "srd" | "homebrew", quantity: number = 1) => {
+    const key = `${itemSource}-${itemIndex}`;
+    const newSelected = new Map(selectedItems);
+    
+    if (newSelected.has(key)) {
+      newSelected.delete(key);
+    } else {
+      newSelected.set(key, quantity);
+    }
+
+    setSelectedItems(newSelected);
+    setFormData({
+      ...formData,
+      selectedEquipment: Array.from(newSelected.entries()).map(([k, qty]) => {
+        const [src, ...idxParts] = k.split('-');
+        const idx = idxParts.join('-');
+        return {
+          itemIndex: idx,
+          itemSource: src as "srd" | "homebrew",
+          quantity: qty,
+        };
+      }),
+    });
+  };
+
+  const handleQuantityChange = (itemIndex: string, itemSource: "srd" | "homebrew", newQuantity: number) => {
+    if (newQuantity < 1) return;
+    const key = `${itemSource}-${itemIndex}`;
+    const newSelected = new Map(selectedItems);
+    newSelected.set(key, newQuantity);
+    setSelectedItems(newSelected);
+    setFormData({
+      ...formData,
+      selectedEquipment: Array.from(newSelected.entries()).map(([k, qty]) => {
+        const [src, ...idxParts] = k.split('-');
+        const idx = idxParts.join('-');
+        return {
+          itemIndex: idx,
+          itemSource: src as "srd" | "homebrew",
+          quantity: qty,
+        };
+      }),
+    });
+  };
+
+  const getEquipmentByIndex = (index: string, source: "srd" | "homebrew") => {
+    return equipment.find(eq => eq.index === index && eq.source === source);
+  };
+
+  const startingEquipment = selectedClass?.starting_equipment as any;
+  const equipmentChoices = startingEquipment?.starting_equipment_options || [];
+
+  if (!selectedClass) {
+    return (
+      <div className="space-y-4">
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-sm text-muted-foreground">
+              Please select a class first to see starting equipment options.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return <Skeleton className="h-64 w-full" />;
+  }
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Weapon size={20} />
+            Starting Equipment
+          </CardTitle>
+          <CardDescription>
+            Select your starting equipment. You'll receive automatic items, and can choose from available options.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Automatic Starting Equipment */}
+          {(() => {
+            const startingEq = startingEquipment?.starting_equipment || startingEquipment;
+            if (Array.isArray(startingEq) && startingEq.length > 0) {
+              return (
+                <div>
+                  <h4 className="font-medium mb-2">Automatic Starting Equipment</h4>
+                  <div className="space-y-2">
+                    {startingEq.map((item: any, idx: number) => {
+                      const eqItem = item.equipment || item;
+                      const itemIndex = eqItem.index || eqItem.name?.toLowerCase().replace(/\s+/g, '-');
+                      const key = `srd-${itemIndex}`;
+                      const isSelected = selectedItems.has(key);
+                      const quantity = selectedItems.get(key) || item.quantity || eqItem.quantity || 1;
+                      const eqData = getEquipmentByIndex(itemIndex, "srd");
+
+                      return (
+                        <div key={idx} className="flex items-center justify-between p-2 border rounded-md bg-muted/30">
+                          <div className="flex items-center gap-2 flex-1">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => handleItemToggle(itemIndex, "srd", item.quantity || eqItem.quantity || 1)}
+                              className="h-4 w-4"
+                              disabled={true}
+                            />
+                            <div className="flex-1">
+                              <span className="font-medium">{eqItem.name || itemIndex}</span>
+                              {quantity > 1 && <span className="text-sm text-muted-foreground ml-2">×{quantity}</span>}
+                              {eqData && eqData.cost && (
+                                <span className="text-xs text-muted-foreground ml-2">
+                                  ({eqData.cost.quantity} {eqData.cost.unit})
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <input type="checkbox" checked={true} disabled className="h-4 w-4" />
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            }
+            return null;
+          })()}
+
+          {/* Equipment Choices */}
+          {equipmentChoices.length > 0 && equipmentChoices.map((choice: any, choiceIdx: number) => {
+            const choose = choice.choose || 1;
+            // Handle different choice structures
+            const from = choice.from?.equipment_category?.equipment 
+              || choice.from?.equipment
+              || choice.from 
+              || [];
+            
+            if (!Array.isArray(from) || from.length === 0) return null;
+            
+            return (
+              <div key={choiceIdx} className="border-t pt-4">
+                <h4 className="font-medium mb-2">
+                  Choose {choose} {choiceIdx > 0 ? `(Option ${choiceIdx + 1})` : ''}
+                </h4>
+                <div className="space-y-2">
+                  {from.map((option: any) => {
+                    const itemIndex = option.index || option.equipment?.index || option.name?.toLowerCase().replace(/\s+/g, '-');
+                    if (!itemIndex) return null;
+                    
+                    const key = `srd-${itemIndex}`;
+                    const isSelected = selectedItems.has(key);
+                    const quantity = selectedItems.get(key) || 1;
+                    const eqData = getEquipmentByIndex(itemIndex, "srd");
+                    const displayName = option.name || option.equipment?.name || itemIndex;
+
+                    return (
+                      <div key={itemIndex} className="flex items-center justify-between p-2 border rounded-md hover:bg-muted/50">
+                        <div className="flex items-center gap-2 flex-1">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => handleItemToggle(itemIndex, "srd", 1)}
+                            className="h-4 w-4"
+                          />
+                          <div className="flex-1">
+                            <span className="font-medium">{displayName}</span>
+                            {eqData && (
+                              <div className="text-xs text-muted-foreground">
+                                {eqData.equipment_category && <span>{eqData.equipment_category}</span>}
+                                {eqData.cost && (
+                                  <span className="ml-2">
+                                    {eqData.cost.quantity} {eqData.cost.unit}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        {isSelected && (
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleQuantityChange(itemIndex, "srd", quantity - 1)}
+                              disabled={quantity <= 1}
+                            >
+                              -
+                            </Button>
+                            <span className="w-8 text-center">{quantity}</span>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleQuantityChange(itemIndex, "srd", quantity + 1)}
+                            >
+                              +
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+
+          {/* Selected Equipment Summary */}
+          {selectedItems.size > 0 && (
+            <div className="border-t pt-4">
+              <h4 className="font-medium mb-2">Selected Equipment ({selectedItems.size} items)</h4>
+              <div className="space-y-1">
+                {Array.from(selectedItems.entries()).map(([key, quantity]) => {
+                  const [source, ...indexParts] = key.split('-');
+                  const index = indexParts.join('-');
+                  const eqData = getEquipmentByIndex(index, source as "srd" | "homebrew");
+                  return (
+                    <div key={key} className="text-sm p-2 bg-muted/50 rounded">
+                      {eqData?.name || index} {quantity > 1 && `×${quantity}`}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {(!startingEquipment?.starting_equipment && equipmentChoices.length === 0) && (
+            <p className="text-sm text-muted-foreground">
+              No starting equipment options available for this class. You can add equipment after character creation.
+            </p>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function ReviewStep({
+  formData,
+  selectedRace,
+  selectedClass,
+  getFinalAbilityScore,
+}: {
+  formData: CharacterFormData;
+  selectedRace: Race | null | undefined;
+  selectedClass: DndClass | null | undefined;
+  getFinalAbilityScore: (ability: keyof typeof formData.abilityScores) => number;
+}) {
+  const abilities = ["strength", "dexterity", "constitution", "intelligence", "wisdom", "charisma"] as const;
+  const proficiencyBonus = getProficiencyBonus(formData.level);
+  const { backgrounds } = useBackgrounds();
+  const { equipment } = useEquipment(formData.campaignId);
+  
+  const selectedBackground = backgrounds.find(bg => bg.name === formData.background || bg.index === formData.background.toLowerCase().replace(/\s+/g, '-'));
+  
+  // Get equipment names
+  const getEquipmentName = (index: string, source: "srd" | "homebrew") => {
+    const eq = equipment.find(e => e.index === index && e.source === source);
+    return eq?.name || index;
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Character size={20} />
+              Basic Info
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {formData.imageUrl && (
+              <div className="mb-4">
+                <div className="relative h-32 w-32 rounded-lg overflow-hidden border-2 border-border bg-muted">
+                  <img
+                    src={formData.imageUrl}
+                    alt="Character portrait"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              </div>
+            )}
+            <div>
+              <span className="font-medium">Name:</span> {formData.name || "Unnamed"}
+            </div>
+            <div>
+              <span className="font-medium">Race:</span> {selectedRace?.name || "Not selected"}
+            </div>
+            <div>
+              <span className="font-medium">Class:</span> {selectedClass?.name || "Not selected"}
+            </div>
+            <div>
+              <span className="font-medium">Level:</span> {formData.level}
+            </div>
+            <div>
+              <span className="font-medium">Background:</span> {formData.background || "None"}
+            </div>
+            <div>
+              <span className="font-medium">Alignment:</span> {formData.alignment}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Strength size={20} />
+              Ability Scores
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {abilities.map((ability) => {
+              const baseScore = formData.abilityScores[ability];
+              const finalScore = getFinalAbilityScore(ability);
+              const modifier = getAbilityModifierString(finalScore);
+              const racialBonus = selectedRace?.ability_bonuses 
+                ? (selectedRace.ability_bonuses as Array<{ ability: string; bonus: number }>)
+                    .find(b => b.ability && b.ability.toUpperCase() === ability.toUpperCase().slice(0, 3))?.bonus || 0
+                : 0;
+              
+              return (
+                <div key={ability} className="space-y-1">
+                  <div className="flex justify-between items-center">
+                    <span className="capitalize font-medium">{ability}:</span>
+                    <span className="font-bold">
+                      {finalScore} ({modifier})
+                    </span>
+                  </div>
+                  {racialBonus > 0 && (
+                    <div className="text-xs text-muted-foreground pl-2">
+                      Base: {baseScore} + Racial: +{racialBonus} = {finalScore}
+                    </div>
+                  )}
+                  {racialBonus === 0 && baseScore !== finalScore && (
+                    <div className="text-xs text-muted-foreground pl-2">
+                      Base: {baseScore}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+            <div className="pt-2 border-t mt-2">
+              <span className="font-medium">Proficiency Bonus:</span> +{proficiencyBonus}
+            </div>
+            {selectedClass?.saving_throws && selectedClass.saving_throws.length > 0 && (
+              <div className="pt-2 border-t mt-2">
+                <div className="font-medium mb-1">Saving Throw Proficiencies:</div>
+                <div className="flex flex-wrap gap-1">
+                  {selectedClass.saving_throws.map((st, i) => (
+                    <Badge key={i} variant="outline" className="text-xs">
+                      {st}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {selectedRace && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Person size={20} />
+              Racial Traits
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3 text-sm">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <span className="font-medium">Speed:</span> {selectedRace.speed} ft
+                </div>
+                <div>
+                  <span className="font-medium">Size:</span> {selectedRace.size}
+                </div>
+              </div>
+              
+              {selectedRace.ability_bonuses && Array.isArray(selectedRace.ability_bonuses) && selectedRace.ability_bonuses.length > 0 && (
+                <div>
+                  <div className="font-medium mb-2">Ability Score Bonuses:</div>
+                  <div className="flex flex-wrap gap-1">
+                    {(selectedRace.ability_bonuses as Array<{ ability: string; bonus: number }>).map((bonus, i) => (
+                      <Badge key={i} variant="default">
+                        {bonus.ability} +{bonus.bonus}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {selectedRace.traits && (
+                <div>
+                  <div className="font-medium mb-2">Racial Traits:</div>
+                  <div className="space-y-2">
+                    {Array.isArray(selectedRace.traits) ? (
+                      selectedRace.traits.map((trait: any, i: number) => (
+                        <div key={i} className="p-2 bg-muted/30 rounded border-l-2 border-primary/30">
+                          <div className="font-semibold">{trait.name || `Trait ${i + 1}`}</div>
+                          <div className="text-muted-foreground text-xs mt-1">
+                            {typeof trait === "string" ? trait : trait.desc || trait.description || JSON.stringify(trait)}
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-muted-foreground">{String(selectedRace.traits)}</div>
+                    )}
+                  </div>
+                </div>
+              )}
+              
+              {selectedRace.languages && (
+                <div>
+                  <div className="font-medium mb-1">Languages:</div>
+                  <div className="text-muted-foreground">
+                    {selectedRace.language_desc || (Array.isArray(selectedRace.languages) ? selectedRace.languages.join(", ") : String(selectedRace.languages))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {selectedClass && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              {(() => {
+                const classIcons: Record<string, React.ComponentType<{ size?: number; className?: string }>> = {
+                  artificer: Artificer,
+                  barbarian: Barbarian,
+                  bard: Bard,
+                  cleric: Cleric,
+                  druid: Druid,
+                  fighter: Fighter,
+                  monk: Monk,
+                  paladin: Paladin,
+                  ranger: Ranger,
+                  rogue: Rogue,
+                  sorcerer: Sorcerer,
+                  warlock: Warlock,
+                  wizard: Wizard,
+                };
+                const ClassIcon = classIcons[selectedClass.index.toLowerCase()];
+                return ClassIcon ? <ClassIcon size={20} /> : <Fighter size={20} />;
+              })()}
+              Class Features
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3 text-sm">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <span className="font-medium">Hit Die:</span> d{selectedClass.hit_die}
+                </div>
+                <div>
+                  <span className="font-medium">Proficiency Bonus:</span> +{proficiencyBonus}
+                </div>
+              </div>
+              
+              {selectedClass.saving_throws && selectedClass.saving_throws.length > 0 && (
+                <div>
+                  <span className="font-medium">Saving Throw Proficiencies:</span>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {selectedClass.saving_throws.map((st, i) => (
+                      <Badge key={i} variant="outline">
+                        {st}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {selectedClass.class_levels && (() => {
+                const classLevels = selectedClass.class_levels as any;
+                const features: Array<{ level: number; name: string; description: string }> = [];
+                
+                // Extract features up to the selected level
+                if (classLevels) {
+                  const levels = typeof classLevels === 'object' && !Array.isArray(classLevels)
+                    ? Object.keys(classLevels)
+                        .map(key => {
+                          const levelNum = parseInt(key.replace('level_', '').replace('level', '')) || parseInt(key) || 1;
+                          return { level: levelNum, data: classLevels[key] };
+                        })
+                        .filter(({ level }) => level <= formData.level)
+                        .sort((a, b) => a.level - b.level)
+                    : Array.isArray(classLevels)
+                    ? classLevels.slice(0, formData.level).map((data: any, idx: number) => ({ level: idx + 1, data }))
+                    : [];
+                  
+                  levels.forEach(({ level, data }) => {
+                    if (!data) return;
+                    
+                    if (data.features) {
+                      if (Array.isArray(data.features)) {
+                        data.features.forEach((feat: any) => {
+                          if (typeof feat === 'string') {
+                            features.push({ level, name: feat, description: '' });
+                          } else if (feat.name || feat.index) {
+                            features.push({
+                              level,
+                              name: feat.name || feat.index || 'Feature',
+                              description: feat.desc || feat.description || ''
+                            });
+                          }
+                        });
+                      }
+                    }
+                    
+                    if (data.feature_choices) {
+                      if (Array.isArray(data.feature_choices)) {
+                        data.feature_choices.forEach((choice: any) => {
+                          features.push({
+                            level,
+                            name: choice.name || 'Feature Choice',
+                            description: choice.desc || choice.description || 'Choose a feature'
+                          });
+                        });
+                      }
+                    }
+                  });
+                }
+                
+                if (features.length > 0) {
+                  return (
+                    <div>
+                      <div className="font-medium mb-2">Features at Level {formData.level}:</div>
+                      <div className="space-y-2">
+                        {features.map((feat, idx) => (
+                          <div key={idx} className="p-2 bg-muted/30 rounded border-l-2 border-primary/30">
+                            <div className="font-semibold">{feat.name}</div>
+                            {feat.description && (
+                              <div className="text-muted-foreground text-xs mt-1">{feat.description}</div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
+              
+              {selectedClass.spellcasting && (
+                <div>
+                  <div className="font-medium mb-2">Spellcasting:</div>
+                  <div className="text-muted-foreground text-xs">
+                    This class has spellcasting abilities. Spells will be automatically added during character creation.
+                  </div>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+      
+      {formData.selectedEquipment.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Weapon size={20} />
+              Starting Equipment
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-1 text-sm">
+              {formData.selectedEquipment.map((item, idx) => (
+                <div key={idx} className="flex justify-between items-center p-2 bg-muted/30 rounded">
+                  <span>{getEquipmentName(item.itemIndex, item.itemSource)}</span>
+                  {item.quantity > 1 && <span className="text-muted-foreground">×{item.quantity}</span>}
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+      
+      {selectedBackground && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Book size={20} />
+              Background
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2 text-sm">
+              <div>
+                <span className="font-medium">Name:</span> {selectedBackground.name}
+              </div>
+              {selectedBackground.description && (
+                <div>
+                  <div className="font-medium mb-1">Description:</div>
+                  <div className="text-muted-foreground text-xs">{selectedBackground.description}</div>
+                </div>
+              )}
+              {selectedBackground.skill_proficiencies && (
+                <div>
+                  <span className="font-medium">Skill Proficiencies:</span> {selectedBackground.skill_proficiencies}
+                </div>
+              )}
+              {selectedBackground.tool_proficiencies && (
+                <div>
+                  <span className="font-medium">Tool Proficiencies:</span> {selectedBackground.tool_proficiencies}
+                </div>
+              )}
+              {selectedBackground.languages && (
+                <div>
+                  <span className="font-medium">Languages:</span> {selectedBackground.languages}
+                </div>
+              )}
+              {selectedBackground.feature && (
+                <div>
+                  <div className="font-medium mb-1">Feature:</div>
+                  <div className="text-muted-foreground text-xs">{selectedBackground.feature}</div>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+

@@ -1,0 +1,490 @@
+---
+alwaysApply: true
+---
+# D&D Suite - Database Structure Documentation
+
+## Overview
+
+This D&D 5th Edition application uses a dual-table architecture that separates official SRD (System Reference Document) content from campaign-specific homebrew content. This design allows multiple campaigns to coexist with different levels of customization without interfering with each other.
+
+## Core Architecture Principles
+
+### 1. SRD vs Homebrew Separation
+
+**SRD Tables** (Read-only, global content):
+- `srd_spells`
+- `srd_classes`
+- `srd_subclasses`
+- `srd_races`
+- `srd_monsters`
+- `srd_equipment`
+- `srd_magic_items`
+- `srd_features`
+
+**Homebrew Tables** (Campaign-specific, mutable content):
+- `homebrew_spells`
+- `homebrew_classes`
+- `homebrew_subclasses`
+- `homebrew_races`
+- `homebrew_monsters`
+- `homebrew_equipment`
+- `homebrew_magic_items`
+
+### 2. Key Design Patterns
+
+#### Pattern A: Index vs ID
+- **SRD tables** use `index` (TEXT) as unique identifier (e.g., "fireball", "wizard")
+- **Homebrew tables** use `id` (UUID) as primary key
+- Both have their own `id` UUID for internal database operations
+
+#### Pattern B: Campaign Scoping
+```sql
+-- Homebrew content is always scoped to a campaign
+campaign_id UUID NOT NULL REFERENCES campaigns(id)
+
+-- NULL campaign_id in queries = SRD content only
+-- Specific campaign_id = SRD + that campaign's homebrew
+```
+
+#### Pattern C: Source Tracking
+```sql
+-- Characters and other entities track where their data comes from
+race_source TEXT DEFAULT 'srd' -- 'srd' or 'homebrew'
+race_index TEXT -- references either srd_races.index or homebrew_races.id
+```
+
+#### Pattern D: Clone and Modify
+```sql
+-- Homebrew content can reference SRD content it was cloned from
+based_on_srd TEXT REFERENCES srd_spells(index) -- nullable
+```
+
+## Table Structures
+
+### Campaign Management
+
+#### campaigns
+```sql
+id UUID PRIMARY KEY
+name TEXT NOT NULL
+description TEXT
+dm_user_id UUID NOT NULL -- references auth.users
+created_at TIMESTAMP
+updated_at TIMESTAMP
+```
+
+#### campaign_members
+```sql
+campaign_id UUID REFERENCES campaigns(id) ON DELETE CASCADE
+user_id UUID NOT NULL -- references auth.users
+role TEXT DEFAULT 'player' -- 'dm' or 'player'
+joined_at TIMESTAMP
+PRIMARY KEY (campaign_id, user_id)
+```
+
+### SRD Content Tables
+
+#### srd_spells
+```sql
+id UUID PRIMARY KEY
+index TEXT UNIQUE NOT NULL -- e.g., "fireball"
+name TEXT NOT NULL
+level INTEGER NOT NULL -- 0-9 (cantrips = 0)
+school TEXT NOT NULL -- evocation, abjuration, etc.
+casting_time TEXT
+range TEXT
+components TEXT[] -- ['V', 'S', 'M']
+material TEXT -- material component description
+duration TEXT
+concentration BOOLEAN
+ritual BOOLEAN
+description TEXT -- full spell description
+higher_level TEXT -- description for casting at higher levels
+classes TEXT[] -- ['wizard', 'sorcerer']
+created_at TIMESTAMP
+```
+
+#### srd_classes
+```sql
+id UUID PRIMARY KEY
+index TEXT UNIQUE NOT NULL -- e.g., "wizard"
+name TEXT NOT NULL
+hit_die INTEGER NOT NULL -- d6, d8, d10, d12
+proficiency_choices JSONB -- skill choices, tool choices
+proficiencies JSONB -- starting proficiencies
+saving_throws TEXT[] -- ['INT', 'WIS']
+starting_equipment JSONB
+class_levels JSONB -- progression table
+spellcasting JSONB -- null for non-casters
+subclasses TEXT[] -- list of available subclass indexes
+created_at TIMESTAMP
+```
+
+#### srd_races
+```sql
+id UUID PRIMARY KEY
+index TEXT UNIQUE NOT NULL -- e.g., "elf"
+name TEXT NOT NULL
+speed INTEGER -- base walking speed
+ability_bonuses JSONB -- [{"ability": "DEX", "bonus": 2}]
+size TEXT -- Small, Medium, Large
+size_description TEXT
+languages JSONB
+language_desc TEXT
+traits JSONB -- racial traits/features
+subraces TEXT[] -- ['high-elf', 'wood-elf']
+created_at TIMESTAMP
+```
+
+#### srd_monsters
+```sql
+id UUID PRIMARY KEY
+index TEXT UNIQUE NOT NULL
+name TEXT NOT NULL
+size TEXT -- Tiny, Small, Medium, Large, Huge, Gargantuan
+type TEXT -- beast, humanoid, dragon, etc.
+subtype TEXT -- goblinoid, shapechanger, etc.
+alignment TEXT
+armor_class INTEGER
+hit_points INTEGER
+hit_dice TEXT -- "8d8 + 16"
+speed JSONB -- {"walk": 30, "fly": 60}
+strength INTEGER
+dexterity INTEGER
+constitution INTEGER
+intelligence INTEGER
+wisdom INTEGER
+charisma INTEGER
+proficiencies JSONB
+damage_vulnerabilities TEXT[]
+damage_resistances TEXT[]
+damage_immunities TEXT[]
+condition_immunities TEXT[]
+senses JSONB -- {"darkvision": 60, "passive_perception": 12}
+languages TEXT
+challenge_rating DECIMAL -- 0.125, 0.25, 0.5, 1, 2, etc.
+xp INTEGER
+special_abilities JSONB
+actions JSONB
+legendary_actions JSONB
+reactions JSONB
+created_at TIMESTAMP
+```
+
+#### srd_equipment
+```sql
+id UUID PRIMARY KEY
+index TEXT UNIQUE NOT NULL
+name TEXT NOT NULL
+equipment_category TEXT -- Weapon, Armor, Adventuring Gear, etc.
+gear_category TEXT -- specific subcategory
+cost JSONB -- {"quantity": 50, "unit": "gp"}
+weight DECIMAL -- in pounds
+description TEXT
+
+-- Weapon-specific fields
+weapon_category TEXT -- Simple, Martial
+weapon_range TEXT -- Melee, Ranged
+category_range TEXT -- detailed range category
+damage JSONB -- {"damage_dice": "1d8", "damage_type": "slashing"}
+two_handed_damage JSONB
+range JSONB -- {"normal": 80, "long": 320}
+properties JSONB -- ["finesse", "light"]
+
+-- Armor-specific fields
+armor_category TEXT -- Light, Medium, Heavy, Shield
+armor_class JSONB -- {"base": 11, "dex_bonus": true, "max_bonus": 2}
+str_minimum INTEGER
+stealth_disadvantage BOOLEAN
+
+created_at TIMESTAMP
+```
+
+### Homebrew Content Tables
+
+All homebrew tables follow the same structure as their SRD counterparts, with these additions:
+
+```sql
+-- Common fields in all homebrew tables
+campaign_id UUID NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE
+based_on_srd TEXT REFERENCES srd_[type](index) -- nullable
+created_by UUID NOT NULL -- user who created it
+created_at TIMESTAMP
+UNIQUE(campaign_id, name) -- prevent duplicates within campaign
+```
+
+**Example: homebrew_spells**
+```sql
+id UUID PRIMARY KEY
+campaign_id UUID NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE
+based_on_srd TEXT REFERENCES srd_spells(index)
+-- ... all fields from srd_spells except 'index'
+created_by UUID NOT NULL
+created_at TIMESTAMP
+UNIQUE(campaign_id, name)
+```
+
+### Character System
+
+#### characters
+```sql
+id UUID PRIMARY KEY
+campaign_id UUID REFERENCES campaigns(id) ON DELETE CASCADE
+user_id UUID NOT NULL
+name TEXT NOT NULL
+
+-- Source tracking for flexible content
+race_source TEXT DEFAULT 'srd' -- 'srd' or 'homebrew'
+race_index TEXT -- srd_races.index OR homebrew_races.id
+class_source TEXT DEFAULT 'srd'
+class_index TEXT
+subclass_source TEXT DEFAULT 'srd'
+subclass_index TEXT
+
+-- Core stats
+level INTEGER DEFAULT 1
+experience_points INTEGER DEFAULT 0
+background TEXT
+alignment TEXT
+
+-- Ability scores
+strength INTEGER
+dexterity INTEGER
+constitution INTEGER
+intelligence INTEGER
+wisdom INTEGER
+charisma INTEGER
+
+-- Combat stats
+armor_class INTEGER
+initiative INTEGER
+speed INTEGER
+hp_max INTEGER
+hp_current INTEGER
+hp_temp INTEGER DEFAULT 0
+hit_dice_total TEXT -- "8d8"
+hit_dice_current TEXT -- "5d8"
+
+-- Saving throw proficiencies
+strength_save_prof BOOLEAN DEFAULT FALSE
+dexterity_save_prof BOOLEAN DEFAULT FALSE
+constitution_save_prof BOOLEAN DEFAULT FALSE
+intelligence_save_prof BOOLEAN DEFAULT FALSE
+wisdom_save_prof BOOLEAN DEFAULT FALSE
+charisma_save_prof BOOLEAN DEFAULT FALSE
+
+-- Other
+proficiency_bonus INTEGER
+inspiration BOOLEAN DEFAULT FALSE
+conditions TEXT[] DEFAULT '{}' -- ['poisoned', 'prone']
+notes TEXT
+
+created_at TIMESTAMP
+updated_at TIMESTAMP
+```
+
+#### character_skills
+```sql
+character_id UUID REFERENCES characters(id) ON DELETE CASCADE
+skill_name TEXT NOT NULL -- 'acrobatics', 'perception', etc.
+proficient BOOLEAN DEFAULT FALSE
+expertise BOOLEAN DEFAULT FALSE -- Rogue/Bard double proficiency
+PRIMARY KEY (character_id, skill_name)
+```
+
+#### character_inventory
+```sql
+id UUID PRIMARY KEY
+character_id UUID REFERENCES characters(id) ON DELETE CASCADE
+item_source TEXT DEFAULT 'srd' -- 'srd' or 'homebrew'
+item_index TEXT -- references equipment or magic_items
+quantity INTEGER DEFAULT 1
+equipped BOOLEAN DEFAULT FALSE
+attuned BOOLEAN DEFAULT FALSE -- for magic items
+notes TEXT
+created_at TIMESTAMP
+```
+
+#### character_spells
+```sql
+character_id UUID REFERENCES characters(id) ON DELETE CASCADE
+spell_source TEXT DEFAULT 'srd'
+spell_index TEXT
+prepared BOOLEAN DEFAULT FALSE
+always_prepared BOOLEAN DEFAULT FALSE -- domain spells, etc.
+PRIMARY KEY (character_id, spell_source, spell_index)
+```
+
+#### character_spell_slots
+```sql
+character_id UUID REFERENCES characters(id) ON DELETE CASCADE
+spell_level INTEGER CHECK (spell_level >= 1 AND spell_level <= 9)
+slots_total INTEGER DEFAULT 0
+slots_used INTEGER DEFAULT 0
+PRIMARY KEY (character_id, spell_level)
+```
+
+### Map & Combat System
+
+#### maps
+```sql
+id UUID PRIMARY KEY
+campaign_id UUID REFERENCES campaigns(id) ON DELETE CASCADE
+name TEXT NOT NULL
+image_url TEXT
+grid_size INTEGER DEFAULT 5 -- feet per square
+grid_type TEXT DEFAULT 'square' -- 'square' or 'hex'
+width INTEGER -- in grid units
+height INTEGER -- in grid units
+created_at TIMESTAMP
+```
+
+#### tokens
+```sql
+id UUID PRIMARY KEY
+map_id UUID REFERENCES maps(id) ON DELETE CASCADE
+character_id UUID REFERENCES characters(id) ON DELETE SET NULL
+monster_source TEXT -- 'srd' or 'homebrew'
+monster_index TEXT -- if representing a monster
+name TEXT
+x INTEGER NOT NULL
+y INTEGER NOT NULL
+size TEXT DEFAULT 'medium' -- tiny, small, medium, large, huge, gargantuan
+color TEXT DEFAULT '#3b82f6'
+rotation INTEGER DEFAULT 0 -- 0-359 degrees
+visible_to UUID[] -- user_ids, null = visible to all
+conditions TEXT[] DEFAULT '{}' -- status effects
+hp_current INTEGER
+hp_max INTEGER
+created_at TIMESTAMP
+```
+
+#### combat_encounters
+```sql
+id UUID PRIMARY KEY
+campaign_id UUID REFERENCES campaigns(id) ON DELETE CASCADE
+map_id UUID REFERENCES maps(id) ON DELETE SET NULL
+name TEXT
+active BOOLEAN DEFAULT FALSE
+round_number INTEGER DEFAULT 1
+current_turn_index INTEGER DEFAULT 0
+created_at TIMESTAMP
+```
+
+#### combat_participants
+```sql
+id UUID PRIMARY KEY
+encounter_id UUID REFERENCES combat_encounters(id) ON DELETE CASCADE
+token_id UUID REFERENCES tokens(id) ON DELETE CASCADE
+initiative_roll INTEGER NOT NULL
+turn_order INTEGER NOT NULL -- determines order in combat
+conditions TEXT[] DEFAULT '{}'
+notes TEXT
+```
+
+#### campaign_state
+```sql
+campaign_id UUID PRIMARY KEY REFERENCES campaigns(id) ON DELETE CASCADE
+active_map_id UUID REFERENCES maps(id) ON DELETE SET NULL
+active_encounter_id UUID REFERENCES combat_encounters(id) ON DELETE SET NULL
+updated_at TIMESTAMP
+```
+
+## Query Patterns
+
+### Pattern 1: Getting All Content for a Campaign
+```typescript
+// Get all spells (SRD + homebrew) for a campaign
+const { data: srdSpells } = await supabase
+  .from('srd_spells')
+  .select('*');
+
+const { data: homebrewSpells } = await supabase
+  .from('homebrew_spells')
+  .select('*')
+  .eq('campaign_id', campaignId);
+
+const allSpells = [
+  ...srdSpells.map(s => ({ ...s, source: 'srd' })),
+  ...homebrewSpells.map(s => ({ ...s, source: 'homebrew' }))
+];
+```
+
+### Pattern 2: Resolving Character References
+```typescript
+// Get a character's race (could be SRD or homebrew)
+const character = await getCharacter(characterId);
+
+let race;
+if (character.race_source === 'srd') {
+  race = await supabase
+    .from('srd_races')
+    .select('*')
+    .eq('index', character.race_index)
+    .single();
+} else {
+  race = await supabase
+    .from('homebrew_races')
+    .select('*')
+    .eq('id', character.race_index)
+    .single();
+}
+```
+
+### Pattern 3: Creating Homebrew from SRD (Clone & Modify)
+```typescript
+// Clone an SRD spell and modify it
+const { data: originalSpell } = await supabase
+  .from('srd_spells')
+  .select('*')
+  .eq('index', 'fireball')
+  .single();
+
+const { data: customSpell } = await supabase
+  .from('homebrew_spells')
+  .insert({
+    campaign_id: campaignId,
+    based_on_srd: 'fireball',
+    name: 'Mega Fireball',
+    ...originalSpell,
+    damage: '12d6', // modified
+    created_by: userId
+  })
+  .select()
+  .single();
+```
+
+### Pattern 4: Real-time Subscriptions
+```typescript
+// Subscribe to character updates
+const channel = supabase
+  .channel(`character-${characterId}`)
+  .on(
+    'postgres_changes',
+    {
+      event: 'UPDATE',
+      schema: 'public',
+      table: 'characters',
+      filter: `id=eq.${characterId}`
+    },
+    (payload) => {
+      setCharacter(payload.new);
+    }
+  )
+  .subscribe();
+```
+
+## Important Constraints
+
+1. **Unique Names**: Homebrew content must have unique names within a campaign
+2. **Cascade Deletes**: Deleting a campaign removes all associated homebrew content
+3. **Source Validation**: Always validate source ('srd' or 'homebrew') when resolving references
+4. **Index Type**: SRD uses TEXT index, homebrew uses UUID id
+5. **Campaign Isolation**: Homebrew from Campaign A is never visible to Campaign B
+
+## Performance Considerations
+
+- All frequently-queried foreign keys have indexes
+- Use `.select()` to limit returned columns
+- Batch inserts when seeding (100 records at a time)
+- Real-time subscriptions should be cleaned up on unmount

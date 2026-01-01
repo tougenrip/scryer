@@ -1,0 +1,83 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { CampaignSidebar } from "@/components/shared/sidebar";
+import { Navbar } from "@/components/shared/navbar";
+import { useParams } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Menu } from "lucide-react";
+import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
+import { useCampaign } from "@/hooks/useCampaigns";
+import { createClient } from "@/lib/supabase/client";
+
+export default function CampaignLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const params = useParams();
+  const campaignId = params.campaignId as string;
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [user, setUser] = useState<any>(null);
+  const { campaign } = useCampaign(campaignId);
+
+  const campaignName = campaign?.name || "Campaign";
+
+  useEffect(() => {
+    async function getUser() {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        setUser(user);
+      }
+    }
+    getUser();
+  }, []);
+
+  return (
+    <div className="flex h-screen flex-col">
+      <Navbar user={user} />
+
+      {/* Mobile sidebar trigger */}
+      <div className="lg:hidden border-b border-border/40 px-4 py-2">
+        <Sheet open={mobileSidebarOpen} onOpenChange={setMobileSidebarOpen}>
+          <SheetTrigger asChild>
+            <Button variant="ghost" size="sm" className="gap-2">
+              <Menu className="h-4 w-4" />
+              <span className="font-serif font-semibold">{campaignName}</span>
+            </Button>
+          </SheetTrigger>
+          <SheetContent side="left" className="p-0 w-64">
+            <SheetTitle className="sr-only">Campaign Navigation</SheetTitle>
+            <CampaignSidebar 
+              campaignId={campaignId} 
+              campaignName={campaignName}
+              collapsed={false}
+            />
+          </SheetContent>
+        </Sheet>
+      </div>
+
+      <div className="flex flex-1 overflow-hidden">
+        {/* Desktop Sidebar */}
+        <aside className="hidden lg:flex">
+          <CampaignSidebar
+            campaignId={campaignId}
+            campaignName={campaignName}
+            collapsed={sidebarCollapsed}
+            onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+          />
+        </aside>
+
+        {/* Main Content */}
+        <main className="flex-1 overflow-y-auto bg-background">
+          <div className="container py-6 px-4 md:px-6">
+            {children}
+          </div>
+        </main>
+      </div>
+    </div>
+  );
+}
+

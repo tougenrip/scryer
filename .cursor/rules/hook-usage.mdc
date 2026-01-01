@@ -1,0 +1,785 @@
+---
+alwaysApply: true
+---
+# D&D Suite - React Hooks Usage Guide
+
+## Overview
+
+The `useDndContent.ts` hook file provides a comprehensive set of React hooks for interacting with the D&D Suite database. All hooks follow consistent patterns and include built-in loading states, error handling, and real-time subscriptions where appropriate.
+
+## Installation & Setup
+
+```bash
+npm install @supabase/supabase-js
+```
+
+**Environment Variables Required:**
+```env
+NEXT_PUBLIC_SUPABASE_URL=your-project-url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+```
+
+## Hook Categories
+
+### 1. Content Hooks (Read-only)
+- `useSpells(campaignId)`
+- `useSpell(source, indexOrId)`
+- `useClasses(campaignId)`
+- `useRaces(campaignId)`
+- `useMonsters(campaignId)`
+- `useEquipment(campaignId)`
+
+### 2. Character Hooks
+- `useCharacter(characterId)` - Single character with real-time updates
+- `useCampaignCharacters(campaignId)` - All characters in campaign
+
+### 3. Mutation Hooks (Write operations)
+- `useCreateHomebrewSpell()`
+- `useCreateHomebrewMonster()`
+- `useCreateHomebrewEquipment()`
+
+## Detailed Usage Examples
+
+### Content Hooks
+
+#### useSpells(campaignId)
+
+**Purpose**: Fetch all spells available to a campaign (SRD + campaign-specific homebrew)
+
+**Parameters**:
+- `campaignId: string | null` - Campaign ID to fetch homebrew spells for. Pass `null` for SRD-only.
+
+**Returns**:
+```typescript
+{
+  spells: Spell[], // Combined SRD + homebrew spells
+  loading: boolean,
+  error: Error | null
+}
+```
+
+**Example 1: Spell Browser (SRD + Homebrew)**
+```tsx
+import { useSpells } from '@/hooks/useDndContent';
+
+function SpellBrowser({ campaignId }: { campaignId: string }) {
+  const { spells, loading, error } = useSpells(campaignId);
+
+  if (loading) return Loading spells...;
+  if (error) return Error: {error.message};
+
+  return (
+    
+      {spells.map(spell => (
+        
+          {spell.name}
+          <span className={spell.source === 'srd' ? 'badge-srd' : 'badge-homebrew'}>
+            {spell.source.toUpperCase()}
+          
+          Level {spell.level} {spell.school}
+          {spell.description}
+        
+      ))}
+    
+  );
+}
+```
+
+**Example 2: Filtered Spell List by Level**
+```tsx
+function SpellListByLevel({ campaignId, level }: { campaignId: string, level: number }) {
+  const { spells, loading, error } = useSpells(campaignId);
+
+  const filteredSpells = spells.filter(s => s.level === level);
+
+  return (
+    
+      Level {level} Spells ({filteredSpells.length})
+      {filteredSpells.map(spell => (
+        
+      ))}
+    
+  );
+}
+```
+
+**Example 3: SRD-Only Mode**
+```tsx
+function SrdSpellReference() {
+  // Pass null to get ONLY SRD spells
+  const { spells, loading, error } = useSpells(null);
+
+  return (
+    
+      Official SRD Spells
+      Total: {spells.length} official spells
+      {spells.map(spell => (
+        
+      ))}
+    
+  );
+}
+```
+
+#### useSpell(source, indexOrId)
+
+**Purpose**: Fetch a single specific spell by its source and identifier
+
+**Parameters**:
+- `source: 'srd' | 'homebrew'` - Where the spell comes from
+- `indexOrId: string` - For SRD: the index (e.g., "fireball"), for homebrew: the UUID
+
+**Returns**:
+```typescript
+{
+  spell: Spell | null,
+  loading: boolean,
+  error: Error | null
+}
+```
+
+**Example: Spell Detail Page**
+```tsx
+import { useSpell } from '@/hooks/useDndContent';
+import { useSearchParams } from 'next/navigation';
+
+function SpellDetailPage() {
+  const searchParams = useSearchParams();
+  const source = searchParams.get('source') as 'srd' | 'homebrew';
+  const id = searchParams.get('id')!;
+
+  const { spell, loading, error } = useSpell(source, id);
+
+  if (loading) return Loading...;
+  if (error || !spell) return Spell not found;
+
+  return (
+    
+      {spell.name}
+      
+        Level {spell.level} {spell.school}
+        Casting Time: {spell.casting_time}
+        Range: {spell.range}
+        Components: {spell.components.join(', ')}
+        {spell.material && Material: {spell.material}}
+        Duration: {spell.duration}
+      
+      
+        {spell.description}
+      
+      {spell.higher_level && (
+        
+          At Higher Levels: {spell.higher_level}
+        
+      )}
+      {spell.classes && (
+        
+          Classes: {spell.classes.join(', ')}
+        
+      )}
+    
+  );
+}
+```
+
+#### useClasses(campaignId)
+
+**Purpose**: Get all character classes (SRD + homebrew) for a campaign
+
+**Parameters**:
+- `campaignId: string | null`
+
+**Returns**:
+```typescript
+{
+  classes: DndClass[],
+  loading: boolean,
+  error: Error | null
+}
+```
+
+**Example: Character Creation - Class Selection**
+```tsx
+import { useClasses } from '@/hooks/useDndContent';
+
+function ClassSelector({ campaignId, onSelect }: { 
+  campaignId: string, 
+  onSelect: (cls: DndClass) => void 
+}) {
+  const { classes, loading, error } = useClasses(campaignId);
+
+  if (loading) return Loading classes...;
+
+  return (
+    
+      {classes.map(cls => (
+        <button
+          key={`${cls.source}-${cls.index}`}
+          onClick={() => onSelect(cls)}
+          className="class-card"
+        >
+          {cls.name}
+          Hit Die: d{cls.hit_die}
+          Saves: {cls.saving_throws.join(', ')}
+          {cls.source === 'homebrew' && (
+            Custom
+          )}
+        
+      ))}
+    
+  );
+}
+```
+
+#### useRaces(campaignId)
+
+**Purpose**: Get all races (SRD + homebrew) for a campaign
+
+**Example: Race Selection with Ability Bonuses**
+```tsx
+import { useRaces } from '@/hooks/useDndContent';
+
+function RaceSelector({ campaignId, onSelect }: {
+  campaignId: string,
+  onSelect: (race: Race) => void
+}) {
+  const { races, loading, error } = useRaces(campaignId);
+
+  if (loading) return Loading races...;
+
+  return (
+    
+      {races.map(race => (
+        
+          {race.name}
+          Size: {race.size}, Speed: {race.speed}ft
+          
+            {race.ability_bonuses && race.ability_bonuses.map((bonus: any) => (
+              
+                {bonus.ability} +{bonus.bonus}
+              
+            ))}
+          
+          <button onClick={() => onSelect(race)}>Select
+        
+      ))}
+    
+  );
+}
+```
+
+#### useMonsters(campaignId)
+
+**Purpose**: Get all monsters (SRD + homebrew) for a campaign
+
+**Example: Monster Compendium with CR Filter**
+```tsx
+import { useMonsters } from '@/hooks/useDndContent';
+import { useState } from 'react';
+
+function MonsterCompendium({ campaignId }: { campaignId: string }) {
+  const { monsters, loading, error } = useMonsters(campaignId);
+  const [selectedCR, setSelectedCR] = useState(null);
+
+  if (loading) return Loading monsters...;
+
+  const filteredMonsters = selectedCR !== null
+    ? monsters.filter(m => m.challenge_rating === selectedCR)
+    : monsters;
+
+  const crOptions = [...new Set(monsters.map(m => m.challenge_rating))].sort((a, b) => a - b);
+
+  return (
+    
+      
+        <select 
+          value={selectedCR ?? ''} 
+          onChange={(e) => setSelectedCR(e.target.value ? Number(e.target.value) : null)}
+        >
+          All CR
+          {crOptions.map(cr => (
+            CR {cr}
+          ))}
+        
+      
+
+      
+        {filteredMonsters.map(monster => (
+          
+            {monster.name}
+            {monster.size} {monster.type}, {monster.alignment}
+            CR {monster.challenge_rating} ({monster.xp} XP)
+            AC {monster.armor_class}, HP {monster.hit_points}
+            {monster.source === 'homebrew' && (
+              Custom
+            )}
+          
+        ))}
+      
+    
+  );
+}
+```
+
+#### useEquipment(campaignId)
+
+**Purpose**: Get all equipment (SRD + homebrew) for a campaign
+
+**Example: Equipment Shop**
+```tsx
+import { useEquipment } from '@/hooks/useDndContent';
+
+function EquipmentShop({ campaignId }: { campaignId: string }) {
+  const { equipment, loading, error } = useEquipment(campaignId);
+
+  if (loading) return Loading equipment...;
+
+  // Group by category
+  const grouped = equipment.reduce((acc, item) => {
+    const category = item.equipment_category || 'Other';
+    if (!acc[category]) acc[category] = [];
+    acc[category].push(item);
+    return acc;
+  }, {} as Record);
+
+  return (
+    
+      {Object.entries(grouped).map(([category, items]) => (
+        
+          {category}
+          
+            {items.map(item => (
+              
+                {item.name}
+                {item.cost && (
+                  
+                    {item.cost.quantity} {item.cost.unit}
+                  
+                )}
+                {item.weight && Weight: {item.weight} lb}
+                {item.damage && (
+                  Damage: {item.damage.damage_dice} {item.damage.damage_type}
+                )}
+                {item.armor_class && (
+                  AC: {item.armor_class.base}
+                )}
+              
+            ))}
+          
+        
+      ))}
+    
+  );
+}
+```
+
+### Character Hooks
+
+#### useCharacter(characterId)
+
+**Purpose**: Get a single character with real-time updates
+
+**Returns**:
+```typescript
+{
+  character: Character | null,
+  loading: boolean,
+  error: Error | null,
+  updateCharacter: (updates: Partial) => Promise
+}
+```
+
+**Example 1: Character Sheet with HP Tracking**
+```tsx
+import { useCharacter } from '@/hooks/useDndContent';
+
+function CharacterSheet({ characterId }: { characterId: string }) {
+  const { character, loading, error, updateCharacter } = useCharacter(characterId);
+
+  if (loading) return Loading character...;
+  if (error || !character) return Character not found;
+
+  const handleDamage = async (amount: number) => {
+    const newHp = Math.max(0, character.hp_current - amount);
+    await updateCharacter({ hp_current: newHp });
+  };
+
+  const handleHeal = async (amount: number) => {
+    const newHp = Math.min(character.hp_max, character.hp_current + amount);
+    await updateCharacter({ hp_current: newHp });
+  };
+
+  return (
+    
+      {character.name}
+      
+        HP: {character.hp_current} / {character.hp_max}
+        
+        
+          <button onClick={() => handleDamage(5)}>-5 HP
+          <button onClick={() => handleHeal(5)}>+5 HP
+        
+      
+
+      
+        STR: {character.strength}
+        DEX: {character.dexterity}
+        CON: {character.constitution}
+        INT: {character.intelligence}
+        WIS: {character.wisdom}
+        CHA: {character.charisma}
+      
+
+      
+        AC: {character.armor_class}
+        Initiative: +{character.initiative}
+        Speed: {character.speed}ft
+      
+    
+  );
+}
+```
+
+**Example 2: Real-time HP Updates (Multiple Players)**
+```tsx
+// DM's view - sees all character HP in real-time
+import { useCampaignCharacters } from '@/hooks/useDndContent';
+
+function DmCombatTracker({ campaignId }: { campaignId: string }) {
+  const { characters, loading } = useCampaignCharacters(campaignId);
+
+  if (loading) return Loading...;
+
+  return (
+    
+      Party Health
+      {characters.map(char => (
+        
+          {char.name}
+          
+          {char.hp_current}/{char.hp_max}
+        
+      ))}
+    
+  );
+}
+```
+
+**Example 3: Level Up Handler**
+```tsx
+function LevelUpButton({ characterId }: { characterId: string }) {
+  const { character, updateCharacter } = useCharacter(characterId);
+
+  const handleLevelUp = async () => {
+    if (!character) return;
+
+    const newLevel = character.level + 1;
+    const newProfBonus = Math.floor((newLevel - 1) / 4) + 2;
+
+    const result = await updateCharacter({
+      level: newLevel,
+      proficiency_bonus: newProfBonus,
+      // Add more level-up logic here
+    });
+
+    if (result.success) {
+      alert(`${character.name} is now level ${newLevel}!`);
+    } else {
+      alert('Failed to level up');
+    }
+  };
+
+  return (
+    
+      Level Up (Current: {character?.level})
+    
+  );
+}
+```
+
+#### useCampaignCharacters(campaignId)
+
+**Purpose**: Get all characters in a campaign with real-time updates
+
+**Example: Party Overview**
+```tsx
+import { useCampaignCharacters } from '@/hooks/useDndContent';
+
+function PartyOverview({ campaignId }: { campaignId: string }) {
+  const { characters, loading, error } = useCampaignCharacters(campaignId);
+
+  if (loading) return Loading party...;
+
+  const totalPartyHp = characters.reduce((sum, c) => sum + c.hp_current, 0);
+  const totalPartyMaxHp = characters.reduce((sum, c) => sum + c.hp_max, 0);
+
+  return (
+    
+      Party Status
+      Total HP: {totalPartyHp} / {totalPartyMaxHp}
+      Party Size: {characters.length}
+      
+      
+        {characters.map(char => (
+          
+            {char.name}
+            Level {char.level}
+            HP: {char.hp_current}/{char.hp_max}
+            {char.conditions.length > 0 && (
+              
+                {char.conditions.map(cond => (
+                  {cond}
+                ))}
+              
+            )}
+          
+        ))}
+      
+    
+  );
+}
+```
+
+### Mutation Hooks
+
+#### useCreateHomebrewSpell()
+
+**Purpose**: Create custom homebrew spells for a campaign
+
+**Returns**:
+```typescript
+{
+  createSpell: (spell: Omit) => Promise,
+  loading: boolean,
+  error: Error | null
+}
+```
+
+**Example: Custom Spell Creator**
+```tsx
+import { useCreateHomebrewSpell } from '@/hooks/useDndContent';
+import { useState } from 'react';
+
+function SpellCreator({ campaignId, userId }: { campaignId: string, userId: string }) {
+  const { createSpell, loading, error } = useCreateHomebrewSpell();
+  const [formData, setFormData] = useState({
+    name: '',
+    level: 0,
+    school: 'evocation',
+    casting_time: '1 action',
+    range: '30 feet',
+    components: ['V', 'S'],
+    duration: 'Instantaneous',
+    concentration: false,
+    ritual: false,
+    description: '',
+    higher_level: '',
+    classes: ['wizard']
+  });
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    const result = await createSpell({
+      campaign_id: campaignId,
+      created_by: userId,
+      based_on_srd: null, // or set to SRD spell index if cloning
+      ...formData,
+      material: null,
+    });
+
+    if (result.success) {
+      alert(`Spell "${formData.name}" created successfully!`);
+      // Reset form or redirect
+    } else {
+      alert(`Failed to create spell: ${result.error?.message}`);
+    }
+  };
+
+  return (
+    
+      Create Custom Spell
+      
+      <input
+        type="text"
+        placeholder="Spell Name"
+        value={formData.name}
+        onChange={(e) => setFormData({...formData, name: e.target.value})}
+        required
+      />
+
+      <select
+        value={formData.level}
+        onChange={(e) => setFormData({...formData, level: Number(e.target.value)})}
+      >
+        {[0,1,2,3,4,5,6,7,8,9].map(level => (
+          
+            {level === 0 ? 'Cantrip' : `Level ${level}`}
+          
+        ))}
+      
+
+      <select
+        value={formData.school}
+        onChange={(e) => setFormData({...formData, school: e.target.value})}
+      >
+        Abjuration
+        Conjuration
+        Divination
+        Enchantment
+        Evocation
+        Illusion
+        Necromancy
+        Transmutation
+      
+
+      <textarea
+        placeholder="Spell Description"
+        value={formData.description}
+        onChange={(e) => setFormData({...formData, description: e.target.value})}
+        required
+        rows={6}
+      />
+
+      
+        {loading ? 'Creating...' : 'Create Spell'}
+      
+
+      {error && {error.message}}
+    
+  );
+}
+```
+
+**Example: Clone and Modify SRD Spell**
+```tsx
+import { useSpell, useCreateHomebrewSpell } from '@/hooks/useDndContent';
+
+function CloneSpellButton({ 
+  srdSpellIndex, 
+  campaignId, 
+  userId 
+}: { 
+  srdSpellIndex: string, 
+  campaignId: string, 
+  userId: string 
+}) {
+  const { spell } = useSpell('srd', srdSpellIndex);
+  const { createSpell, loading } = useCreateHomebrewSpell();
+
+  const handleClone = async () => {
+    if (!spell) return;
+
+    const result = await createSpell({
+      campaign_id: campaignId,
+      created_by: userId,
+      based_on_srd: srdSpellIndex,
+      name: `${spell.name} (Modified)`,
+      level: spell.level,
+      school: spell.school,
+      casting_time: spell.casting_time,
+      range: spell.range,
+      components: spell.components,
+      material: spell.material,
+      duration: spell.duration,
+      concentration: spell.concentration,
+      ritual: spell.ritual,
+      description: spell.description + '\n\n[This is a modified version]',
+      higher_level: spell.higher_level,
+      classes: spell.classes,
+    });
+
+    if (result.success) {
+      alert('Spell cloned! You can now edit it.');
+    }
+  };
+
+  return (
+    
+      Clone & Modify
+    
+  );
+}
+```
+
+## Important Patterns & Best Practices
+
+### 1. Always Handle Loading and Error States
+```tsx
+const { data, loading, error } = useHook();
+
+if (loading) return ;
+if (error) return ;
+if (!data) return ;
+
+return ;
+```
+
+### 2. Source Tracking
+When working with mixed SRD/homebrew content, always track the source:
+```tsx
+const uniqueKey = `${item.source}-${item.index}`;
+```
+
+### 3. Real-time Updates
+Character hooks automatically subscribe to real-time updates. Remember to clean up:
+```tsx
+useEffect(() => {
+  // Subscription is handled internally
+  return () => {
+    // Cleanup is automatic
+  };
+}, [characterId]);
+```
+
+### 4. Optimistic Updates
+For better UX, update UI immediately before server confirmation:
+```tsx
+const handleUpdate = async (newValue) => {
+  // Optimistic update
+  setLocalState(newValue);
+  
+  // Server update
+  const result = await updateCharacter({ field: newValue });
+  
+  if (!result.success) {
+    // Rollback on error
+    setLocalState(oldValue);
+    toast.error('Update failed');
+  }
+};
+```
+
+### 5. Campaign Context
+Create a context to avoid prop drilling:
+```tsx
+const CampaignContext = createContext(null);
+
+export function useCampaignContext() {
+  const context = useContext(CampaignContext);
+  if (!context) throw new Error('Must be used within CampaignProvider');
+  return context;
+}
+
+// Then in components:
+function MyComponent() {
+  const { campaignId } = useCampaignContext();
+  const { spells } = useSpells(campaignId);
+  // ...
+}
+```
+
+## Performance Tips
+
+1. **Use campaign-specific queries** - Don't fetch all homebrew if you only need SRD
+2. **Memoize expensive calculations**:
+```tsx
+const sortedSpells = useMemo(
+  () => spells.sort((a, b) => a.level - b.level),
+  [spells]
+);
+```
+
+3. **Debounce search/filter operations**
+4. **Use pagination for large lists** (500+ items)
+5. **Unsubscribe from real-time when component unmounts** (automatic with hooks)

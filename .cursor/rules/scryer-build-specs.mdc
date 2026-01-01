@@ -1,0 +1,693 @@
+---
+alwaysApply: true
+---
+# Scryer - D&D 5e Digital Suite
+
+## Project Overview
+
+**Project Name**: Scryer  
+**Version**: 1.0.0  
+**Purpose**: A comprehensive, free, web-based D&D 5th Edition digital suite for remote gameplay
+
+Scryer is a modern, real-time collaborative platform designed for playing Dungeons & Dragons 5th Edition online. It provides all the essential tools DMs and players need for remote sessions, eliminating the need for paid subscriptions or multiple scattered applications. The platform integrates virtual tabletop, character management, dice rolling, and campaign tools into a single, cohesive experience.
+
+## Core Goals
+
+### Primary Objectives
+1. **Zero Cost**: Provide a completely free alternative to paid D&D platforms
+2. **All-in-One Solution**: Replace the need for multiple tools (Roll20, D&D Beyond, etc.)
+3. **Real-time Collaboration**: Enable seamless multiplayer gameplay with live updates
+4. **Homebrew First**: Support unlimited custom content creation per campaign
+5. **Performance**: Fast, responsive experience even with 8+ concurrent users
+6. **Accessibility**: Simple onboarding, no installation required
+
+### Target Audience
+- **Primary**: D&D groups of 5-8 players playing remotely
+- **Secondary**: DMs who want flexible homebrew systems
+- **Tertiary**: New players who need guided character creation
+
+### Out of Scope (v1.0)
+- Voice/Video chat (users should use Discord)
+- Advanced automation (automatic damage calculation, complex macros)
+- Mobile native apps (mobile-responsive web only)
+- Marketplace/monetization features
+- AI-powered content generation
+
+## Technology Stack
+
+### Frontend Framework
+**Next.js 15+ (App Router)**
+
+**Rationale**:
+- Server components for optimal performance
+- Built-in routing and API routes
+- Excellent TypeScript support
+- Fast development with hot module replacement
+- SEO-friendly for marketing pages
+- Easy deployment to Vercel
+
+**Configuration**:
+```json
+{
+  "framework": "Next.js",
+  "version": "15.x",
+  "router": "App Router",
+  "rendering": "Hybrid (SSR + CSR)",
+  "language": "TypeScript",
+  "styling": "Tailwind CSS"
+}
+```
+
+**Project Structure**:
+```
+/scryer
+├── /app
+│   ├── /api
+│   ├── /(auth)
+│   │   ├── /login
+│   │   └── /signup
+│   ├── /(marketing)
+│   │   ├── /page.tsx (landing)
+│   │   └── /about
+│   ├── /campaigns
+│   │   └── /[campaignId]
+│   │       ├── /characters
+│   │       ├── /spells
+│   │       ├── /monsters
+│   │       ├── /maps
+│   │       └── /combat
+│   └── /character-creator
+├── /components
+│   ├── /ui (shadcn components)
+│   ├── /character
+│   ├── /map
+│   ├── /combat
+│   └── /shared
+├── /lib
+│   ├── /supabase
+│   ├── /utils
+│   └── /constants
+├── /hooks
+│   └── useDndContent.ts
+└── /types
+```
+
+### Backend & Database
+**Supabase**
+
+**Services Used**:
+1. **PostgreSQL Database**: All game data, characters, campaigns
+2. **Realtime**: Live updates for combat, token movement, HP changes
+3. **Authentication**: User accounts and campaign access control
+4. **Storage**: Map images, character portraits, custom assets
+5. **Row Level Security (RLS)**: Campaign-based access control
+
+**Rationale**:
+- Free tier supports 500MB database + 1GB storage
+- Built-in real-time subscriptions (critical for multiplayer)
+- PostgreSQL perfect for relational D&D data
+- No server management required
+- Excellent TypeScript SDK
+
+**Database Architecture**:
+- SRD tables (read-only, global)
+- Homebrew tables (campaign-scoped, mutable)
+- Character/combat tables (real-time enabled)
+- Proper indexing for performance
+
+### UI Component Library
+**shadcn/ui**
+
+**Components Used**:
+- Dialog, Sheet, Popover (modals and overlays)
+- Dropdown Menu, Context Menu (right-click actions)
+- Tabs, Accordion (character sheets, spell lists)
+- Card, Badge, Avatar (content display)
+- Button, Input, Select, Checkbox (forms)
+- Toast, Alert (notifications)
+- Table, DataTable (spell lists, inventories)
+- ScrollArea (long content lists)
+- Command (search/quick actions)
+
+**Rationale**:
+- Built on Radix UI (accessible, unstyled primitives)
+- Copy-paste into project (no package bloat)
+- Full customization with Tailwind
+- TypeScript first
+- Consistent with modern web app aesthetics
+
+**Theme Configuration**:
+```typescript
+// Dark mode optimized for long sessions
+colors: {
+  primary: "hsl(217, 91%, 60%)", // Blue
+  secondary: "hsl(217, 20%, 20%)", // Dark gray
+  accent: "hsl(45, 93%, 58%)", // Gold
+  destructive: "hsl(0, 84%, 60%)", // Red
+  background: "hsl(222, 47%, 11%)", // Very dark blue
+  foreground: "hsl(213, 31%, 91%)", // Off white
+  muted: "hsl(217, 20%, 15%)",
+  border: "hsl(217, 20%, 25%)"
+}
+```
+
+### Additional Key Libraries
+
+**State Management**:
+- React Context for campaign/user context
+- Zustand (optional, for complex client state like map editor)
+- No Redux/MobX needed
+
+**Forms & Validation**:
+- React Hook Form (character creation, homebrew forms)
+- Zod (schema validation)
+
+**Real-time & API**:
+- @supabase/supabase-js (database + realtime)
+- @supabase/ssr (Next.js SSR support)
+
+**Map/Canvas**:
+- Konva.js or Fabric.js (canvas manipulation for virtual tabletop)
+- react-konva (React wrapper)
+
+**Dice Rolling**:
+- Custom implementation with dice-roller-parser
+- or simple Math.random() with animations
+
+**Rich Text**:
+- Tiptap (campaign notes, spell descriptions editing)
+
+**Utilities**:
+- clsx + tailwind-merge (className management)
+- date-fns (timestamp formatting)
+- lodash (data manipulation)
+
+## Feature Specifications
+
+### 1. Campaign Management
+
+**Core Features**:
+- Create/join campaigns
+- Invite players via link or email
+- DM role assignment
+- Campaign settings (homebrew toggles, house rules)
+- Session notes and journal
+- Campaign archive/deletion
+
+**Technical Requirements**:
+- Multi-tenancy via campaign_id
+- RLS policies for member-only access
+- Real-time member list
+- Invite token generation
+
+### 2. Character Management
+
+**Character Sheet**:
+- Full 5e character sheet
+- Ability scores, skills, saves
+- HP/temp HP/hit dice tracking
+- Inventory management
+- Spell slots tracking
+- Prepared spells
+- Features & traits
+- Background & personality
+- Equipment & attunement
+
+**Character Creation Wizard**:
+- Step-by-step guided flow
+- Race selection (with ability bonuses preview)
+- Class selection (with feature preview)
+- Background selection
+- Ability score assignment (point buy, standard array, manual)
+- Equipment selection
+- Final review & submit
+
+**Real-time Updates**:
+- HP changes visible to all players
+- Condition tracking
+- Death saves
+
+### 3. Virtual Tabletop (VTT)
+
+**Map Management**:
+- Upload custom map images
+- Grid overlay (square/hex)
+- Grid size configuration
+- Fog of War (DM controls visibility)
+- Multiple maps per campaign
+
+**Token System**:
+- Character tokens (linked to characters)
+- Monster tokens (linked to monster stat blocks)
+- Generic tokens (markers, effects)
+- Drag & drop movement
+- Token size (tiny, small, medium, large, huge, gargantuan)
+- Token colors & labels
+- HP bars on tokens
+
+**DM Controls**:
+- Show/hide layers from players
+- Reveal fog of war
+- Move any token
+- Add/remove tokens
+- Grid snap toggle
+
+**Player View**:
+- See only visible tokens
+- Move own character token
+- Measure distances
+- View token info on click
+
+### 4. Combat Tracker
+
+**Initiative Management**:
+- Roll initiative for all participants
+- Automatic turn order sorting
+- Current turn indicator
+- Next/previous turn buttons
+- Round counter
+
+**Combat Actions**:
+- Quick HP adjustment (+/- buttons)
+- Condition application
+- Concentration tracking
+- Death save tracking
+- Remove from combat
+
+**Integration**:
+- Linked to active map
+- Token positions update in real-time
+- Player view shows turn order
+- DM view shows all stats
+
+### 5. Content Browsers
+
+**Spell Browser**:
+- Filter by level, school, class
+- Search by name
+- SRD + homebrew toggle
+- Detailed spell view
+- Add to character spells
+
+**Monster Compendium**:
+- Filter by CR, type, size
+- Search by name
+- Full stat block view
+- Add to encounter builder
+- Clone & modify for homebrew
+
+**Equipment Browser**:
+- Filter by category, type
+- Cost sorting
+- Add to character inventory
+- Custom item creation
+
+**Class/Race Reference**:
+- View all available options
+- Feature progression tables
+- Subclass details
+
+### 6. Homebrew Creation Tools
+
+**Custom Spell Creator**:
+- All standard spell fields
+- Clone from SRD option
+- Rich text editor for description
+- Preview before saving
+
+**Custom Monster Creator**:
+- Full stat block editor
+- Action/reaction builder
+- Clone from SRD option
+- Challenge rating calculator (optional)
+
+**Custom Equipment Creator**:
+- Weapon/armor/item types
+- Custom properties
+- Cost & weight
+
+**Custom Class/Race** (v1.1):
+- Feature builder
+- Progression tables
+
+### 7. Dice Roller
+
+**Features**:
+- Standard dice (d4, d6, d8, d10, d12, d20, d100)
+- Complex expressions (2d6+5, 4d8+3+1d6)
+- Advantage/disadvantage for d20
+- Roll history
+- Shared rolls visible to party
+- Private rolls (DM only)
+- Roll animations
+- Critical success/failure highlights
+
+**Integration**:
+- Quick roll from character sheet
+- Attack rolls with modifiers
+- Skill checks with proficiency
+- Saving throws
+
+### 8. User Authentication & Profiles
+
+**Authentication**:
+- Email + password signup
+- Magic link login (passwordless)
+- OAuth (Google, Discord) - optional
+- Password reset flow
+- Email verification
+
+**User Profile**:
+- Display name
+- Avatar upload
+- Campaign list
+- Character list
+- Preferences (theme, dice sounds)
+
+## User Flows
+
+### DM Journey
+
+```
+1. Sign up → 2. Create campaign → 3. Invite players → 
+4. Upload map → 5. Add monsters to encounter → 
+6. Start session → 7. Control combat → 8. Update world state
+```
+
+### Player Journey
+
+```
+1. Sign up → 2. Join campaign (via link) → 
+3. Create character → 4. View character sheet → 
+5. Join session → 6. Move token → 7. Roll dice → 8. Update HP
+```
+
+## UI/UX Principles
+
+### Design Language
+- **Dark Mode First**: Reduce eye strain during long sessions
+- **High Contrast**: Clear readability for game stats
+- **Minimal Chrome**: Maximize space for game content
+- **Consistent Icons**: Lucide React icon set
+- **Typography**: Inter for UI, Cinzel for headings (fantasy feel)
+
+### Layout Patterns
+
+**Campaign Dashboard**:
+```
+[Sidebar Navigation]  [Main Content Area]        [Right Panel]
+- Characters          - Map/Combat/Content       - Party Info
+- Spells              - Grid/List View           - Quick Actions
+- Monsters                                       - Dice Roller
+- Maps
+- Settings
+```
+
+**Character Sheet**:
+```
+[Header: Name, Race, Class, Level]
+[Stats Row: STR DEX CON INT WIS CHA]
+[Three Columns]
+  - Combat (HP, AC, Init, Speed)
+  - Skills & Saves
+  - Features & Traits
+[Bottom Tabs]
+  - Spells | Inventory | Notes
+```
+
+**Virtual Tabletop**:
+```
+[Top Bar: DM Controls, Turn Order]
+[Main: Canvas with Map & Tokens]
+[Right Sidebar: Token Inspector, Combat Tracker]
+[Bottom Bar: Dice Roller, Quick Actions]
+```
+
+### Responsive Breakpoints
+- Desktop: 1280px+ (primary target)
+- Tablet: 768px-1279px (limited features)
+- Mobile: <768px (character sheets only, no VTT)
+
+## Performance Requirements
+
+### Target Metrics
+- **First Contentful Paint**: <1.5s
+- **Time to Interactive**: <3s
+- **Largest Contentful Paint**: <2.5s
+- **Real-time Latency**: <100ms for updates
+- **Concurrent Users**: Support 8 users per campaign smoothly
+
+### Optimization Strategies
+1. **Code Splitting**: Route-based splitting, lazy load VTT components
+2. **Image Optimization**: Next.js Image component for maps
+3. **Database Queries**: Indexed columns, selective field fetching
+4. **Real-time Throttling**: Debounce token movements
+5. **Caching**: SRD content cached client-side
+6. **Bundle Size**: Keep initial JS < 200KB gzipped
+
+## Security & Privacy
+
+### Data Protection
+- All campaigns isolated via RLS
+- Users can only access campaigns they're members of
+- DM-only routes protected
+- Homebrew content belongs to campaign (deleted with campaign)
+
+### Authentication
+- Secure password hashing (Supabase Auth)
+- JWT tokens for session management
+- No plaintext passwords stored
+
+### Content Moderation
+- No public content sharing (v1.0)
+- Campaign-level content only
+- User-reported content (future)
+
+## Deployment & Infrastructure
+
+### Hosting
+**Frontend**: Vercel
+- Free tier for hobby projects
+- Automatic deployments from Git
+- Edge network for low latency
+- Built-in analytics
+
+**Backend**: Supabase Cloud
+- Free tier: 500MB DB, 1GB storage, 50K MAU
+- Automatic backups
+- 99.9% uptime SLA
+
+### CI/CD Pipeline
+```
+Git Push → GitHub Actions → 
+  → Run tests → Build Next.js → 
+  → Deploy to Vercel → Run DB migrations on Supabase
+```
+
+### Environment Variables
+```env
+# Public (client-side)
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+NEXT_PUBLIC_APP_URL=
+
+# Private (server-side)
+SUPABASE_SERVICE_KEY=
+DATABASE_URL=
+```
+
+### Monitoring
+- Vercel Analytics (performance)
+- Supabase Dashboard (database metrics)
+- Sentry (error tracking) - optional
+
+## Development Workflow
+
+### Initial Setup
+```bash
+# Clone repository
+git clone https://github.com/yourusername/scryer.git
+cd scryer
+
+# Install dependencies
+npm install
+
+# Set up environment variables
+cp .env.example .env.local
+# Edit .env.local with your Supabase credentials
+
+# Run database migrations
+npx supabase db push
+
+# Seed SRD data
+npm run seed:srd
+
+# Start development server
+npm run dev
+```
+
+### Development Commands
+```bash
+npm run dev          # Start Next.js dev server
+npm run build        # Production build
+npm run lint         # ESLint
+npm run type-check   # TypeScript checking
+npm run test         # Run tests (Jest + RTL)
+npm run seed:srd     # Seed SRD data to Supabase
+```
+
+### Git Workflow
+- **main**: Production branch (protected)
+- **develop**: Development branch
+- **feature/***: Feature branches
+- **bugfix/***: Bug fix branches
+
+### Code Quality Standards
+- TypeScript strict mode
+- ESLint + Prettier
+- Pre-commit hooks (Husky)
+- 80%+ test coverage for critical paths
+- Conventional commits
+
+## Testing Strategy
+
+### Unit Tests
+- Utility functions
+- Hooks (useDndContent)
+- Calculation logic (modifiers, CR, etc.)
+
+### Integration Tests
+- Character creation flow
+- Combat tracker
+- Spell slot management
+
+### E2E Tests (Playwright)
+- Login/signup flow
+- Create campaign + character
+- Join campaign via link
+- Move token on map
+- Roll dice
+
+### Manual QA Checklist
+- [ ] Real-time sync with 4+ users
+- [ ] Map performance with 20+ tokens
+- [ ] Character sheet responsiveness
+- [ ] Dice roller accuracy
+- [ ] Browser compatibility (Chrome, Firefox, Safari, Edge)
+
+## Launch Checklist
+
+### Pre-launch
+- [ ] Complete core features (VTT, character sheets, dice)
+- [ ] Seed SRD database
+- [ ] Write documentation (README, user guide)
+- [ ] Set up error tracking
+- [ ] Configure RLS policies
+- [ ] Conduct beta testing with 2-3 groups
+- [ ] Performance audit
+- [ ] Security audit
+
+### Launch Day
+- [ ] Deploy to production
+- [ ] Monitor error rates
+- [ ] Watch database performance
+- [ ] Prepare for user feedback
+
+### Post-launch
+- [ ] Gather user feedback
+- [ ] Monitor usage analytics
+- [ ] Plan v1.1 features
+- [ ] Community building (Discord server?)
+
+## Future Roadmap (Post v1.0)
+
+### v1.1 - Enhanced Homebrew
+- Custom class creator
+- Custom race creator
+- Custom background creator
+- Subclass builder
+
+### v1.2 - DM Tools
+- NPC generator
+- Loot generator
+- Random encounter builder
+- Session planning tools
+
+### v1.3 - Quality of Life
+- Mobile app (React Native)
+- Offline mode
+- Import/export characters (JSON)
+- Print character sheets
+
+### v2.0 - Community
+- Public spell/monster sharing
+- Campaign templates
+- Community adventures
+- Rating system
+
+## Success Metrics
+
+### v1.0 Goals (6 months)
+- 100 active campaigns
+- 500+ registered users
+- <5% churn rate
+- 4.0+ star rating (user feedback)
+- <100ms average real-time latency
+
+### User Satisfaction Indicators
+- Session completion rate >80%
+- Average session length >2 hours
+- Return rate >70%
+- Feature adoption rate >60%
+
+## Support & Documentation
+
+### User Documentation
+- Getting Started guide
+- DM's Guide to Scryer
+- Character Creation tutorial
+- VTT Controls reference
+- FAQ
+
+### Developer Documentation
+- Setup guide
+- Architecture overview
+- API documentation
+- Database schema
+- Contributing guidelines
+
+### Support Channels
+- GitHub Issues (bug reports, features)
+- Discord community (future)
+- Email support (critical issues)
+
+---
+
+## Quick Reference
+
+**Tech Stack Summary**:
+- Frontend: Next.js 14 + TypeScript + Tailwind CSS
+- UI: shadcn/ui + Radix UI
+- Backend: Supabase (PostgreSQL + Realtime + Auth + Storage)
+- State: React Context + Zustand
+- Forms: React Hook Form + Zod
+- Canvas: Konva.js
+- Hosting: Vercel + Supabase Cloud
+
+**Core Team Roles** (if team project):
+- Full-stack Developer: Core features, architecture
+- Frontend Developer: UI/UX, components
+- DM Consultant: Game mechanics, UX testing
+- QA Tester: Testing, bug reports
+
+**Project Timeline** (Solo Developer):
+- Weeks 1-2: Setup, auth, database schema
+- Weeks 3-4: Character creation & sheets
+- Weeks 5-6: VTT & map system
+- Weeks 7-8: Combat tracker & dice roller
+- Weeks 9-10: Content browsers & homebrew
+- Weeks 11-12: Testing, polish, launch
+
+---
+
+*This specification is a living document and should be updated as the project evolves.*

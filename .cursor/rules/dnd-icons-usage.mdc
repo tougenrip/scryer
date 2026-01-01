@@ -1,0 +1,495 @@
+---
+alwaysApply: false
+---
+# D&D Icons Package - Usage Guide
+
+## Installation
+
+### Using Yarn Link (Development)
+
+1. Build the package:
+```bash
+cd dnd-icons
+yarn build
+```
+
+2. Create a link:
+```bash
+yarn link
+```
+
+3. In your Next.js project, link the package:
+```bash
+cd path/to/your/nextjs-project
+yarn link "dnd-icons"
+```
+
+### Using File Protocol (Alternative)
+
+Add to your Next.js project's `package.json`:
+```json
+{
+  "dependencies": {
+    "dnd-icons": "file:../dnd-icons"
+  }
+}
+```
+
+Then run `yarn install` in your Next.js project.
+
+## Usage
+
+### Basic Import
+
+```typescript
+import { Strength, Wizard, Action } from 'dnd-icons';
+
+export default function MyComponent() {
+  return (
+    <div>
+      <Strength size={32} />
+      <Wizard size={48} className="text-blue-500" />
+      <Action />
+    </div>
+  );
+}
+```
+
+### Category-Based Import
+
+```typescript
+// Import from specific category
+import { Strength, Dexterity, Constitution } from 'dnd-icons/ability';
+import { Wizard, Fighter, Rogue } from 'dnd-icons/class';
+import { Action, Reaction, BonusAction } from 'dnd-icons/combat';
+```
+
+### Icon Props
+
+All icons accept the following props:
+
+```typescript
+interface IconProps {
+  size?: number | string;      // Default: 24
+  className?: string;          // CSS classes
+  // ... all standard SVG props (onClick, style, etc.)
+}
+```
+
+### Examples
+
+```typescript
+// Custom size
+<Strength size={64} />
+
+// With Tailwind classes
+<Wizard className="text-red-500 hover:text-red-700" />
+
+// With inline styles
+<Action style={{ color: '#3b82f6' }} />
+
+// All props are forwarded to the SVG element
+<Dexterity 
+  size={32}
+  className="icon"
+  onClick={() => console.log('clicked')}
+  aria-label="Dexterity icon"
+/>
+```
+
+## Available Icon Categories
+
+### Ability Icons (6 icons)
+- `Charisma`
+- `Constitution`
+- `Dexterity`
+- `Intelligence`
+- `Strength`
+- `Wisdom`
+
+**Import:** `import { ... } from 'dnd-icons/ability'`
+
+### Attribute Icons (11 icons)
+- `Ac` (Armor Class)
+- `Attunement`
+- `Bonus`
+- `Light`
+- `Penalty`
+- `Range`
+- `SavingThrow`
+- `Skillcheck`
+- `Terrain`
+- `Test`
+- `Vision`
+
+**Import:** `import { ... } from 'dnd-icons/attribute'`
+
+### Campaign Icons (12 icons)
+- `Candlekeep`
+- `CurseOfStrahd`
+- `DescentIntoAvernus`
+- `ElementalEvil`
+- `HoardOfTheDragonQueen`
+- `LightOfXaryxis`
+- `OutOfTheAbyss`
+- `RimeOfTheFrostmaiden`
+- `StormKingsThunder`
+- `TombOfAnnihilation`
+- `Waterdeep`
+- `YawningPortal`
+
+**Import:** `import { ... } from 'dnd-icons/campaign'`
+
+### Class Icons (13 icons)
+- `Artificer`
+- `Barbarian`
+- `Bard`
+- `Cleric`
+- `Druid`
+- `Fighter`
+- `Monk`
+- `Paladin`
+- `Ranger`
+- `Rogue`
+- `Sorcerer`
+- `Warlock`
+- `Wizard`
+
+**Import:** `import { ... } from 'dnd-icons/class'`
+
+### Combat Icons (9 icons)
+- `Action`
+- `BonusAction`
+- `Initiative`
+- `Melee`
+- `Ranged`
+- `Reach`
+- `Reaction`
+- `Round`
+- `Target`
+
+**Import:** `import { ... } from 'dnd-icons/combat'`
+
+### Condition Icons (17 icons)
+- `Blinded`
+- `Charmed`
+- `Deafened`
+- `Exhaustion`
+- `Frightened`
+- `Grappled`
+- `Incapacitated`
+- `Invisible`
+- `Paralyzed`
+- `Petrified`
+- `Poisoned`
+- `Prone`
+- `Restrained`
+- `Silenced`
+- `Sleep`
+- `Stunned`
+- `Unconscious`
+
+**Import:** `import { ... } from 'dnd-icons/condition'`
+
+### D20 Test Icons (3 icons)
+- `Attacked`
+- `Attacking`
+- `SavingThrow` (Note: Also available in attribute category as `SavingThrow`)
+
+**Import:** `import { ... } from 'dnd-icons/d20test'`
+
+### Damage Type Icons (16 icons)
+- `Acid`
+- `Bludgeoning`
+- `Cold`
+- `Fire`
+- `Force`
+- `Immunity`
+- `Lightning`
+- `Necrotic`
+- `Piercing`
+- `Poison`
+- `Psychic`
+- `Radiant`
+- `Resistance`
+- `Slashing`
+- `Thunder`
+- `Vulnerability`
+
+**Import:** `import { ... } from 'dnd-icons/damage'`
+
+### Dice Icons (9 icons)
+- `Advantage`
+- `D10`
+- `D12`
+- `D20`
+- `D4`
+- `D6`
+- `D8`
+- `Disadvantage`
+- `Roll`
+
+**Import:** `import { ... } from 'dnd-icons/dice'`
+
+### Entity Type Icons (26 icons)
+- `Archive`
+- `Armor`
+- `Book`
+- `Location`
+- `Loot`
+- `MagicItem`
+- `Map`
+- `Mount`
+- `Object`
+- `Organization`
+- `Pack`
+- `Person`
+- `Pet`
+- `Potion`
+- `Ring`
+- `Scroll`
+- `Ship`
+- `Spellbook`
+- `Summon`
+- `Time`
+- `Tool`
+- `Trinket`
+- `Vehicle`
+- `Wand`
+- `Weapon`
+- `World`
+
+**Import:** `import { ... } from 'dnd-icons/entity'`
+
+### Game Icons (17 icons)
+- `AdventureBook`
+- `Campaign`
+- `Character`
+- `Combat`
+- `Dm` (Dungeon Master)
+- `Explore`
+- `Hazard`
+- `Inspiration`
+- `Lock`
+- `Monster`
+- `Party`
+- `Puzzle`
+- `Rest`
+- `Social`
+- `SourceBook`
+- `Spell`
+- `Trap`
+
+**Import:** `import { ... } from 'dnd-icons/game'`
+
+### Hitpoint Icons (4 icons)
+- `Empty`
+- `Full`
+- `Half` (Note: Also available in proficiency category)
+- `Temp` (Temporary HP)
+
+**Import:** `import { ... } from 'dnd-icons/hp'`
+
+### Location Type Icons (11 icons)
+- `Bastion`
+- `Camp`
+- `Castle`
+- `Dungeon`
+- `Forest`
+- `Hut`
+- `Mountain`
+- `Portal`
+- `Tavern`
+- `Tower`
+- `Village`
+
+**Import:** `import { ... } from 'dnd-icons/location'`
+
+### Logo Icons (9 icons)
+- `AdventurersLeague`
+- `CriticalRole`
+- `DndBeyond`
+- `Dnd`
+- `FantasyGrounds`
+- `Foundry`
+- `OwlbearRodeo`
+- `Roll20`
+- `Tiddlywiki`
+
+**Import:** `import { ... } from 'dnd-icons/logo'`
+
+### Monster Type Icons (14 icons)
+- `Aberration`
+- `Beast`
+- `Celestial`
+- `Construct`
+- `Dragon`
+- `Elemental`
+- `Fae`
+- `Fiend`
+- `Giant`
+- `Humanoid`
+- `Monstrosity`
+- `Ooze`
+- `Plant`
+- `Undead`
+
+**Import:** `import { ... } from 'dnd-icons/monster'`
+
+### Movement Icons (5 icons)
+- `Burrowing`
+- `Climbing`
+- `Flying`
+- `Swimming`
+- `Walking`
+
+**Import:** `import { ... } from 'dnd-icons/movement'`
+
+### Proficiency Icons (4 icons)
+- `Expertise`
+- `Half` (Note: Also available in hp category)
+- `Proficient`
+- `Unskilled`
+
+**Import:** `import { ... } from 'dnd-icons/proficiency'`
+
+### Skill Icons (18 icons)
+- `Acrobatics`
+- `AnimalHandling`
+- `Arcana`
+- `Athletics`
+- `Deception`
+- `History`
+- `Insight`
+- `Intimidation`
+- `Investigation`
+- `Medicine`
+- `Nature`
+- `Perception`
+- `Performance`
+- `Persuasion`
+- `Religion`
+- `SleightOfHand`
+- `Stealth`
+- `Survival`
+
+**Import:** `import { ... } from 'dnd-icons/skill'`
+
+### Slot Icons (14 icons)
+- `Slot10` (1st level, 0 slots)
+- `Slot11` (1st level, 1 slot)
+- `Slot20` (2nd level, 0 slots)
+- `Slot21` (2nd level, 1 slot)
+- `Slot22` (2nd level, 2 slots)
+- `Slot30` (3rd level, 0 slots)
+- `Slot31` (3rd level, 1 slot)
+- `Slot32` (3rd level, 2 slots)
+- `Slot33` (3rd level, 3 slots)
+- `Slot40` (4th level, 0 slots)
+- `Slot41` (4th level, 1 slot)
+- `Slot42` (4th level, 2 slots)
+- `Slot43` (4th level, 3 slots)
+- `Slot44` (4th level, 4 slots)
+
+**Import:** `import { ... } from 'dnd-icons/slot'`
+
+### Spell Icons (19 icons)
+- `Abjuration`
+- `Concentration`
+- `Conjuration`
+- `Consumed`
+- `Cost`
+- `Divination`
+- `Enchantment`
+- `Evocation`
+- `Illusion`
+- `Instantaneous`
+- `Material`
+- `Necromancy`
+- `Octagon`
+- `Ritual`
+- `Somatic`
+- `Transmutation`
+- `Upcast`
+- `Vocal`
+
+**Import:** `import { ... } from 'dnd-icons/spell'`
+
+### Target Type Icons (11 icons)
+- `Circle`
+- `Cone`
+- `Cube`
+- `Cylinder`
+- `Emanation`
+- `Line`
+- `Self`
+- `Sphere`
+- `Square`
+- `Touch`
+- `Wall`
+
+**Import:** `import { ... } from 'dnd-icons/target'`
+
+### Utility Icons (10 icons)
+- `Bubble`
+- `Build`
+- `Cog`
+- `Cross`
+- `Home`
+- `NotApplicable`
+- `Search`
+- `Star`
+- `Tick`
+- `Trade`
+
+**Import:** `import { ... } from 'dnd-icons/util'`
+
+### Weapon Type Icons (27 icons)
+- `Arrow`
+- `Battleaxe`
+- `Bow`
+- `Club`
+- `Crossbow`
+- `Dagger`
+- `Flail`
+- `Glaive`
+- `Halberd`
+- `Hammer`
+- `Handaxe`
+- `Lance`
+- `Mace`
+- `Morningstar`
+- `Musket`
+- `Pike`
+- `Pistol`
+- `Rapier`
+- `Scimitar`
+- `Sickle`
+- `Sling`
+- `Spear`
+- `Staff`
+- `Strike` (Unarmed Strike)
+- `Sword`
+- `Trident`
+- `Whip`
+
+**Import:** `import { ... } from 'dnd-icons/weapon'`
+
+## Total Icons
+
+**284 icons** across 23 categories
+
+## Notes
+
+- All icons use `currentColor` for fill, so they inherit text color from CSS
+- Default size is 24px, but can be customized via the `size` prop
+- All standard SVG props are supported (onClick, style, aria-label, etc.)
+- Icons are optimized for Next.js and support tree-shaking
+- TypeScript definitions are included for full type safety
+- Some icons have duplicate names across categories (e.g., `SavingThrow` in both attribute and d20test, `Half` in both hp and proficiency). Import from the specific category to avoid conflicts.
+
+## License
+
+This icon set is licensed under Creative Commons Attribution-ShareAlike 4.0 International (CC-BY-SA-4.0).
+
+Original work by David Kor Kian Wei (Intrinsical's D&D 5e Icon Set).

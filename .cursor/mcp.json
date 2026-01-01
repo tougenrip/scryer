@@ -1,0 +1,12 @@
+{
+    "mcpServers": {
+      "scryer-supabase": {
+          "url": "https://mcp.supabase.com/mcp?project_ref=kevfqgotcojssswjafpn&features=storage%2Cbranching%2Cfunctions%2Cdevelopment%2Cdebugging%2Cdatabase%2Caccount%2Cdocs",
+          "headers": {}
+        },
+        "dnd-5e": {
+          "command": "node",
+          "args": ["c:/Users/Tougen/dnd-mcp/dist/index.js"]
+        }
+    }
+  }
