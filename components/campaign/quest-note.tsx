@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Edit, Trash2, CheckCircle2 } from "lucide-react";
@@ -38,10 +37,9 @@ export function QuestNote({ quest, isDm, onEdit, onDelete }: QuestNoteProps) {
             !isFlipped ? "z-10" : "z-0"
           )}
         >
-          <Card
+          <div
             className={cn(
-              "h-full bg-gradient-to-br from-amber-50 via-yellow-50 to-amber-100",
-              "border-2 border-amber-200 shadow-lg",
+              "h-full rounded-xl border-2 border-amber-200 shadow-lg",
               "hover:shadow-xl transition-shadow",
               "transform hover:scale-105 transition-transform"
             )}
@@ -64,7 +62,7 @@ export function QuestNote({ quest, isDm, onEdit, onDelete }: QuestNoteProps) {
               `,
             }}
           >
-            <CardContent className="p-4 h-full flex flex-col">
+            <div className="p-4 h-full flex flex-col">
               <div className="flex-1">
                 <h3
                   className="text-lg font-bold mb-2 text-amber-900"
@@ -104,8 +102,8 @@ export function QuestNote({ quest, isDm, onEdit, onDelete }: QuestNoteProps) {
                   </span>
                 )}
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </div>
 
         {/* Back of note (details) */}
@@ -115,11 +113,8 @@ export function QuestNote({ quest, isDm, onEdit, onDelete }: QuestNoteProps) {
             isFlipped ? "z-10" : "z-0"
           )}
         >
-          <Card
-            className={cn(
-              "h-full bg-gradient-to-br from-amber-50 via-yellow-50 to-amber-100",
-              "border-2 border-amber-200 shadow-lg"
-            )}
+          <div
+            className="h-full rounded-xl border-2 border-amber-200 shadow-lg"
             style={{
               backgroundColor: "#fef9e7",
               backgroundImage: `
@@ -139,7 +134,7 @@ export function QuestNote({ quest, isDm, onEdit, onDelete }: QuestNoteProps) {
               `,
             }}
           >
-            <CardContent className="p-4 h-full flex flex-col">
+            <div className="p-4 h-full flex flex-col">
               <div className="flex items-start justify-between mb-3">
                 <h3
                   className="text-lg font-bold text-amber-900 flex-1"
@@ -217,8 +212,8 @@ export function QuestNote({ quest, isDm, onEdit, onDelete }: QuestNoteProps) {
                   </Badge>
                 )}
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </div>
       </div>
     </div>

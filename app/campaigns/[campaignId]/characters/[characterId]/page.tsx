@@ -1,19 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useCharacter } from "@/hooks/useDndContent";
 import { CharacterSheet } from "@/components/character/character-sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
 
 export default function CharacterPage() {
   const params = useParams();
-  const router = useRouter();
   const campaignId = params.campaignId as string;
   const characterId = params.characterId as string;
   const [userId, setUserId] = useState<string | null>(null);
@@ -65,22 +63,11 @@ export default function CharacterPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Link href={`/campaigns/${campaignId}/characters`}>
-          <Button variant="ghost" size="icon">
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-        </Link>
-        <div className="flex-1" />
-      </div>
-
-      <CharacterSheet
-        character={character}
-        onUpdate={handleUpdate}
-        editable={isOwner}
-      />
-    </div>
+    <CharacterSheet
+      character={character}
+      onUpdate={handleUpdate}
+      editable={isOwner}
+    />
   );
 }
 

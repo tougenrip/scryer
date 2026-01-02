@@ -5,17 +5,17 @@ import { createClient } from '@/lib/supabase/client';
 // TYPE DEFINITIONS
 // ============================================
 
-export interface Map {
+export interface MediaItem {
   id: string;
   campaign_id: string;
   name: string;
   image_url: string | null;
-  grid_size: number;
-  grid_type: 'square' | 'hex';
-  width: number | null;
-  height: number | null;
+  type: 'map' | 'token' | 'prop' | null;
   created_at: string | null;
 }
+
+// Legacy alias for backward compatibility during migration
+export type Map = MediaItem;
 
 export interface NPC {
   id: string;
@@ -27,6 +27,7 @@ export interface NPC {
   background: string | null;
   location: string | null;
   notes: string | null;
+  image_url: string | null;
   created_by: string;
   created_at: string | null;
   updated_at: string | null;
@@ -57,15 +58,18 @@ export interface Quest {
 }
 
 // ============================================
-// MAPS HOOKS
+// MEDIA ITEMS HOOKS
 // ============================================
 
-export function useCampaignMaps(campaignId: string | null) {
-  const [maps, setMaps] = useState<Map[]>([]);
+export function useCampaignMediaItems(
+  campaignId: string | null,
+  type?: 'map' | 'token' | 'prop' | null
+) {
+  const [items, setItems] = useState<MediaItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
-  const fetchMaps = useCallback(async () => {
+  const fetchItems = useCallback(async () => {
     if (!campaignId) {
       setLoading(false);
       return;
@@ -75,53 +79,57 @@ export function useCampaignMaps(campaignId: string | null) {
       setLoading(true);
       const supabase = createClient();
 
-      const { data, error: fetchError } = await supabase
-        .from('maps')
+      let query = supabase
+        .from('media_items')
         .select('*')
-        .eq('campaign_id', campaignId)
-        .order('created_at', { ascending: false });
+        .eq('campaign_id', campaignId);
+
+      if (type) {
+        query = query.eq('type', type);
+      }
+
+      const { data, error: fetchError } = await query.order('created_at', { ascending: false });
 
       if (fetchError) throw fetchError;
-      setMaps(data || []);
+      setItems(data || []);
       setError(null);
     } catch (err) {
       setError(err as Error);
     } finally {
       setLoading(false);
     }
-  }, [campaignId]);
+  }, [campaignId, type]);
 
   useEffect(() => {
-    fetchMaps();
-  }, [fetchMaps]);
+    fetchItems();
+  }, [fetchItems]);
 
-  return { maps, loading, error, refetch: fetchMaps };
+  return { items, loading, error, refetch: fetchItems };
 }
 
-export function useCreateMap() {
+// Legacy hook for backward compatibility
+export function useCampaignMaps(campaignId: string | null) {
+  const { items, loading, error, refetch } = useCampaignMediaItems(campaignId, 'map');
+  return { maps: items, loading, error, refetch };
+}
+
+export function useCreateMediaItem() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
-  const createMap = async (mapData: {
+  const createMediaItem = async (itemData: {
     campaign_id: string;
     name: string;
     image_url?: string | null;
-    grid_size?: number;
-    grid_type?: 'square' | 'hex';
-    width?: number | null;
-    height?: number | null;
+    type?: 'map' | 'token' | 'prop' | null;
   }) => {
     try {
       setLoading(true);
       const supabase = createClient();
 
       const { data, error: insertError } = await supabase
-        .from('maps')
-        .insert({
-          ...mapData,
-          grid_size: mapData.grid_size ?? 5,
-          grid_type: mapData.grid_type ?? 'square',
-        })
+        .from('media_items')
+        .insert(itemData)
         .select()
         .single();
 
@@ -137,22 +145,41 @@ export function useCreateMap() {
     }
   };
 
+  return { createMediaItem, loading, error };
+}
+
+// Legacy hook for backward compatibility
+export function useCreateMap() {
+  const { createMediaItem, loading, error } = useCreateMediaItem();
+  const createMap = async (mapData: {
+    campaign_id: string;
+    name: string;
+    image_url?: string | null;
+    grid_size?: number;
+    grid_type?: 'square' | 'hex';
+    width?: number | null;
+    height?: number | null;
+  }) => {
+    return createMediaItem({
+      campaign_id: mapData.campaign_id,
+      name: mapData.name,
+      image_url: mapData.image_url,
+      type: 'map',
+    });
+  };
   return { createMap, loading, error };
 }
 
-export function useUpdateMap() {
+export function useUpdateMediaItem() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
-  const updateMap = async (
-    mapId: string,
+  const updateMediaItem = async (
+    itemId: string,
     updates: {
       name?: string;
       image_url?: string | null;
-      grid_size?: number;
-      grid_type?: 'square' | 'hex';
-      width?: number | null;
-      height?: number | null;
+      type?: 'map' | 'token' | 'prop' | null;
     }
   ) => {
     try {
@@ -160,9 +187,9 @@ export function useUpdateMap() {
       const supabase = createClient();
 
       const { data, error: updateError } = await supabase
-        .from('maps')
+        .from('media_items')
         .update(updates)
-        .eq('id', mapId)
+        .eq('id', itemId)
         .select()
         .single();
 
@@ -178,22 +205,44 @@ export function useUpdateMap() {
     }
   };
 
+  return { updateMediaItem, loading, error };
+}
+
+// Legacy hook for backward compatibility
+export function useUpdateMap() {
+  const { updateMediaItem, loading, error } = useUpdateMediaItem();
+  const updateMap = async (
+    mapId: string,
+    updates: {
+      name?: string;
+      image_url?: string | null;
+      grid_size?: number;
+      grid_type?: 'square' | 'hex';
+      width?: number | null;
+      height?: number | null;
+    }
+  ) => {
+    return updateMediaItem(mapId, {
+      name: updates.name,
+      image_url: updates.image_url,
+    });
+  };
   return { updateMap, loading, error };
 }
 
-export function useDeleteMap() {
+export function useDeleteMediaItem() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
-  const deleteMap = async (mapId: string) => {
+  const deleteMediaItem = async (itemId: string) => {
     try {
       setLoading(true);
       const supabase = createClient();
 
       const { error: deleteError } = await supabase
-        .from('maps')
+        .from('media_items')
         .delete()
-        .eq('id', mapId);
+        .eq('id', itemId);
 
       if (deleteError) throw deleteError;
 
@@ -207,7 +256,13 @@ export function useDeleteMap() {
     }
   };
 
-  return { deleteMap, loading, error };
+  return { deleteMediaItem, loading, error };
+}
+
+// Legacy hook for backward compatibility
+export function useDeleteMap() {
+  const { deleteMediaItem, loading, error } = useDeleteMediaItem();
+  return { deleteMap: deleteMediaItem, loading, error };
 }
 
 // ============================================
@@ -265,6 +320,7 @@ export function useCreateNPC() {
     background?: string | null;
     location?: string | null;
     notes?: string | null;
+    image_url?: string | null;
     created_by: string;
   }) => {
     try {
@@ -306,6 +362,7 @@ export function useUpdateNPC() {
       background?: string | null;
       location?: string | null;
       notes?: string | null;
+      image_url?: string | null;
     }
   ) => {
     try {

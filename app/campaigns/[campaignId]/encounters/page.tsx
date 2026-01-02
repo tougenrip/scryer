@@ -12,7 +12,7 @@ import {
   useCreateEncounter,
   useUpdateEncounter,
   useDeleteEncounter,
-  useCampaignMaps,
+  useCampaignMediaItems,
   type Encounter,
 } from "@/hooks/useCampaignContent";
 import { EncounterFormDialog } from "@/components/campaign/encounter-form-dialog";
@@ -41,7 +41,7 @@ export default function EncountersPage() {
 
   const { campaign, loading: campaignLoading } = useCampaign(campaignId);
   const { encounters, loading: encountersLoading, refetch: refetchEncounters } = useCampaignEncounters(campaignId);
-  const { maps, loading: mapsLoading } = useCampaignMaps(campaignId);
+  const { items: maps, loading: mapsLoading } = useCampaignMediaItems(campaignId, 'map');
   const { createEncounter, loading: creating } = useCreateEncounter();
   const { updateEncounter, loading: updating } = useUpdateEncounter();
   const { deleteEncounter, loading: deleting } = useDeleteEncounter();

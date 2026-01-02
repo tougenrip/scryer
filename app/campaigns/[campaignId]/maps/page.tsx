@@ -39,7 +39,7 @@ export default function MapsPage() {
   const [deletingMapId, setDeletingMapId] = useState<string | null>(null);
 
   const { campaign, loading: campaignLoading } = useCampaign(campaignId);
-  const { maps, loading: mapsLoading } = useCampaignMaps(campaignId);
+  const { maps, loading: mapsLoading, refetch: refetchMaps } = useCampaignMaps(campaignId);
   const { createMap, loading: creating } = useCreateMap();
   const { updateMap, loading: updating } = useUpdateMap();
   const { deleteMap, loading: deleting } = useDeleteMap();

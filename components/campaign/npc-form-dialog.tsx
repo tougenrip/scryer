@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { NPC } from "@/hooks/useCampaignContent";
+import { MapImageUpload } from "./map-image-upload";
 
 interface NPCFormDialogProps {
   open: boolean;
@@ -30,6 +31,7 @@ interface NPCFormDialogProps {
     background?: string | null;
     location?: string | null;
     notes?: string | null;
+    image_url?: string | null;
     created_by: string;
   }) => Promise<{ success: boolean; error?: Error }>;
   onUpdate: (
@@ -42,6 +44,7 @@ interface NPCFormDialogProps {
       background?: string | null;
       location?: string | null;
       notes?: string | null;
+      image_url?: string | null;
     }
   ) => Promise<{ success: boolean; error?: Error }>;
 }
@@ -62,6 +65,7 @@ export function NPCFormDialog({
   const [background, setBackground] = useState("");
   const [location, setLocation] = useState("");
   const [notes, setNotes] = useState("");
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -73,6 +77,7 @@ export function NPCFormDialog({
       setBackground(npc.background || "");
       setLocation(npc.location || "");
       setNotes(npc.notes || "");
+      setImageUrl(npc.image_url || null);
     } else {
       setName("");
       setDescription("");
@@ -81,6 +86,7 @@ export function NPCFormDialog({
       setBackground("");
       setLocation("");
       setNotes("");
+      setImageUrl(null);
     }
   }, [npc, open]);
 
@@ -101,6 +107,7 @@ export function NPCFormDialog({
         background: background.trim() || null,
         location: location.trim() || null,
         notes: notes.trim() || null,
+        image_url: imageUrl || null,
       };
 
       let result;
@@ -157,6 +164,15 @@ export function NPCFormDialog({
                 value={location}
                 onChange={(e) => setLocation(e.target.value)}
                 placeholder="Where can this NPC be found?"
+                disabled={loading}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label>Image</Label>
+              <MapImageUpload
+                imageUrl={imageUrl}
+                onImageChange={setImageUrl}
+                campaignId={campaignId}
                 disabled={loading}
               />
             </div>

@@ -180,7 +180,14 @@ export default function QuestBoardPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {quests.map((quest) => (
-              <div key={quest.id} className="h-64">
+              <div 
+                key={quest.id} 
+                className="h-64"
+                style={{ 
+                  color: 'rgba(245, 243, 240, 1)',
+                  backgroundColor: 'rgba(253, 230, 138, 1)'
+                }}
+              >
                 <QuestNote
                   quest={quest}
                   isDm={isDm}

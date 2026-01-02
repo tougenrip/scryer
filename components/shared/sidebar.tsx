@@ -9,7 +9,7 @@ import {
   Settings,
   ChevronLeft,
   Home,
-  Map,
+  Image,
   User,
   Swords,
   ScrollText
@@ -29,9 +29,9 @@ const sidebarItems = [
     icon: Home,
   },
   {
-    title: "Maps",
-    href: "/maps",
-    icon: Map,
+    title: "Media Library",
+    href: "/media-library",
+    icon: Image,
   },
   {
     title: "NPCs",

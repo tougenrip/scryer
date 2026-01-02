@@ -20,13 +20,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Encounter, Map } from "@/hooks/useCampaignContent";
+import { Encounter, MediaItem } from "@/hooks/useCampaignContent";
 
 interface EncounterFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   campaignId: string;
-  maps: Map[];
+  maps: MediaItem[];
   encounter?: Encounter | null;
   onCreate: (data: {
     campaign_id: string;

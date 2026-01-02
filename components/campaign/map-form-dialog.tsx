@@ -20,6 +20,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Map } from "@/hooks/useCampaignContent";
+import { MapImageUpload } from "./map-image-upload";
+import { MapPreview } from "./map-preview";
 
 interface MapFormDialogProps {
   open: boolean;
@@ -120,7 +122,7 @@ export function MapFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[900px] max-h-[90vh] overflow-y-auto">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle className="font-serif">
@@ -129,89 +131,111 @@ export function MapFormDialog({
             <DialogDescription>
               {map
                 ? "Update map details below."
-                : "Create a new map for your campaign."}
+                : "Upload a map image, configure grid settings, and preview before creating."}
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="name">
-                Name <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                id="name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Map name"
-                required
-                disabled={loading}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="image_url">Image URL</Label>
-              <Input
-                id="image_url"
-                type="url"
-                value={imageUrl || ""}
-                onChange={(e) => setImageUrl(e.target.value || null)}
-                placeholder="https://example.com/map.png"
-                disabled={loading}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
+          <div className="grid gap-6 py-4">
+            {/* Form Fields */}
+            <div className="grid gap-4">
               <div className="grid gap-2">
-                <Label htmlFor="grid_size">Grid Size (feet)</Label>
+                <Label htmlFor="name">
+                  Name <span className="text-destructive">*</span>
+                </Label>
                 <Input
-                  id="grid_size"
-                  type="number"
-                  min="1"
-                  value={gridSize}
-                  onChange={(e) => setGridSize(parseInt(e.target.value, 10) || 5)}
+                  id="name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Map name"
+                  required
                   disabled={loading}
                 />
               </div>
+
+              {/* Image Upload */}
               <div className="grid gap-2">
-                <Label htmlFor="grid_type">Grid Type</Label>
-                <Select
-                  value={gridType}
-                  onValueChange={(value: 'square' | 'hex') => setGridType(value)}
-                  disabled={loading}
-                >
-                  <SelectTrigger id="grid_type">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="square">Square</SelectItem>
-                    <SelectItem value="hex">Hex</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="width">Width (grid units)</Label>
-                <Input
-                  id="width"
-                  type="number"
-                  min="1"
-                  value={width}
-                  onChange={(e) => setWidth(e.target.value)}
-                  placeholder="Optional"
+                <Label>
+                  Map Image {!map && <span className="text-destructive">*</span>}
+                </Label>
+                <MapImageUpload
+                  imageUrl={imageUrl}
+                  onImageChange={setImageUrl}
+                  campaignId={campaignId}
                   disabled={loading}
                 />
               </div>
-              <div className="grid gap-2">
-                <Label htmlFor="height">Height (grid units)</Label>
-                <Input
-                  id="height"
-                  type="number"
-                  min="1"
-                  value={height}
-                  onChange={(e) => setHeight(e.target.value)}
-                  placeholder="Optional"
-                  disabled={loading}
-                />
+
+              {/* Grid Settings */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="grid_size">Grid Size (feet)</Label>
+                  <Input
+                    id="grid_size"
+                    type="number"
+                    min="1"
+                    value={gridSize}
+                    onChange={(e) => setGridSize(parseInt(e.target.value, 10) || 5)}
+                    disabled={loading}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="grid_type">Grid Type</Label>
+                  <Select
+                    value={gridType}
+                    onValueChange={(value: 'square' | 'hex') => setGridType(value)}
+                    disabled={loading}
+                  >
+                    <SelectTrigger id="grid_type">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="square">Square</SelectItem>
+                      <SelectItem value="hex">Hex</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Map Dimensions */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="width">Width (grid units)</Label>
+                  <Input
+                    id="width"
+                    type="number"
+                    min="1"
+                    value={width}
+                    onChange={(e) => setWidth(e.target.value)}
+                    placeholder="Optional"
+                    disabled={loading}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="height">Height (grid units)</Label>
+                  <Input
+                    id="height"
+                    type="number"
+                    min="1"
+                    value={height}
+                    onChange={(e) => setHeight(e.target.value)}
+                    placeholder="Optional"
+                    disabled={loading}
+                  />
+                </div>
               </div>
             </div>
+
+            {/* Preview Section */}
+            {imageUrl && (
+              <div className="border-t pt-4">
+                <MapPreview
+                  imageUrl={imageUrl}
+                  gridSize={gridSize}
+                  gridType={gridType}
+                  width={width ? parseInt(width, 10) : null}
+                  height={height ? parseInt(height, 10) : null}
+                />
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button
@@ -222,7 +246,10 @@ export function MapFormDialog({
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={loading || !name.trim()}>
+            <Button 
+              type="submit" 
+              disabled={loading || !name.trim() || (!map && !imageUrl)}
+            >
               {loading ? "Saving..." : map ? "Save Changes" : "Create Map"}
             </Button>
           </DialogFooter>

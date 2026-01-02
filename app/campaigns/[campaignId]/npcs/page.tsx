@@ -66,6 +66,7 @@ export default function NPCsPage() {
     background?: string | null;
     location?: string | null;
     notes?: string | null;
+    image_url?: string | null;
     created_by: string;
   }) => {
     const result = await createNPC(data);
@@ -90,6 +91,7 @@ export default function NPCsPage() {
       background?: string | null;
       location?: string | null;
       notes?: string | null;
+      image_url?: string | null;
     }
   ) => {
     const result = await updateNPC(npcId, data);
@@ -181,24 +183,41 @@ export default function NPCsPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {npcs.map((npc) => (
-            <Card key={npc.id}>
-              <CardContent className="p-6 space-y-3">
-                <div>
-                  <h3 className="font-semibold text-lg">{npc.name}</h3>
-                  {npc.location && (
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Location: {npc.location}
-                    </p>
+            <Card key={npc.id} className="overflow-hidden flex flex-col h-full">
+              <CardContent className="p-0 flex flex-col h-full">
+                {/* Image */}
+                <div className="w-full aspect-square bg-muted overflow-hidden flex-shrink-0">
+                  {npc.image_url ? (
+                    <img
+                      src={npc.image_url}
+                      alt={npc.name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
+                      <User className="h-16 w-16 text-primary/40" />
+                    </div>
                   )}
                 </div>
-                {npc.description && (
-                  <p className="text-sm text-muted-foreground line-clamp-3">
-                    {npc.description}
-                  </p>
-                )}
-                <div className="flex items-center gap-2 pt-2">
+                {/* Content */}
+                <div className="p-6 flex flex-col flex-1 min-h-0">
+                  <div className="space-y-3 flex-1">
+                    <div>
+                      <h3 className="font-semibold text-lg">{npc.name}</h3>
+                      {npc.location && (
+                        <p className="text-sm text-muted-foreground mt-1">
+                          Location: {npc.location}
+                        </p>
+                      )}
+                    </div>
+                    {npc.description && (
+                      <p className="text-sm text-muted-foreground line-clamp-3">
+                        {npc.description}
+                      </p>
+                    )}
+                  </div>
                   {isDm && (
-                    <>
+                    <div className="flex items-center gap-2 pt-4 mt-auto">
                       <Button
                         variant="outline"
                         size="sm"
@@ -216,7 +235,7 @@ export default function NPCsPage() {
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
-                    </>
+                    </div>
                   )}
                 </div>
               </CardContent>
