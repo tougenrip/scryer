@@ -1,16 +1,20 @@
 "use client";
 
+import { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import {
   getSkillModifier,
   DND_SKILLS,
+  calculateSkillProficiencies,
   type SkillName,
 } from "@/lib/utils/character";
 import { getAbilityModifierString } from "@/lib/utils/character";
 import { Acrobatics, AnimalHandling, Arcana, Athletics, Deception, History, Insight, Intimidation, Investigation, Medicine, Nature, Perception, Performance, Persuasion, Religion, SleightOfHand, Stealth, Survival } from "dnd-icons/skill";
 import { Skillcheck } from "dnd-icons/attribute";
+import { useDiceRoller } from "@/contexts/dice-roller-context";
+import { SkillProficiencyIndicator } from "./skill-proficiency-indicator";
+import { Star } from "lucide-react";
 
 interface SkillsPanelProps {
   abilityScores: {
@@ -21,12 +25,31 @@ interface SkillsPanelProps {
     wisdom: number;
     charisma: number;
   };
+  /**
+   * Pre-calculated skill proficiencies. If raceTraits or backgroundSkillProficiencies
+   * are provided, they will be merged with these values.
+   */
   skillProficiencies: Record<SkillName, { proficient: boolean; expertise: boolean }>;
   proficiencyBonus: number;
   stealthDisadvantage?: boolean;
+  /**
+   * Optional: Race traits with descriptions for calculating skill proficiencies.
+   */
+  raceTraits?: Array<{ name?: string; description?: string; index?: string }>;
+  /**
+   * Optional: Background skill proficiencies string (e.g., "Insight, Religion").
+   */
+  backgroundSkillProficiencies?: string | null;
+  /**
+   * Optional: Class features that may grant skill proficiencies.
+   */
+  classFeatures?: Array<{ name?: string; description?: string; choice?: any }>;
   onSkillChange?: (skill: SkillName, proficient: boolean, expertise: boolean) => void;
   onSkillClick?: (skill: SkillName, description: string, examples: readonly string[] | undefined, ability: string, score: number, proficient: boolean, expertise: boolean) => void;
   editable?: boolean;
+  characterId?: string;
+  characterName?: string;
+  campaignId?: string;
 }
 
 export function SkillsPanel({
@@ -34,10 +57,40 @@ export function SkillsPanel({
   skillProficiencies,
   proficiencyBonus,
   stealthDisadvantage = false,
+  raceTraits,
+  backgroundSkillProficiencies,
+  classFeatures,
   onSkillChange,
   onSkillClick,
   editable = false,
+  characterId,
+  characterName,
+  campaignId,
 }: SkillsPanelProps) {
+  const { rollDice, rollWithAdvantage, rollWithDisadvantage } = useDiceRoller();
+  
+  // Calculate effective skill proficiencies by merging race/background/class with provided values
+  const effectiveSkillProficiencies = useMemo(() => {
+    // If any additional sources are provided, recalculate
+    if (raceTraits || backgroundSkillProficiencies || classFeatures) {
+      // Convert skillProficiencies to manual skills format for the function
+      const manualSkills = Object.entries(skillProficiencies).map(([name, prof]) => ({
+        skill_name: name,
+        proficient: prof.proficient,
+        expertise: prof.expertise,
+      }));
+      
+      return calculateSkillProficiencies(
+        manualSkills,
+        classFeatures,
+        undefined, // classProficiencyChoices - not passed here
+        raceTraits,
+        backgroundSkillProficiencies
+      );
+    }
+    return skillProficiencies;
+  }, [skillProficiencies, raceTraits, backgroundSkillProficiencies, classFeatures]);
+  
   const skillGroups = DND_SKILLS.reduce((acc, skill) => {
     const ability = skill.ability;
     if (!acc[ability]) {
@@ -85,7 +138,7 @@ export function SkillsPanel({
               </h4>
               <div className="space-y-0.5">
                 {skills.map((skill) => {
-                  const prof = skillProficiencies[skill.name] || {
+                  const prof = effectiveSkillProficiencies[skill.name] || {
                     proficient: false,
                     expertise: false,
                   };
@@ -104,26 +157,28 @@ export function SkillsPanel({
                     >
                       <div className="flex items-center gap-1.5 flex-1 min-w-0">
                         {editable && (
-                          <div className="flex items-center gap-0.5 shrink-0">
-                            <Checkbox
-                              id={`skill-${skill.name}`}
-                              checked={prof.proficient || prof.expertise}
-                              onCheckedChange={(checked) => {
-                                onSkillChange?.(skill.name, checked === true, false);
-                              }}
-                              className="h-3 w-3"
-                            />
-                            {prof.proficient && (
-                              <Checkbox
-                                id={`skill-expertise-${skill.name}`}
-                                checked={prof.expertise}
-                                onCheckedChange={(checked) => {
-                                  onSkillChange?.(skill.name, true, checked === true);
-                                }}
-                                className="h-2.5 w-2.5"
-                              />
-                            )}
-                          </div>
+                          <SkillProficiencyIndicator
+                            proficient={prof.proficient}
+                            expertise={prof.expertise}
+                            editable={true}
+                            onToggle={() => {
+                              // Cycle: not proficient -> proficient -> expertise -> not proficient
+                              if (!prof.proficient) {
+                                onSkillChange?.(skill.name, true, false);
+                              } else if (prof.proficient && !prof.expertise) {
+                                onSkillChange?.(skill.name, true, true);
+                              } else {
+                                onSkillChange?.(skill.name, false, false);
+                              }
+                            }}
+                          />
+                        )}
+                        {!editable && (
+                          <SkillProficiencyIndicator
+                            proficient={prof.proficient}
+                            expertise={prof.expertise}
+                            editable={false}
+                          />
                         )}
                         {(() => {
                           const SkillIcon = skillIconMap[skill.name];
@@ -154,19 +209,70 @@ export function SkillsPanel({
                           )}
                         </Label>
                       </div>
-                      <div
-                        className={`text-sm font-semibold shrink-0 ${
-                          prof.proficient || prof.expertise ? "text-primary" : ""
+                      <button
+                        type="button"
+                        className={`inline-flex items-center justify-center shrink-0 px-1.5 py-0.5 text-xs font-semibold rounded border transition-all ${
+                          prof.proficient || prof.expertise 
+                            ? "bg-primary/10 border-primary/30 text-primary hover:bg-primary/20 hover:border-primary/50" 
+                            : "bg-muted/50 border-border/50 text-foreground hover:bg-muted hover:border-border"
                         }`}
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          if (characterId) {
+                            const skillName = skill.name
+                              .split("-")
+                              .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+                              .join(" ");
+                            
+                            // Right click or Ctrl+Click for advantage/disadvantage
+                            if (e.ctrlKey || e.metaKey || e.button === 2) {
+                              e.preventDefault();
+                              await rollWithAdvantage(modifier, {
+                                label: `${skillName} Check`,
+                                characterId,
+                                characterName,
+                                campaignId,
+                              });
+                            } else {
+                              // Check if stealth has disadvantage
+                              const useDisadvantage = skill.name === 'stealth' && stealthDisadvantage;
+                              
+                              if (useDisadvantage) {
+                                await rollWithDisadvantage(modifier, {
+                                  label: `${skillName} Check (Disadvantage)`,
+                                  characterId,
+                                  characterName,
+                                  campaignId,
+                                });
+                              } else {
+                                await rollDice(`1d20${modifier >= 0 ? '+' : ''}${modifier}`, {
+                                  label: `${skillName} Check`,
+                                  characterId,
+                                  characterName,
+                                  campaignId,
+                                });
+                              }
+                            }
+                          }
+                        }}
+                        onContextMenu={async (e) => {
+                          e.preventDefault();
+                          if (characterId) {
+                            const skillName = skill.name
+                              .split("-")
+                              .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+                              .join(" ");
+                            await rollWithAdvantage(modifier, {
+                              label: `${skillName} Check (Advantage)`,
+                              characterId,
+                              characterName,
+                              campaignId,
+                            });
+                          }
+                        }}
                       >
                         {modifier >= 0 ? `+${modifier}` : `${modifier}`}
-                        {prof.expertise && (
-                          <span className="text-[10px] ml-0.5 text-primary">●●</span>
-                        )}
-                        {prof.proficient && !prof.expertise && (
-                          <span className="text-[10px] ml-0.5 text-primary">●</span>
-                        )}
-                      </div>
+                      </button>
                     </div>
                   );
                 })}
@@ -174,9 +280,20 @@ export function SkillsPanel({
             </div>
           ))}
         </div>
-        <p className="text-[10px] text-muted-foreground mt-2">
-          ● = Proficient, ●● = Expertise
-        </p>
+        <div className="flex items-center gap-3 text-[10px] text-muted-foreground mt-2 pt-2 border-t border-border/50">
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 rounded border border-border/50 bg-muted/30" />
+            <span>Not proficient</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 rounded border border-primary bg-primary" />
+            <span>Proficient</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <Star size={12} className="text-primary fill-primary" strokeWidth={2} />
+            <span>Expertise</span>
+          </div>
+        </div>
       </CardContent>
     </Card>
   );

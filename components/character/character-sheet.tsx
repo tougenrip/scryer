@@ -27,6 +27,8 @@ import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useInfoSheet } from "@/hooks/useInfoSheet";
 import { InfoSheetDialog } from "@/components/shared/info-sheet-dialog";
+import { useDiceRoller } from "@/contexts/dice-roller-context";
+import { getAbilityModifier } from "@/lib/utils/character";
 import { Strength, Dexterity, Constitution, Intelligence, Wisdom, Charisma } from "dnd-icons/ability";
 import { Ac, SavingThrow } from "dnd-icons/attribute";
 import { Initiative } from "dnd-icons/combat";
@@ -38,7 +40,7 @@ import { Acid, Bludgeoning, Cold, Fire, Force, Lightning, Necrotic, Piercing, Po
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { getProficiencyBonus, extractFeaturesForLevel, getAllFeaturesUpToLevel, calculateSpellSlots, type ExtractedFeature } from "@/lib/utils/character";
+import { getProficiencyBonus, extractFeaturesForLevel, getAllFeaturesUpToLevel, calculateSpellSlots, calculateSkillProficiencies, calculateSavingThrowProficiencies, type ExtractedFeature } from "@/lib/utils/character";
 import { Plus, Minus } from "lucide-react";
 import { LevelUpModal, type NewFeature } from "./level-up-modal";
 import { useFeatureChoices } from "@/hooks/useFeatureChoices";
@@ -72,6 +74,7 @@ export function CharacterSheet({
   const { races } = useRaces(character.campaign_id || null);
   const { classes } = useClasses(character.campaign_id || null);
   const infoSheet = useInfoSheet();
+  const { rollDice, rollWithAdvantage } = useDiceRoller();
   
   // Calculate equipment effects
   const equipmentEffects = useEquipmentEffects(character, inventory);
@@ -198,14 +201,51 @@ export function CharacterSheet({
         .select("*")
         .eq("character_id", character.id);
 
-      const skillsMap: Record<SkillName, { proficient: boolean; expertise: boolean }> = {} as any;
-      DND_SKILLS.forEach((skill) => {
-        const skillData = skillsData?.find((s) => s.skill_name === skill.name);
-        skillsMap[skill.name] = {
-          proficient: skillData?.proficient || false,
-          expertise: skillData?.expertise || false,
-        };
-      });
+      // Calculate skill proficiencies from all sources
+      // Get class proficiency choices
+      const classProficiencyChoices = selectedClass?.proficiency_choices;
+      
+      // Get race traits with full descriptions from srd_racial_traits
+      let raceTraitsWithDescriptions: Array<{ name: string; description: string; index: string }> = [];
+      if (selectedRace?.traits && Array.isArray(selectedRace.traits)) {
+        const traitIndices = selectedRace.traits.map((t: any) => t.index).filter(Boolean);
+        if (traitIndices.length > 0) {
+          const { data: traitDetails } = await supabase
+            .from('srd_racial_traits')
+            .select('index, name, description')
+            .in('index', traitIndices);
+          
+          if (traitDetails) {
+            raceTraitsWithDescriptions = traitDetails;
+          }
+        }
+      }
+      
+      // Get background skill proficiencies
+      let backgroundSkillProficiencies: string | null = null;
+      if (character.background) {
+        const { data: backgroundData } = await supabase
+          .from('srd_backgrounds')
+          .select('skill_proficiencies')
+          .or(`name.eq.${character.background},index.eq.${character.background.toLowerCase().replace(/\s+/g, '-')}`)
+          .single();
+        
+        if (backgroundData?.skill_proficiencies) {
+          backgroundSkillProficiencies = backgroundData.skill_proficiencies;
+        }
+      }
+      
+      // Get class features with choices
+      const classFeatures = character.class_features || [];
+      
+      const skillsMap = calculateSkillProficiencies(
+        skillsData || [],
+        classFeatures,
+        classProficiencyChoices,
+        raceTraitsWithDescriptions,
+        backgroundSkillProficiencies
+      );
+      
       setSkills(skillsMap);
 
       // Fetch spell slots
@@ -751,14 +791,20 @@ export function CharacterSheet({
     charisma: (character.charisma || 10) + (equipmentEffects.abilityScoreBonuses.charisma || 0),
   };
 
-  const saveProficiencies = {
-    strength: character.strength_save_prof || false,
-    dexterity: character.dexterity_save_prof || false,
-    constitution: character.constitution_save_prof || false,
-    intelligence: character.intelligence_save_prof || false,
-    wisdom: character.wisdom_save_prof || false,
-    charisma: character.charisma_save_prof || false,
-  };
+  // Calculate saving throw proficiencies from class (and potentially race)
+  const saveProficiencies = calculateSavingThrowProficiencies(
+    selectedClass?.saving_throws,
+    selectedRace?.traits,
+    {
+      // Include any manual overrides from character data
+      strength: character.strength_save_prof || false,
+      dexterity: character.dexterity_save_prof || false,
+      constitution: character.constitution_save_prof || false,
+      intelligence: character.intelligence_save_prof || false,
+      wisdom: character.wisdom_save_prof || false,
+      charisma: character.charisma_save_prof || false,
+    }
+  );
 
   if (loading) {
     return <div>Loading character data...</div>;
@@ -1126,19 +1172,56 @@ export function CharacterSheet({
                   { name: "Charisma", short: "CHA", score: abilityScores.charisma, Icon: Charisma },
                 ].map((ability) => {
                   const modifier = getAbilityModifierString(ability.score);
+                  const modifierValue = getAbilityModifier(ability.score);
                   const IconComponent = ability.Icon;
                   return (
                     <div 
                       key={ability.short} 
-                      className="text-center p-2 bg-background/50 rounded-md cursor-pointer hover:bg-background/80 transition-colors border border-border/50"
-                      onClick={() => infoSheet.showAbility(ability.name, ability.short, ability.score)}
+                      className="text-center p-2 bg-background/50 rounded-md border border-border/50"
+                      onClick={() => {
+                        infoSheet.showAbility(ability.name, ability.short, ability.score);
+                      }}
                     >
                       <IconComponent size={16} className="mx-auto mb-0.5" />
                       <div className="text-[10px] text-muted-foreground mb-0.5">
                         {ability.short}
                       </div>
                       <div className="text-xl font-bold leading-none mb-0.5">{ability.score}</div>
-                      <div className="text-xs font-semibold">{modifier}</div>
+                      <button
+                        type="button"
+                        className="inline-flex items-center justify-center w-full px-1.5 py-0.5 text-xs font-semibold rounded border transition-all bg-muted/50 border-border/50 text-foreground hover:bg-muted hover:border-border mt-0.5"
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          if (e.ctrlKey || e.metaKey) {
+                            e.preventDefault();
+                            await rollWithAdvantage(modifierValue, {
+                              label: `${ability.name} Check`,
+                              characterId: character.id,
+                              characterName: character.name,
+                              campaignId: character.campaign_id || undefined,
+                            });
+                          } else {
+                            await rollDice(`1d20${modifierValue >= 0 ? '+' : ''}${modifierValue}`, {
+                              label: `${ability.name} Check`,
+                              characterId: character.id,
+                              characterName: character.name,
+                              campaignId: character.campaign_id || undefined,
+                            });
+                          }
+                        }}
+                        onContextMenu={async (e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          await rollWithAdvantage(modifierValue, {
+                            label: `${ability.name} Check (Advantage)`,
+                            characterId: character.id,
+                            characterName: character.name,
+                            campaignId: character.campaign_id || undefined,
+                          });
+                        }}
+                      >
+                        {modifier}
+                      </button>
                     </div>
                   );
                 })}
@@ -1162,6 +1245,9 @@ export function CharacterSheet({
               infoSheet.showSavingThrow(ability, short, score, proficient, character.proficiency_bonus || 2, description, examples);
             }}
             editable={editable}
+            characterId={character.id}
+            characterName={character.name}
+            campaignId={character.campaign_id || undefined}
           />
 
           {/* Senses Card */}
@@ -1199,9 +1285,14 @@ export function CharacterSheet({
               initiative={character.initiative || 0}
               speed={(character.speed || 30) + equipmentEffects.speedModifier}
               speedModifier={equipmentEffects.speedModifier}
+              hitDiceCurrent={character.hit_dice_current}
+              hitDiceTotal={character.hit_dice_total}
               onHpChange={handleHpChange}
               onStatChange={handleStatChange}
               editable={editable}
+              characterId={character.id}
+              characterName={character.name}
+              campaignId={character.campaign_id || undefined}
             />
 
             {/* Conditions Card - Made Shorter */}
@@ -1239,6 +1330,9 @@ export function CharacterSheet({
                   infoSheet.showSkill(skillName, ability, score, proficient, expertise, character.proficiency_bonus || 2, description, examples);
                 }}
                 editable={editable}
+                characterId={character.id}
+                characterName={character.name}
+                campaignId={character.campaign_id || undefined}
               />
             </div>
 
@@ -1281,7 +1375,11 @@ export function CharacterSheet({
                 character={character}
                 abilityScores={abilityScores}
                 inventory={inventory}
+                proficiencyBonus={character.proficiency_bonus || 2}
                 classFeatures={character.class_features || []}
+                characterId={character.id}
+                characterName={character.name}
+                campaignId={character.campaign_id || undefined}
               />
             </TabsContent>
 
@@ -1289,6 +1387,9 @@ export function CharacterSheet({
               <SpellsTab
                 spells={characterSpells}
                 spellSlots={spellSlots}
+                characterId={character.id}
+                characterName={character.name}
+                campaignId={character.campaign_id || undefined}
                 onSpellToggle={async (spellIndex, prepared) => {
                   const supabase = createClient();
                   const charSpell = characterSpells.find(cs => cs.spell.index === spellIndex);
@@ -1324,38 +1425,59 @@ export function CharacterSheet({
                 characterId={character.id}
                 money={character.money || { cp: 0, sp: 0, ep: 0, gp: 0, pp: 0 }}
                 onMoneyUpdate={async (money) => {
-                  const supabase = createClient();
-                  const { error } = await supabase
-                    .from('characters')
-                    .update({ money })
-                    .eq('id', character.id);
-                  
-                  if (!error) {
-                    if (onUpdate) {
-                      await onUpdate({ money });
-                    }
-                    toast.success('Currency updated');
+                  if (onUpdate) {
+                    await onUpdate({ money });
                   } else {
-                    toast.error('Failed to update currency');
+                    toast.error('Update function not available');
                   }
                 }}
                 onItemAdd={async (item: Equipment, quantity: number, notes?: string) => {
                   const supabase = createClient();
                   
-                  // Insert into character_inventory table
-                  const { data: insertedItem, error } = await supabase
-                    .from('character_inventory')
-                    .insert({
-                      character_id: character.id,
-                      item_source: item.source,
-                      item_index: item.index,
-                      quantity: quantity,
-                      equipped: false,
-                      attuned: false,
-                      notes: notes || null,
-                    })
-                    .select()
-                    .single();
+                  // Get current inventory from JSONB column
+                  const currentInventory = (character.inventory as Array<{
+                    source: 'srd' | 'homebrew';
+                    index: string;
+                    quantity: number;
+                    equipped: boolean;
+                    attuned: boolean;
+                    notes?: string | null;
+                  }>) || [];
+                  
+                  // Check if item already exists (same source and index)
+                  const existingItemIndex = currentInventory.findIndex(
+                    inv => inv.source === item.source && inv.index === item.index
+                  );
+                  
+                  let updatedInventory: typeof currentInventory;
+                  
+                  if (existingItemIndex >= 0) {
+                    // Update quantity of existing item
+                    updatedInventory = [...currentInventory];
+                    updatedInventory[existingItemIndex] = {
+                      ...updatedInventory[existingItemIndex],
+                      quantity: updatedInventory[existingItemIndex].quantity + quantity,
+                    };
+                  } else {
+                    // Add new item
+                    updatedInventory = [
+                      ...currentInventory,
+                      {
+                        source: item.source,
+                        index: item.index,
+                        quantity: quantity,
+                        equipped: false,
+                        attuned: false,
+                        notes: notes || null,
+                      },
+                    ];
+                  }
+                  
+                  // Update JSONB column in database
+                  const { error } = await supabase
+                    .from('characters')
+                    .update({ inventory: updatedInventory })
+                    .eq('id', character.id);
                   
                   if (error) {
                     console.error('Error adding item to inventory:', error);
@@ -1404,25 +1526,40 @@ export function CharacterSheet({
                   
                   // Add to local state
                   const newItem: EnrichedInventoryItem = {
-                    id: insertedItem.id,
+                    id: `${item.source}-${item.index}`,
                     name: item.name,
                     source: item.source,
-                    quantity: quantity,
+                    quantity: existingItemIndex >= 0 
+                      ? currentInventory[existingItemIndex].quantity + quantity 
+                      : quantity,
                     equipped: false,
                     attuned: false,
                     notes: notes,
                     equipmentData: equipmentData as SrdEquipment | HomebrewEquipment,
                   };
                   
-                  setInventory(prev => [...prev, newItem]);
+                  // Update local state - replace existing or add new
+                  if (existingItemIndex >= 0) {
+                    setInventory(prev => prev.map(inv => 
+                      inv.id === newItem.id ? newItem : inv
+                    ));
+                  } else {
+                    setInventory(prev => [...prev, newItem]);
+                  }
+                  
+                  // Update character prop via callback
+                  if (onUpdate) {
+                    await onUpdate({ inventory: updatedInventory });
+                  }
+                  
                   toast.success(`Added ${quantity}x ${item.name} to inventory`);
                 }}
                 onItemToggle={async (itemId, field, value) => {
+                  const item = inventory.find(i => i.id === itemId);
+                  if (!item) return;
+                  
                   if (field === 'equipped' && value === true) {
                     // Validation when equipping
-                    const item = inventory.find(i => i.id === itemId);
-                    if (!item) return;
-                    
                     const equipmentData = item.equipmentData;
                     const isArmor = equipmentData?.armor_category && equipmentData.armor_category !== 'Shield';
                     const isShield = equipmentData?.armor_category === 'Shield';
@@ -1466,28 +1603,84 @@ export function CharacterSheet({
                   }
                   
                   const supabase = createClient();
+                  
+                  // Get current inventory from JSONB column
+                  const currentInventory = (character.inventory as Array<{
+                    source: 'srd' | 'homebrew';
+                    index: string;
+                    quantity: number;
+                    equipped: boolean;
+                    attuned: boolean;
+                    notes?: string | null;
+                  }>) || [];
+                  
+                  // Find and update the item in the inventory array
+                  const updatedInventory = currentInventory.map(inv => {
+                    if (inv.source === item.source && inv.index === item.index) {
+                      return { ...inv, [field]: value };
+                    }
+                    return inv;
+                  });
+                  
+                  // Update JSONB column in database
                   const { error } = await supabase
-                    .from('character_inventory')
-                    .update({ [field]: value })
-                    .eq('id', itemId);
+                    .from('characters')
+                    .update({ inventory: updatedInventory })
+                    .eq('id', character.id);
                   
                   if (!error) {
-                    setInventory(prev => prev.map(item => 
-                      item.id === itemId ? { ...item, [field]: value } : item
+                    setInventory(prev => prev.map(inv => 
+                      inv.id === itemId ? { ...inv, [field]: value } : inv
                     ));
+                    
+                    // Update character prop via callback
+                    if (onUpdate) {
+                      await onUpdate({ inventory: updatedInventory });
+                    }
                   } else {
+                    console.error('Error updating inventory:', error);
                     toast.error(`Failed to update ${field === 'equipped' ? 'equipment' : 'attunement'} status`);
                   }
                 }}
                 onItemDelete={async (itemId) => {
+                  const item = inventory.find(i => i.id === itemId);
+                  if (!item) return;
+                  
                   const supabase = createClient();
+                  
+                  // Get current inventory from JSONB column
+                  const currentInventory = (character.inventory as Array<{
+                    source: 'srd' | 'homebrew';
+                    index: string;
+                    quantity: number;
+                    equipped: boolean;
+                    attuned: boolean;
+                    notes?: string | null;
+                  }>) || [];
+                  
+                  // Remove the item from the inventory array
+                  const updatedInventory = currentInventory.filter(
+                    inv => !(inv.source === item.source && inv.index === item.index)
+                  );
+                  
+                  // Update JSONB column in database
                   const { error } = await supabase
-                    .from('character_inventory')
-                    .delete()
-                    .eq('id', itemId);
+                    .from('characters')
+                    .update({ inventory: updatedInventory })
+                    .eq('id', character.id);
                   
                   if (!error) {
-                    setInventory(prev => prev.filter(item => item.id !== itemId));
+                    setInventory(prev => prev.filter(inv => inv.id !== itemId));
+                    
+                    // Update character prop via callback
+                    if (onUpdate) {
+                      await onUpdate({ inventory: updatedInventory });
+                    }
+                    
+                    toast.success(`Removed ${item.name} from inventory`);
+                  } else {
+                    console.error('Error deleting item:', error);
+                    toast.error('Failed to remove item from inventory');
                   }
                 }}
                 editable={editable}

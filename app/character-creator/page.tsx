@@ -33,6 +33,7 @@ import {
   POINT_BUY_MAX,
   rollAbilityScore,
   DND_SKILLS,
+  getFullAbilityName,
 } from "@/lib/utils/character";
 import type { Race, DndClass } from "@/hooks/useDndContent";
 import type { Character } from "@/hooks/useDndContent";
@@ -71,6 +72,10 @@ interface CharacterFormData {
     asiImprovements: Array<{ level: number; ability: string; bonus: number }>; // ASI choices
     otherChoices: Array<{ level: number; choiceName: string; selected: string }>; // Other feature choices
   };
+  backgroundChoices: {
+    languages: string[]; // Selected language names
+    tools: string[]; // Selected tool proficiencies
+  };
 }
 
 const ALIGNMENTS = [
@@ -84,6 +89,119 @@ const ALIGNMENTS = [
   "Neutral Evil",
   "Chaotic Evil",
 ];
+
+// Standard D&D 5e languages
+const LANGUAGES = [
+  "Common",
+  "Dwarvish",
+  "Elvish",
+  "Giant",
+  "Gnomish",
+  "Goblin",
+  "Halfling",
+  "Orc",
+  // Exotic languages
+  "Abyssal",
+  "Celestial",
+  "Draconic",
+  "Deep Speech",
+  "Infernal",
+  "Primordial",
+  "Sylvan",
+  "Undercommon",
+];
+
+// Tool categories for selection
+const GAMING_SETS = [
+  "Dice set",
+  "Dragonchess set",
+  "Playing card set",
+  "Three-Dragon Ante set",
+];
+
+const ARTISAN_TOOLS = [
+  "Alchemist's supplies",
+  "Brewer's supplies",
+  "Calligrapher's supplies",
+  "Carpenter's tools",
+  "Cartographer's tools",
+  "Cobbler's tools",
+  "Cook's utensils",
+  "Glassblower's tools",
+  "Jeweler's tools",
+  "Leatherworker's tools",
+  "Mason's tools",
+  "Painter's supplies",
+  "Potter's tools",
+  "Smith's tools",
+  "Tinker's tools",
+  "Weaver's tools",
+  "Woodcarver's tools",
+];
+
+const MUSICAL_INSTRUMENTS = [
+  "Bagpipes",
+  "Drum",
+  "Dulcimer",
+  "Flute",
+  "Horn",
+  "Lute",
+  "Lyre",
+  "Pan flute",
+  "Shawm",
+  "Viol",
+];
+
+const OTHER_TOOLS = [
+  "Disguise kit",
+  "Forgery kit",
+  "Herbalism kit",
+  "Navigator's tools",
+  "Poisoner's kit",
+  "Thieves' tools",
+  "Vehicles (land)",
+  "Vehicles (water)",
+];
+
+// Helper to parse background requirements
+function parseBackgroundLanguages(languageStr: string | null): { count: number; fixed: string[] } {
+  if (!languageStr) return { count: 0, fixed: [] };
+  
+  const lowerStr = languageStr.toLowerCase();
+  if (lowerStr.includes("two of your choice")) return { count: 2, fixed: [] };
+  if (lowerStr.includes("one of your choice")) return { count: 1, fixed: [] };
+  
+  // If specific languages are listed, they are fixed
+  return { count: 0, fixed: languageStr.split(",").map(s => s.trim()).filter(Boolean) };
+}
+
+function parseBackgroundTools(toolStr: string | null): { 
+  gamingSet: boolean; 
+  artisanTools: boolean; 
+  musicalInstrument: boolean;
+  fixed: string[];
+} {
+  if (!toolStr) return { gamingSet: false, artisanTools: false, musicalInstrument: false, fixed: [] };
+  
+  const lowerStr = toolStr.toLowerCase();
+  const result = {
+    gamingSet: lowerStr.includes("one type of gaming set"),
+    artisanTools: lowerStr.includes("one type of artisan's tools"),
+    musicalInstrument: lowerStr.includes("one type of musical instrument"),
+    fixed: [] as string[],
+  };
+  
+  // Extract fixed tools (those that aren't choices)
+  const parts = toolStr.split(",").map(s => s.trim());
+  for (const part of parts) {
+    const lowerPart = part.toLowerCase();
+    if (!lowerPart.includes("one type of") && part.length > 0) {
+      result.fixed.push(part);
+    }
+  }
+  
+  return result;
+}
 
 export default function CharacterCreatorPage() {
   const router = useRouter();
@@ -122,6 +240,10 @@ export default function CharacterCreatorPage() {
       skillProficiencies: [],
       asiImprovements: [],
       otherChoices: [],
+    },
+    backgroundChoices: {
+      languages: [],
+      tools: [],
     },
   });
 
@@ -162,9 +284,12 @@ export default function CharacterCreatorPage() {
     
     // Add racial bonuses
     if (selectedRace?.ability_bonuses) {
-      const bonuses = selectedRace.ability_bonuses as Array<{ ability: string; bonus: number }>;
+      const bonuses = selectedRace.ability_bonuses as Array<any>;
       const abilityAbbrev = ability.toUpperCase().slice(0, 3);
-      const raceBonus = bonuses.find(b => b.ability && b.ability.toUpperCase() === abilityAbbrev);
+      const raceBonus = bonuses.find(b => {
+        const bonusAbility = b.ability_score?.index || b.ability_score?.name || b.ability || '';
+        return bonusAbility.toUpperCase().slice(0, 3) === abilityAbbrev;
+      });
       if (raceBonus) {
         base += raceBonus.bonus;
       }
@@ -753,6 +878,9 @@ export default function CharacterCreatorPage() {
         custom_actions: [],
         custom_features: [],
         notes: {},
+        background_languages: formData.backgroundChoices.languages,
+        background_tools: formData.backgroundChoices.tools,
+        is_custom_background: formData.background === "custom",
       };
 
       // Update character record with JSONB columns
@@ -1087,7 +1215,7 @@ function RaceSelectionStep({
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
       {races.map((race) => {
-        const bonuses = race.ability_bonuses as Array<{ ability: string; bonus: number }> | null;
+        const bonuses = race.ability_bonuses as Array<any> | null;
         return (
           <Card
             key={`${race.source}-${race.index}`}
@@ -1129,13 +1257,16 @@ function RaceSelectionStep({
                 </div>
                 {bonuses && bonuses.length > 0 && (
                   <div>
-                    <span className="font-medium">Ability Bonuses:</span>
+                    <span className="font-medium">Ability Score Increases:</span>
                     <div className="flex flex-wrap gap-1 mt-1">
-                      {bonuses.map((b, i) => (
-                        <Badge key={i} variant="outline">
-                          {b.ability} +{b.bonus}
-                        </Badge>
-                      ))}
+                      {bonuses.map((b: any, i) => {
+                        const abilityName = b.ability_score?.name || b.ability_score?.index || b.ability || '';
+                        return (
+                          <Badge key={i} variant="outline">
+                            {getFullAbilityName(abilityName)} +{b.bonus}
+                          </Badge>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
@@ -1805,6 +1936,69 @@ function BackgroundStep({
   backgroundsLoading: boolean;
 }) {
   const selectedBackground = backgrounds.find(bg => bg.name === formData.background || bg.index === formData.background.toLowerCase().replace(/\s+/g, '-'));
+  const isCustomBackground = formData.background === "custom";
+  
+  // Parse language and tool requirements
+  const languageReqs = isCustomBackground 
+    ? { count: 2, fixed: [] } // Custom background gets 2 language choices
+    : parseBackgroundLanguages(selectedBackground?.languages || null);
+  
+  const toolReqs = isCustomBackground
+    ? { gamingSet: false, artisanTools: false, musicalInstrument: false, fixed: [] }
+    : parseBackgroundTools(selectedBackground?.tool_proficiencies || null);
+  
+  // Handle language selection
+  const handleLanguageChange = (index: number, value: string) => {
+    const newLanguages = [...formData.backgroundChoices.languages];
+    newLanguages[index] = value;
+    setFormData({
+      ...formData,
+      backgroundChoices: {
+        ...formData.backgroundChoices,
+        languages: newLanguages,
+      },
+    });
+  };
+  
+  // Handle tool selection
+  const handleToolChange = (toolType: string, value: string) => {
+    const newTools = formData.backgroundChoices.tools.filter(t => {
+      // Remove existing tool of same type
+      if (toolType === 'gaming' && GAMING_SETS.includes(t)) return false;
+      if (toolType === 'artisan' && ARTISAN_TOOLS.includes(t)) return false;
+      if (toolType === 'musical' && MUSICAL_INSTRUMENTS.includes(t)) return false;
+      if (toolType === 'custom' && t === formData.backgroundChoices.tools.find(x => !GAMING_SETS.includes(x) && !ARTISAN_TOOLS.includes(x) && !MUSICAL_INSTRUMENTS.includes(x))) return false;
+      return true;
+    });
+    if (value) {
+      newTools.push(value);
+    }
+    setFormData({
+      ...formData,
+      backgroundChoices: {
+        ...formData.backgroundChoices,
+        tools: newTools,
+      },
+    });
+  };
+  
+  // Get currently selected tool of a type
+  const getSelectedTool = (toolType: 'gaming' | 'artisan' | 'musical'): string => {
+    const toolList = toolType === 'gaming' ? GAMING_SETS : toolType === 'artisan' ? ARTISAN_TOOLS : MUSICAL_INSTRUMENTS;
+    return formData.backgroundChoices.tools.find(t => toolList.includes(t)) || '';
+  };
+
+  // Reset choices when background changes
+  const handleBackgroundChange = (value: string) => {
+    setFormData({
+      ...formData,
+      background: value,
+      backgroundChoices: {
+        languages: [],
+        tools: [],
+      },
+    });
+  };
 
   return (
     <div className="space-y-4">
@@ -1829,14 +2023,14 @@ function BackgroundStep({
         </Label>
         <Select
           value={formData.background}
-          onValueChange={(value) => setFormData({ ...formData, background: value })}
+          onValueChange={handleBackgroundChange}
           disabled={backgroundsLoading}
         >
           <SelectTrigger className="w-full mt-2">
             <SelectValue placeholder={backgroundsLoading ? "Loading backgrounds..." : "Select a background"} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="custom">None (Custom)</SelectItem>
+            <SelectItem value="custom">Custom Background</SelectItem>
             {backgrounds.map((bg) => (
               <SelectItem key={bg.index} value={bg.name}>
                 {bg.name}
@@ -1862,7 +2056,136 @@ function BackgroundStep({
             )}
           </div>
         )}
+        {isCustomBackground && (
+          <div className="mt-2 p-3 bg-muted/50 rounded-md text-xs">
+            <p className="text-muted-foreground">
+              Custom background allows you to choose any 2 skill proficiencies, 2 languages, and create your own feature.
+            </p>
+          </div>
+        )}
       </div>
+
+      {/* Language Selection */}
+      {(languageReqs.count > 0 || isCustomBackground) && (
+        <div className="space-y-2">
+          <Label className="flex items-center gap-2">
+            <Book size={18} />
+            Choose Languages ({isCustomBackground ? "2 of your choice" : `${languageReqs.count} of your choice`})
+          </Label>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            {Array.from({ length: isCustomBackground ? 2 : languageReqs.count }).map((_, index) => (
+              <Select
+                key={index}
+                value={formData.backgroundChoices.languages[index] || ''}
+                onValueChange={(value) => handleLanguageChange(index, value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={`Select language ${index + 1}`} />
+                </SelectTrigger>
+                <SelectContent>
+                  {LANGUAGES
+                    .filter(lang => !formData.backgroundChoices.languages.includes(lang) || formData.backgroundChoices.languages[index] === lang)
+                    .map((lang) => (
+                      <SelectItem key={lang} value={lang}>
+                        {lang}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Tool Selection - Gaming Set */}
+      {(toolReqs.gamingSet || isCustomBackground) && (
+        <div className="space-y-2">
+          <Label className="flex items-center gap-2">
+            <Weapon size={18} />
+            {isCustomBackground ? "Gaming Set (Optional)" : "Choose a Gaming Set"}
+          </Label>
+          <Select
+            value={getSelectedTool('gaming')}
+            onValueChange={(value) => handleToolChange('gaming', value)}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select a gaming set" />
+            </SelectTrigger>
+            <SelectContent>
+              {isCustomBackground && <SelectItem value="">None</SelectItem>}
+              {GAMING_SETS.map((tool) => (
+                <SelectItem key={tool} value={tool}>
+                  {tool}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
+      {/* Tool Selection - Artisan's Tools */}
+      {(toolReqs.artisanTools || isCustomBackground) && (
+        <div className="space-y-2">
+          <Label className="flex items-center gap-2">
+            <Weapon size={18} />
+            {isCustomBackground ? "Artisan's Tools (Optional)" : "Choose Artisan's Tools"}
+          </Label>
+          <Select
+            value={getSelectedTool('artisan')}
+            onValueChange={(value) => handleToolChange('artisan', value)}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select artisan's tools" />
+            </SelectTrigger>
+            <SelectContent>
+              {isCustomBackground && <SelectItem value="">None</SelectItem>}
+              {ARTISAN_TOOLS.map((tool) => (
+                <SelectItem key={tool} value={tool}>
+                  {tool}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
+      {/* Tool Selection - Musical Instrument */}
+      {(toolReqs.musicalInstrument || isCustomBackground) && (
+        <div className="space-y-2">
+          <Label className="flex items-center gap-2">
+            <Weapon size={18} />
+            {isCustomBackground ? "Musical Instrument (Optional)" : "Choose a Musical Instrument"}
+          </Label>
+          <Select
+            value={getSelectedTool('musical')}
+            onValueChange={(value) => handleToolChange('musical', value)}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select a musical instrument" />
+            </SelectTrigger>
+            <SelectContent>
+              {isCustomBackground && <SelectItem value="">None</SelectItem>}
+              {MUSICAL_INSTRUMENTS.map((tool) => (
+                <SelectItem key={tool} value={tool}>
+                  {tool}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
+      {/* Show fixed tool proficiencies */}
+      {toolReqs.fixed.length > 0 && (
+        <div className="p-3 bg-muted/30 rounded-md">
+          <Label className="text-sm font-medium">Fixed Tool Proficiencies:</Label>
+          <div className="flex flex-wrap gap-1 mt-1">
+            {toolReqs.fixed.map((tool, i) => (
+              <Badge key={i} variant="secondary">{tool}</Badge>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div>
         <Label htmlFor="alignment" className="flex items-center gap-2">
@@ -2458,7 +2781,7 @@ function ReviewStep({
               <span className="font-medium">Level:</span> {formData.level}
             </div>
             <div>
-              <span className="font-medium">Background:</span> {formData.background || "None"}
+              <span className="font-medium">Background:</span> {formData.background === "custom" ? "Custom Background" : formData.background || "None"}
             </div>
             <div>
               <span className="font-medium">Alignment:</span> {formData.alignment}
@@ -2479,8 +2802,11 @@ function ReviewStep({
               const finalScore = getFinalAbilityScore(ability);
               const modifier = getAbilityModifierString(finalScore);
               const racialBonus = selectedRace?.ability_bonuses 
-                ? (selectedRace.ability_bonuses as Array<{ ability: string; bonus: number }>)
-                    .find(b => b.ability && b.ability.toUpperCase() === ability.toUpperCase().slice(0, 3))?.bonus || 0
+                ? (selectedRace.ability_bonuses as Array<any>)
+                    .find(b => {
+                      const bonusAbility = b.ability_score?.index || b.ability_score?.name || b.ability || '';
+                      return bonusAbility.toUpperCase().slice(0, 3) === ability.toUpperCase().slice(0, 3);
+                    })?.bonus || 0
                 : 0;
               
               return (
@@ -2544,13 +2870,16 @@ function ReviewStep({
               
               {selectedRace.ability_bonuses && Array.isArray(selectedRace.ability_bonuses) && selectedRace.ability_bonuses.length > 0 && (
                 <div>
-                  <div className="font-medium mb-2">Ability Score Bonuses:</div>
+                  <div className="font-medium mb-2">Ability Score Increases:</div>
                   <div className="flex flex-wrap gap-1">
-                    {(selectedRace.ability_bonuses as Array<{ ability: string; bonus: number }>).map((bonus, i) => (
-                      <Badge key={i} variant="default">
-                        {bonus.ability} +{bonus.bonus}
-                      </Badge>
-                    ))}
+                    {(selectedRace.ability_bonuses as Array<any>).map((bonus, i) => {
+                      const abilityName = bonus.ability_score?.name || bonus.ability_score?.index || bonus.ability || '';
+                      return (
+                        <Badge key={i} variant="default">
+                          {getFullAbilityName(abilityName)} +{bonus.bonus}
+                        </Badge>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -2743,7 +3072,7 @@ function ReviewStep({
         </Card>
       )}
       
-      {selectedBackground && (
+      {(selectedBackground || formData.background === "custom") && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -2754,30 +3083,39 @@ function ReviewStep({
           <CardContent>
             <div className="space-y-2 text-sm">
               <div>
-                <span className="font-medium">Name:</span> {selectedBackground.name}
+                <span className="font-medium">Name:</span> {selectedBackground?.name || "Custom Background"}
               </div>
-              {selectedBackground.description && (
+              {selectedBackground?.description && (
                 <div>
                   <div className="font-medium mb-1">Description:</div>
                   <div className="text-muted-foreground text-xs">{selectedBackground.description}</div>
                 </div>
               )}
-              {selectedBackground.skill_proficiencies && (
+              {selectedBackground?.skill_proficiencies && (
                 <div>
                   <span className="font-medium">Skill Proficiencies:</span> {selectedBackground.skill_proficiencies}
                 </div>
               )}
-              {selectedBackground.tool_proficiencies && (
+              {(selectedBackground?.tool_proficiencies || formData.backgroundChoices.tools.length > 0) && (
                 <div>
-                  <span className="font-medium">Tool Proficiencies:</span> {selectedBackground.tool_proficiencies}
+                  <span className="font-medium">Tool Proficiencies:</span>{" "}
+                  {formData.backgroundChoices.tools.length > 0 
+                    ? formData.backgroundChoices.tools.join(", ")
+                    : selectedBackground?.tool_proficiencies}
+                  {selectedBackground?.tool_proficiencies && formData.backgroundChoices.tools.length > 0 && (
+                    <span className="text-muted-foreground"> (includes selected tools)</span>
+                  )}
                 </div>
               )}
-              {selectedBackground.languages && (
+              {(selectedBackground?.languages || formData.backgroundChoices.languages.length > 0) && (
                 <div>
-                  <span className="font-medium">Languages:</span> {selectedBackground.languages}
+                  <span className="font-medium">Languages:</span>{" "}
+                  {formData.backgroundChoices.languages.length > 0 
+                    ? formData.backgroundChoices.languages.join(", ")
+                    : selectedBackground?.languages}
                 </div>
               )}
-              {selectedBackground.feature && (
+              {selectedBackground?.feature && (
                 <div>
                   <div className="font-medium mb-1">Feature:</div>
                   <div className="text-muted-foreground text-xs">{selectedBackground.feature}</div>
