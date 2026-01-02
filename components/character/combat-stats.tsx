@@ -10,6 +10,8 @@ import { Initiative } from "dnd-icons/combat";
 import { Walking } from "dnd-icons/movement";
 import { useState, useEffect } from "react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useDiceRoller } from "@/contexts/dice-roller-context";
+import { extractHitDice } from "@/lib/utils/dice-parser";
 
 interface CombatStatsProps {
   hpMax: number;
@@ -25,9 +27,14 @@ interface CombatStatsProps {
   initiative: number;
   speed: number;
   speedModifier?: number;
+  hitDiceCurrent?: string | null;
+  hitDiceTotal?: string | null;
   onHpChange?: (hpCurrent: number, hpTemp?: number) => void;
   onStatChange?: (stat: string, value: number) => void;
   editable?: boolean;
+  characterId?: string;
+  characterName?: string;
+  campaignId?: string;
 }
 
 export function CombatStats({
@@ -39,10 +46,17 @@ export function CombatStats({
   initiative,
   speed,
   speedModifier = 0,
+  hitDiceCurrent,
+  hitDiceTotal,
   onHpChange,
   onStatChange,
   editable = false,
+  characterId,
+  characterName,
+  campaignId,
 }: CombatStatsProps) {
+  const { rollHitDice } = useDiceRoller();
+  
   const handleHpAdjust = (delta: number) => {
     if (!onHpChange) return;
     const newHp = Math.max(0, Math.min(hpMax, hpCurrent + delta));
@@ -176,6 +190,37 @@ export function CombatStats({
             />
           </div>
         </div>
+
+        {/* Hit Dice */}
+        {hitDiceCurrent && (
+          <div className="space-y-1 pt-1 border-t border-border/50">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs">Hit Dice</Label>
+              <button
+                type="button"
+                className="inline-flex items-center justify-center shrink-0 px-1.5 py-0.5 text-xs font-semibold rounded border transition-all bg-muted/50 border-border/50 text-foreground hover:bg-muted hover:border-border"
+                onClick={async () => {
+                  if (characterId && hitDiceCurrent) {
+                    const parsed = extractHitDice(hitDiceCurrent);
+                    if (parsed) {
+                      await rollHitDice(hitDiceCurrent, {
+                        label: "Hit Dice Recovery",
+                        characterId,
+                        characterName,
+                        campaignId,
+                      });
+                    }
+                  }
+                }}
+              >
+                {hitDiceCurrent}
+                {hitDiceTotal && hitDiceTotal !== hitDiceCurrent && (
+                  <span className="text-muted-foreground ml-1">/ {hitDiceTotal}</span>
+                )}
+              </button>
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

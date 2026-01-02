@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent } from "@/components/ui/card";
 import type { Spell } from "@/hooks/useDndContent";
 import { 
   Action, 
@@ -48,6 +49,7 @@ import {
 import { Filter, X, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useDiceRoller } from "@/contexts/dice-roller-context";
 
 interface CharacterSpell {
   spell: Spell;
@@ -68,6 +70,9 @@ interface SpellsTabProps {
   onSpellClick?: (spell: Spell) => void;
   onSlotChange?: (level: number, used: number) => void;
   editable?: boolean;
+  characterId?: string;
+  characterName?: string;
+  campaignId?: string;
 }
 
 const abilityScoreIcons: Record<string, any> = {
@@ -156,7 +161,11 @@ export function SpellsTab({
   onSpellClick,
   onSlotChange,
   editable = false,
+  characterId,
+  characterName,
+  campaignId,
 }: SpellsTabProps) {
+  const { rollDice } = useDiceRoller();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedLevel, setSelectedLevel] = useState<number | "all">("all");
   const [showConcentrationOnly, setShowConcentrationOnly] = useState(false);
@@ -244,9 +253,10 @@ export function SpellsTab({
   };
 
   return (
-    <div className="space-y-4">
-      {/* Search and Filters */}
-      <div className="flex flex-col gap-3">
+    <Card className="p-0">
+      <CardContent className="space-y-4 p-4">
+        {/* Search and Filters */}
+        <div className="flex flex-col gap-3">
         <div className="flex gap-2">
           <Input
             placeholder="Search Spell Names, Casting Times, Damage Types, Conditions or Tags"
@@ -484,12 +494,44 @@ export function SpellsTab({
                                         const Icon = abilityScoreIcons[dcInfo.ability];
                                         return <Icon className="h-4 w-4" />;
                                       })()}
-                                      <span className="text-xs">{dcInfo.dc}</span>
+                                      <button
+                                        type="button"
+                                        className="inline-flex items-center justify-center px-1.5 py-0.5 text-xs font-semibold rounded border transition-all bg-muted/50 border-border/50 text-foreground hover:bg-muted hover:border-border"
+                                        onClick={async (e) => {
+                                          e.stopPropagation();
+                                          if (characterId && dcInfo) {
+                                            await rollDice(`1d20`, {
+                                              label: `${spell.name} - DC ${dcInfo.dc} ${dcInfo.ability} Save`,
+                                              characterId,
+                                              characterName,
+                                              campaignId,
+                                            });
+                                          }
+                                        }}
+                                      >
+                                        {dcInfo.dc}
+                                      </button>
                                     </>
                                   )}
                                 </div>
                               ) : damage ? (
-                                <span className="text-xs">{damage}</span>
+                                <button
+                                  type="button"
+                                  className="inline-flex items-center justify-center px-1.5 py-0.5 text-xs font-semibold rounded border transition-all bg-muted/50 border-border/50 text-foreground hover:bg-muted hover:border-border"
+                                  onClick={async (e) => {
+                                    e.stopPropagation();
+                                    if (characterId && damage) {
+                                      await rollDice(damage, {
+                                        label: `${spell.name} Damage`,
+                                        characterId,
+                                        characterName,
+                                        campaignId,
+                                      });
+                                    }
+                                  }}
+                                >
+                                  {damage}
+                                </button>
                               ) : (
                                 <span className="text-xs text-muted-foreground">-</span>
                               )}
@@ -549,6 +591,7 @@ export function SpellsTab({
             })}
         </div>
       )}
-    </div>
+      </CardContent>
+    </Card>
   );
 }

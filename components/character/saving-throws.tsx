@@ -1,11 +1,13 @@
 "use client";
 
+import { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { getAbilityModifier, getAbilityModifierString } from "@/lib/utils/character";
+import { getAbilityModifier, getAbilityModifierString, calculateSavingThrowProficiencies } from "@/lib/utils/character";
 import { Strength as StrengthIcon, Dexterity as DexterityIcon, Constitution as ConstitutionIcon, Intelligence as IntelligenceIcon, Wisdom as WisdomIcon, Charisma as CharismaIcon } from "dnd-icons/ability";
 import { SavingThrow as SavingThrowIcon } from "dnd-icons/attribute";
+import { useDiceRoller } from "@/contexts/dice-roller-context";
+import { SkillProficiencyIndicator } from "./skill-proficiency-indicator";
 
 interface SavingThrowsProps {
   abilityScores: {
@@ -16,6 +18,10 @@ interface SavingThrowsProps {
     wisdom: number;
     charisma: number;
   };
+  /** 
+   * Direct proficiency values. If classSavingThrows is provided, 
+   * proficiencies will be calculated automatically and merged with these values.
+   */
   proficiencies: {
     strength: boolean;
     dexterity: boolean;
@@ -25,19 +31,52 @@ interface SavingThrowsProps {
     charisma: boolean;
   };
   proficiencyBonus: number;
+  /** 
+   * Optional: Class saving throw proficiencies (e.g., ['STR', 'CON']).
+   * If provided, these will be used to calculate proficiencies automatically.
+   */
+  classSavingThrows?: string[] | null;
+  /**
+   * Optional: Race traits that might grant saving throw proficiencies.
+   */
+  raceTraits?: any;
   onProficiencyChange?: (ability: string, proficient: boolean) => void;
   onSavingThrowClick?: (ability: string, short: string, score: number, proficient: boolean, description: string, examples: readonly string[] | undefined) => void;
   editable?: boolean;
+  characterId?: string;
+  characterName?: string;
+  campaignId?: string;
 }
 
 export function SavingThrows({
   abilityScores,
   proficiencies,
   proficiencyBonus,
+  classSavingThrows,
+  raceTraits,
   onProficiencyChange,
   onSavingThrowClick,
   editable = false,
+  characterId,
+  characterName,
+  campaignId,
 }: SavingThrowsProps) {
+  const { rollDice, rollWithAdvantage, rollWithDisadvantage } = useDiceRoller();
+  
+  // Calculate effective proficiencies by merging class/race-based with manual overrides
+  const effectiveProficiencies = useMemo(() => {
+    // If classSavingThrows is provided, calculate from class/race
+    if (classSavingThrows || raceTraits) {
+      return calculateSavingThrowProficiencies(
+        classSavingThrows,
+        raceTraits,
+        proficiencies
+      );
+    }
+    // Otherwise, just use the provided proficiencies
+    return proficiencies;
+  }, [classSavingThrows, raceTraits, proficiencies]);
+  
   const abilities = [
     {
       name: "Strength",
@@ -115,7 +154,7 @@ export function SavingThrows({
 
   const getSaveModifier = (ability: typeof abilities[number]["key"]) => {
     const abilityMod = getAbilityModifier(abilityScores[ability]);
-    const profMod = proficiencies[ability] ? proficiencyBonus : 0;
+    const profMod = effectiveProficiencies[ability] ? proficiencyBonus : 0;
     return abilityMod + profMod;
   };
 
@@ -140,7 +179,7 @@ export function SavingThrows({
         <div className="space-y-0.5">
           {abilities.map((ability) => {
             const modifier = getSaveModifier(ability.key);
-            const isProficient = proficiencies[ability.key];
+            const isProficient = effectiveProficiencies[ability.key];
             const AbilityIcon = abilityIcons[ability.key];
 
             return (
@@ -150,13 +189,20 @@ export function SavingThrows({
               >
                 <div className="flex items-center gap-1.5 flex-1 min-w-0">
                   {editable && (
-                    <Checkbox
-                      id={`save-${ability.key}`}
-                      checked={isProficient}
-                      onCheckedChange={(checked) => {
-                        onProficiencyChange?.(ability.key, checked === true);
+                    <SkillProficiencyIndicator
+                      proficient={isProficient}
+                      expertise={false}
+                      editable={true}
+                      onToggle={() => {
+                        onProficiencyChange?.(ability.key, !isProficient);
                       }}
-                      className="h-3 w-3 shrink-0"
+                    />
+                  )}
+                  {!editable && (
+                    <SkillProficiencyIndicator
+                      proficient={isProficient}
+                      expertise={false}
+                      editable={false}
                     />
                   )}
                   {AbilityIcon && <AbilityIcon size={14} className="shrink-0" />}
@@ -171,17 +217,65 @@ export function SavingThrows({
                     {ability.name}
                   </Label>
                 </div>
-                <div className={`text-sm font-semibold shrink-0 ${isProficient ? "text-primary" : ""}`}>
+                <button
+                  type="button"
+                  className={`inline-flex items-center justify-center shrink-0 px-1.5 py-0.5 text-xs font-semibold rounded border transition-all ${
+                    isProficient 
+                      ? "bg-primary/10 border-primary/30 text-primary hover:bg-primary/20 hover:border-primary/50" 
+                      : "bg-muted/50 border-border/50 text-foreground hover:bg-muted hover:border-border"
+                  }`}
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    if (characterId) {
+                      // Right click or Ctrl+Click for advantage/disadvantage
+                      if (e.ctrlKey || e.metaKey || e.button === 2) {
+                        e.preventDefault();
+                        // Toggle between advantage and disadvantage on repeated clicks
+                        // For now, just roll with advantage
+                        await rollWithAdvantage(modifier, {
+                          label: `${ability.name} Save`,
+                          characterId,
+                          characterName,
+                          campaignId,
+                        });
+                      } else {
+                        await rollDice(`1d20${modifier >= 0 ? '+' : ''}${modifier}`, {
+                          label: `${ability.name} Save`,
+                          characterId,
+                          characterName,
+                          campaignId,
+                        });
+                      }
+                    }
+                  }}
+                  onContextMenu={async (e) => {
+                    e.preventDefault();
+                    if (characterId) {
+                      await rollWithAdvantage(modifier, {
+                        label: `${ability.name} Save (Advantage)`,
+                        characterId,
+                        characterName,
+                        campaignId,
+                      });
+                    }
+                  }}
+                >
                   {modifier >= 0 ? `+${modifier}` : `${modifier}`}
-                  {isProficient && <span className="text-[10px] ml-0.5 text-primary">●</span>}
-                </div>
+                </button>
               </div>
             );
           })}
         </div>
-        <p className="text-[10px] text-muted-foreground mt-2">
-          ● = Proficient
-        </p>
+        <div className="flex items-center gap-3 text-[10px] text-muted-foreground mt-2 pt-2 border-t border-border/50">
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 rounded border border-border/50 bg-muted/30" />
+            <span>Not proficient</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 rounded border border-primary bg-primary" />
+            <span>Proficient</span>
+          </div>
+        </div>
       </CardContent>
     </Card>
   );

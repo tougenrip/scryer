@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Inter, Cinzel, Kalam } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 import { Toaster } from "@/components/ui/sonner";
+import { DiceRollerProvider } from "@/components/dice/dice-roller-provider";
+import { RollHistory } from "@/components/dice/roll-history";
 import "./globals.css";
 
 const defaultUrl = process.env.VERCEL_URL
@@ -52,8 +54,11 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          {children}
-          <Toaster position="bottom-right" />
+          <DiceRollerProvider>
+            {children}
+            <RollHistory />
+            <Toaster position="bottom-right" />
+          </DiceRollerProvider>
         </ThemeProvider>
       </body>
     </html>

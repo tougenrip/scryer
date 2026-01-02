@@ -244,6 +244,162 @@ export const DND_SKILLS = [
 
 export type SkillName = typeof DND_SKILLS[number]['name'];
 
+/**
+ * Normalize a skill name to the internal format (lowercase with hyphens)
+ * e.g., "Perception" → "perception", "Animal Handling" → "animal-handling"
+ */
+function normalizeSkillName(skillName: string): string {
+  return skillName
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/^skill-/, '');
+}
+
+/**
+ * Find a skill by various name formats
+ */
+function findSkillByName(name: string): typeof DND_SKILLS[number] | undefined {
+  const normalized = normalizeSkillName(name);
+  return DND_SKILLS.find(s => s.name === normalized);
+}
+
+/**
+ * Calculate skill proficiencies from all sources:
+ * 1. Manual selections in character_skills table
+ * 2. Class features (skill_selection choices that grant proficiency or expertise)
+ * 3. Class starting proficiencies (proficiency_choices)
+ * 4. Racial traits (if they grant skill proficiencies)
+ * 5. Background skill proficiencies
+ */
+export function calculateSkillProficiencies(
+  manualSkills: Array<{ skill_name: string; proficient: boolean; expertise: boolean }>,
+  classFeatures?: Array<{ name?: string; description?: string; choice?: any }>,
+  classProficiencyChoices?: any,
+  raceTraits?: any,
+  backgroundSkillProficiencies?: string | null
+): Record<SkillName, { proficient: boolean; expertise: boolean }> {
+  const skillsMap: Record<SkillName, { proficient: boolean; expertise: boolean }> = {} as any;
+  
+  // Initialize all skills as not proficient
+  DND_SKILLS.forEach((skill) => {
+    skillsMap[skill.name] = {
+      proficient: false,
+      expertise: false,
+    };
+  });
+
+  // 1. Apply manual skill selections from character_skills table
+  manualSkills.forEach((skillData) => {
+    const skill = findSkillByName(skillData.skill_name);
+    if (skill && skillsMap[skill.name]) {
+      skillsMap[skill.name] = {
+        proficient: skillData.proficient,
+        expertise: skillData.expertise,
+      };
+    }
+  });
+
+  // 2. Apply skill proficiencies from class features (skill_selection choices)
+  if (classFeatures && Array.isArray(classFeatures)) {
+    classFeatures.forEach((feature: any) => {
+      if (feature.choice && feature.choice.type === 'skill_selection' && feature.choice.selected) {
+        const selectedSkills = feature.choice.selected as string[];
+        const featureName = feature.name || '';
+        const featureDesc = feature.description || '';
+        const isExpertise = featureName.toLowerCase().includes('expertise') || 
+                          featureDesc.toLowerCase().includes('expertise');
+        
+        selectedSkills.forEach((skillIndex) => {
+          const skill = findSkillByName(skillIndex);
+          if (skill && skillsMap[skill.name]) {
+            if (isExpertise) {
+              skillsMap[skill.name].expertise = true;
+              skillsMap[skill.name].proficient = true; // Expertise requires proficiency
+            } else {
+              skillsMap[skill.name].proficient = true;
+            }
+          }
+        });
+      }
+    });
+  }
+
+  // 3. Apply starting class skill proficiencies from proficiency_choices
+  if (classProficiencyChoices && Array.isArray(classProficiencyChoices)) {
+    classProficiencyChoices.forEach((choice: any) => {
+      // Handle selected skills from proficiency choices
+      if (choice.selected && Array.isArray(choice.selected)) {
+        choice.selected.forEach((skillIndex: string) => {
+          const skill = findSkillByName(skillIndex);
+          if (skill && skillsMap[skill.name] && !skillsMap[skill.name].proficient) {
+            skillsMap[skill.name].proficient = true;
+          }
+        });
+      }
+      // Handle direct array of skill indices
+      if (choice.type === 'skills' && Array.isArray(choice.skills)) {
+        choice.skills.forEach((skillIndex: string) => {
+          const skill = findSkillByName(skillIndex);
+          if (skill && skillsMap[skill.name] && !skillsMap[skill.name].proficient) {
+            skillsMap[skill.name].proficient = true;
+          }
+        });
+      }
+    });
+  }
+
+  // 4. Apply skill proficiencies from racial traits
+  if (raceTraits && Array.isArray(raceTraits)) {
+    raceTraits.forEach((trait: any) => {
+      const traitDesc = typeof trait === 'object' 
+        ? (trait.desc || trait.description || '') 
+        : String(trait);
+      const traitName = typeof trait === 'object' ? (trait.name || '') : '';
+      const searchText = `${traitName} ${traitDesc}`.toLowerCase();
+
+      // Skip if no description (just a reference without details)
+      if (!traitDesc && !traitName) return;
+
+      // Check for specific skill proficiency grants
+      // Pattern variations:
+      // - "You have proficiency in the Perception skill"
+      // - "proficiency in the Intimidation skill"
+      // - "gain proficiency in the Stealth skill"
+      DND_SKILLS.forEach((skill) => {
+        // Create readable skill name (e.g., "animal-handling" → "animal handling")
+        const readableSkillName = skill.name.replace(/-/g, ' ');
+        
+        // Multiple patterns to match different phrasings
+        const patterns = [
+          new RegExp(`proficien(?:cy|t)\\s+in\\s+(?:the\\s+)?${readableSkillName}(?:\\s+skill)?`, 'i'),
+          new RegExp(`gain\\s+proficiency\\s+in\\s+(?:the\\s+)?${readableSkillName}`, 'i'),
+          new RegExp(`have\\s+proficiency\\s+in\\s+(?:the\\s+)?${readableSkillName}`, 'i'),
+        ];
+        
+        const isMatch = patterns.some(pattern => pattern.test(searchText));
+        if (isMatch && !skillsMap[skill.name].proficient) {
+          skillsMap[skill.name].proficient = true;
+        }
+      });
+    });
+  }
+
+  // 5. Apply skill proficiencies from background
+  if (backgroundSkillProficiencies && typeof backgroundSkillProficiencies === 'string') {
+    // Background skills are comma-separated like "Insight, Religion" or "Animal Handling, Survival"
+    const bgSkills = backgroundSkillProficiencies.split(',').map(s => s.trim());
+    bgSkills.forEach((skillName) => {
+      const skill = findSkillByName(skillName);
+      if (skill && skillsMap[skill.name] && !skillsMap[skill.name].proficient) {
+        skillsMap[skill.name].proficient = true;
+      }
+    });
+  }
+
+  return skillsMap;
+}
+
 export function getSkillModifier(
   skill: SkillName,
   abilityScores: {
@@ -832,4 +988,143 @@ export function getEncumbranceStatus(
   } else {
     return 'heavily_encumbered';
   }
+}
+
+/**
+ * Ability score short names to full names mapping
+ */
+export const ABILITY_NAMES = {
+  str: 'strength',
+  dex: 'dexterity',
+  con: 'constitution',
+  int: 'intelligence',
+  wis: 'wisdom',
+  cha: 'charisma',
+} as const;
+
+export type AbilityShort = keyof typeof ABILITY_NAMES;
+export type AbilityFull = typeof ABILITY_NAMES[AbilityShort];
+
+/**
+ * Expands an ability abbreviation to a properly capitalized full name
+ * Handles formats like "STR", "str", "Str", "strength", etc.
+ * @param abbrev - The ability abbreviation or full name
+ * @returns The full ability name capitalized (e.g., "Strength", "Dexterity")
+ */
+export function getFullAbilityName(abbrev: string | null | undefined): string {
+  if (!abbrev) return '';
+  
+  const normalized = abbrev.toLowerCase().trim();
+  
+  // Handle abbreviations
+  const shortToFull: Record<string, string> = {
+    str: 'Strength',
+    dex: 'Dexterity',
+    con: 'Constitution',
+    int: 'Intelligence',
+    wis: 'Wisdom',
+    cha: 'Charisma',
+  };
+  
+  // Check if it's an abbreviation (3 letters)
+  if (normalized.length === 3 && shortToFull[normalized]) {
+    return shortToFull[normalized];
+  }
+  
+  // Handle full names - capitalize first letter
+  const fullNames = ['strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma'];
+  if (fullNames.includes(normalized)) {
+    return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+  }
+  
+  // Return original with first letter capitalized as fallback
+  return abbrev.charAt(0).toUpperCase() + abbrev.slice(1).toLowerCase();
+}
+
+/**
+ * Calculate saving throw proficiencies from all sources:
+ * 1. Class saving throw proficiencies (primary source)
+ * 2. Racial traits (some races grant saving throw advantages/proficiencies)
+ * 3. Manual overrides from character data
+ * 
+ * @param classSavingThrows - Array of ability short names from class (e.g., ['STR', 'CON'])
+ * @param raceTraits - Race traits that might grant saving throw benefits
+ * @param manualProficiencies - Manual proficiency overrides from character data
+ * @returns Object with proficiency status for each saving throw
+ */
+export function calculateSavingThrowProficiencies(
+  classSavingThrows?: string[] | null,
+  raceTraits?: any,
+  manualProficiencies?: {
+    strength?: boolean;
+    dexterity?: boolean;
+    constitution?: boolean;
+    intelligence?: boolean;
+    wisdom?: boolean;
+    charisma?: boolean;
+  }
+): Record<AbilityFull, boolean> {
+  const proficiencies: Record<AbilityFull, boolean> = {
+    strength: false,
+    dexterity: false,
+    constitution: false,
+    intelligence: false,
+    wisdom: false,
+    charisma: false,
+  };
+
+  // 1. Apply class saving throw proficiencies
+  if (classSavingThrows && Array.isArray(classSavingThrows)) {
+    classSavingThrows.forEach((saveStr) => {
+      // Handle different formats: "STR", "Str", "strength", etc.
+      const normalized = saveStr.toLowerCase().trim();
+      
+      // Map short names to full names
+      if (normalized === 'str' || normalized === 'strength') {
+        proficiencies.strength = true;
+      } else if (normalized === 'dex' || normalized === 'dexterity') {
+        proficiencies.dexterity = true;
+      } else if (normalized === 'con' || normalized === 'constitution') {
+        proficiencies.constitution = true;
+      } else if (normalized === 'int' || normalized === 'intelligence') {
+        proficiencies.intelligence = true;
+      } else if (normalized === 'wis' || normalized === 'wisdom') {
+        proficiencies.wisdom = true;
+      } else if (normalized === 'cha' || normalized === 'charisma') {
+        proficiencies.charisma = true;
+      }
+    });
+  }
+
+  // 2. Check race traits for saving throw proficiencies
+  // Some races might grant proficiency in specific saving throws
+  if (raceTraits && Array.isArray(raceTraits)) {
+    raceTraits.forEach((trait: any) => {
+      const traitName = typeof trait === 'string' ? trait : trait?.name || '';
+      const traitDesc = typeof trait === 'object' ? (trait?.desc || trait?.description || '') : '';
+      const searchText = `${traitName} ${traitDesc}`.toLowerCase();
+
+      // Check for saving throw proficiency grants in trait descriptions
+      // Pattern: "proficiency in [ability] saving throws" or "proficient in [ability] saves"
+      const abilities: AbilityFull[] = ['strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma'];
+      
+      abilities.forEach((ability) => {
+        const profPattern = new RegExp(`\\b(proficiency|proficient)\\s+(?:in\\s+)?(?:the\\s+)?${ability}\\s+(?:saving\\s+throws?|saves?)\\b`, 'i');
+        if (profPattern.test(searchText) && !proficiencies[ability]) {
+          proficiencies[ability] = true;
+        }
+      });
+    });
+  }
+
+  // 3. Apply manual overrides (these take precedence if explicitly set to true)
+  if (manualProficiencies) {
+    Object.entries(manualProficiencies).forEach(([ability, isProficient]) => {
+      if (isProficient === true) {
+        proficiencies[ability as AbilityFull] = true;
+      }
+    });
+  }
+
+  return proficiencies;
 }
