@@ -13,6 +13,8 @@ export interface Campaign {
   name: string;
   description: string | null;
   dm_user_id: string;
+  public_notes: string | null;
+  private_notes: string | null;
   created_at: string | null;
   updated_at: string | null;
 }
@@ -311,7 +313,7 @@ export function useUpdateCampaign() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
-  const updateCampaign = async (campaignId: string, updates: { name?: string; description?: string }) => {
+  const updateCampaign = async (campaignId: string, updates: { name?: string; description?: string; public_notes?: string | null; private_notes?: string | null }) => {
     try {
       setLoading(true);
       const supabase = createClient();

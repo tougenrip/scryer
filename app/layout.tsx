@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter, Cinzel } from "next/font/google";
+import { Inter, Cinzel, Kalam } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
@@ -31,6 +31,13 @@ const cinzel = Cinzel({
   weight: ["400", "500", "600", "700"],
 });
 
+const kalam = Kalam({
+  variable: "--font-kalam",
+  display: "swap",
+  subsets: ["latin"],
+  weight: ["300", "400", "700"],
+});
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -38,7 +45,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${inter.variable} ${cinzel.variable} font-sans antialiased`}>
+      <body className={`${inter.variable} ${cinzel.variable} ${kalam.variable} font-sans antialiased`}>
         <ThemeProvider
           attribute="class"
           defaultTheme="dark"

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 
 // ============================================
@@ -777,32 +777,35 @@ export function useCampaignCharacters(campaignId: string) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
-  useEffect(() => {
+  const fetchCharacters = useCallback(async () => {
     const supabase = createClient();
-    
-    async function fetchCharacters() {
-      try {
-        setLoading(true);
-        
-        const { data, error: fetchError } = await supabase
-          .from('characters')
-          .select('*')
-          .eq('campaign_id', campaignId)
-          .order('name', { ascending: true });
+    try {
+      setLoading(true);
+      
+      const { data, error: fetchError } = await supabase
+        .from('characters')
+        .select('*')
+        .eq('campaign_id', campaignId)
+        .order('name', { ascending: true });
 
-        if (fetchError) throw fetchError;
-        setCharacters(data || []);
-        setError(null);
-      } catch (err) {
-        setError(err as Error);
-      } finally {
-        setLoading(false);
-      }
+      if (fetchError) throw fetchError;
+      setCharacters(data || []);
+      setError(null);
+    } catch (err) {
+      setError(err as Error);
+    } finally {
+      setLoading(false);
     }
+  }, [campaignId]);
 
+  useEffect(() => {
     fetchCharacters();
+    
+    const supabase = createClient();
 
     // Subscribe to real-time updates
+    // Note: We listen to all character updates and filter by campaign_id in the handler
+    // because Supabase real-time filters don't catch transitions (null -> campaignId)
     const channel = supabase
       .channel(`campaign-characters-${campaignId}`)
       .on(
@@ -810,16 +813,30 @@ export function useCampaignCharacters(campaignId: string) {
         {
           event: '*',
           schema: 'public',
-          table: 'characters',
-          filter: `campaign_id=eq.${campaignId}`
+          table: 'characters'
         },
         (payload) => {
           if (payload.eventType === 'INSERT') {
-            setCharacters(prev => [...prev, payload.new as Character]);
+            const newChar = payload.new as Character;
+            if (newChar.campaign_id === campaignId) {
+              setCharacters(prev => [...prev, newChar]);
+            }
           } else if (payload.eventType === 'UPDATE') {
-            setCharacters(prev =>
-              prev.map(c => c.id === payload.new.id ? payload.new as Character : c)
-            );
+            const updatedChar = payload.new as Character;
+            if (updatedChar.campaign_id === campaignId) {
+              // Character is in this campaign, add or update it
+              setCharacters(prev => {
+                const exists = prev.find(c => c.id === updatedChar.id);
+                if (exists) {
+                  return prev.map(c => c.id === updatedChar.id ? updatedChar : c);
+                } else {
+                  return [...prev, updatedChar];
+                }
+              });
+            } else {
+              // Character is no longer in this campaign, remove it
+              setCharacters(prev => prev.filter(c => c.id !== updatedChar.id));
+            }
           } else if (payload.eventType === 'DELETE') {
             setCharacters(prev => prev.filter(c => c.id !== payload.old.id));
           }
@@ -830,9 +847,9 @@ export function useCampaignCharacters(campaignId: string) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [campaignId]);
+  }, [campaignId, fetchCharacters]);
 
-  return { characters, loading, error };
+  return { characters, loading, error, refetch: fetchCharacters };
 }
 
 export function useUserCharacters(userId: string | null) {
@@ -901,6 +918,91 @@ export function useUserCharacters(userId: string | null) {
   }, [userId]);
 
   return { characters, loading, error };
+}
+
+export function useUnassignedCharacters(userId: string | null) {
+  const [characters, setCharacters] = useState<Character[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  const fetchCharacters = useCallback(async () => {
+    if (!userId) {
+      setLoading(false);
+      return;
+    }
+
+    const supabase = createClient();
+    try {
+      setLoading(true);
+      
+      const { data, error: fetchError } = await supabase
+        .from('characters')
+        .select('*')
+        .eq('user_id', userId)
+        .is('campaign_id', null)
+        .order('name', { ascending: true });
+
+      if (fetchError) throw fetchError;
+      setCharacters(data || []);
+      setError(null);
+    } catch (err) {
+      setError(err as Error);
+    } finally {
+      setLoading(false);
+    }
+  }, [userId]);
+
+  useEffect(() => {
+    if (!userId) {
+      setLoading(false);
+      return;
+    }
+
+    fetchCharacters();
+    
+    const supabase = createClient();
+
+    // Subscribe to real-time updates
+    const channel = supabase
+      .channel(`unassigned-characters-${userId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'characters',
+          filter: `user_id=eq.${userId}`
+        },
+        (payload) => {
+          // Only include characters with null campaign_id
+          if (payload.eventType === 'INSERT') {
+            const newChar = payload.new as Character;
+            if (!newChar.campaign_id) {
+              setCharacters(prev => [...prev, newChar]);
+            }
+          } else if (payload.eventType === 'UPDATE') {
+            const updatedChar = payload.new as Character;
+            if (!updatedChar.campaign_id) {
+              setCharacters(prev =>
+                prev.map(c => c.id === updatedChar.id ? updatedChar : c)
+              );
+            } else {
+              // Character was assigned to a campaign, remove from list
+              setCharacters(prev => prev.filter(c => c.id !== updatedChar.id));
+            }
+          } else if (payload.eventType === 'DELETE') {
+            setCharacters(prev => prev.filter(c => c.id !== payload.old.id));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [userId, fetchCharacters]);
+
+  return { characters, loading, error, refetch: fetchCharacters };
 }
 
 // ============================================

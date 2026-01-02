@@ -6,15 +6,13 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { 
-  Users, 
-  Sparkles as SpellIcon, 
-  Skull, 
-  Sword,
-  Map,
-  Swords,
   Settings,
   ChevronLeft,
-  Home
+  Home,
+  Map,
+  User,
+  Swords,
+  ScrollText
 } from "lucide-react";
 
 interface SidebarProps {
@@ -31,34 +29,24 @@ const sidebarItems = [
     icon: Home,
   },
   {
-    title: "Characters",
-    href: "/characters",
-    icon: Users,
-  },
-  {
-    title: "Spells",
-    href: "/spells",
-    icon: SpellIcon,
-  },
-  {
-    title: "Monsters",
-    href: "/monsters",
-    icon: Skull,
-  },
-  {
-    title: "Equipment",
-    href: "/equipment",
-    icon: Sword,
-  },
-  {
     title: "Maps",
     href: "/maps",
     icon: Map,
   },
   {
-    title: "Combat",
-    href: "/combat",
+    title: "NPCs",
+    href: "/npcs",
+    icon: User,
+  },
+  {
+    title: "Encounters",
+    href: "/encounters",
     icon: Swords,
+  },
+  {
+    title: "Quest Board",
+    href: "/quest-board",
+    icon: ScrollText,
   },
 ];
 
