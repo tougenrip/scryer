@@ -12,13 +12,14 @@ import {
   useCreateEncounter,
   useUpdateEncounter,
   useDeleteEncounter,
-  useCampaignMediaItems,
   type Encounter,
 } from "@/hooks/useCampaignContent";
+import { useMonsters } from "@/hooks/useDndContent";
 import { EncounterFormDialog } from "@/components/campaign/encounter-form-dialog";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
-import { Plus, Swords, Edit, Trash2, Play } from "lucide-react";
+import { Plus, Swords, Edit, Trash2, Calendar, Clock } from "lucide-react";
+import { format } from "date-fns";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -41,7 +42,7 @@ export default function EncountersPage() {
 
   const { campaign, loading: campaignLoading } = useCampaign(campaignId);
   const { encounters, loading: encountersLoading, refetch: refetchEncounters } = useCampaignEncounters(campaignId);
-  const { items: maps, loading: mapsLoading } = useCampaignMediaItems(campaignId, 'map');
+  const { monsters } = useMonsters(campaignId);
   const { createEncounter, loading: creating } = useCreateEncounter();
   const { updateEncounter, loading: updating } = useUpdateEncounter();
   const { deleteEncounter, loading: deleting } = useDeleteEncounter();
@@ -63,8 +64,11 @@ export default function EncountersPage() {
   const handleCreate = async (data: {
     campaign_id: string;
     name?: string | null;
-    map_id?: string | null;
-    active?: boolean;
+    monsters?: Array<{
+      monster_source: 'srd' | 'homebrew';
+      monster_index: string;
+      quantity: number;
+    }> | null;
   }) => {
     const result = await createEncounter(data);
     if (result.success) {
@@ -82,8 +86,11 @@ export default function EncountersPage() {
     encounterId: string,
     data: {
       name?: string | null;
-      map_id?: string | null;
-      active?: boolean;
+      monsters?: Array<{
+        monster_source: 'srd' | 'homebrew';
+        monster_index: string;
+        quantity: number;
+      }> | null;
     }
   ) => {
     const result = await updateEncounter(encounterId, data);
@@ -110,17 +117,8 @@ export default function EncountersPage() {
     }
   };
 
-  const handleStartEncounter = async (encounter: Encounter) => {
-    const result = await updateEncounter(encounter.id, { active: true });
-    if (result.success) {
-      toast.success("Encounter started");
-      refetchEncounters();
-    } else {
-      toast.error(result.error?.message || "Failed to start encounter");
-    }
-  };
 
-  if (campaignLoading || encountersLoading || mapsLoading) {
+  if (campaignLoading || encountersLoading) {
     return (
       <div className="space-y-8">
         <div className="flex items-center justify-between">
@@ -154,10 +152,6 @@ export default function EncountersPage() {
     );
   }
 
-  const getMapName = (mapId: string | null) => {
-    if (!mapId) return null;
-    return maps.find((m) => m.id === mapId)?.name || null;
-  };
 
   return (
     <div className="space-y-8">
@@ -190,52 +184,88 @@ export default function EncountersPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {encounters.map((encounter) => {
-            const mapName = getMapName(encounter.map_id);
+            const createdDate = encounter.created_at 
+              ? format(new Date(encounter.created_at), "MMM d, yyyy")
+              : null;
+            
+            // Resolve monster names from saved monster data
+            const encounterMonsters = encounter.monsters?.map((savedMonster) => {
+              const monster = monsters.find(
+                (m) => m.index === savedMonster.monster_index && m.source === savedMonster.monster_source
+              );
+              return monster ? { name: monster.name, quantity: savedMonster.quantity, cr: monster.challenge_rating } : null;
+            }).filter((m): m is { name: string; quantity: number; cr: number } => m !== null) || [];
+            
+            const totalMonsters = encounterMonsters.reduce((sum, m) => sum + m.quantity, 0);
+            
             return (
-              <Card key={encounter.id}>
-                <CardContent className="p-6 space-y-3">
+              <Card key={encounter.id} className="hover:shadow-md transition-shadow">
+                <CardContent className="p-6 space-y-4">
                   <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-lg">
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold text-lg truncate">
                         {encounter.name || "Unnamed Encounter"}
                       </h3>
-                      {mapName && (
-                        <p className="text-sm text-muted-foreground mt-1">
-                          Map: {mapName}
-                        </p>
+                      {encounter.active && (
+                        <Badge variant="default" className="bg-green-600 mt-2">
+                          Active
+                        </Badge>
                       )}
                     </div>
+                  </div>
+                  
+                  {/* Encounter Details */}
+                  <div className="space-y-2 text-sm text-muted-foreground">
                     {encounter.active && (
-                      <Badge variant="default" className="bg-green-600">
-                        Active
-                      </Badge>
+                      <div className="flex items-center gap-2">
+                        <Clock className="h-4 w-4" />
+                        <span>Round {encounter.round_number}</span>
+                      </div>
+                    )}
+                    {createdDate && (
+                      <div className="flex items-center gap-2">
+                        <Calendar className="h-4 w-4" />
+                        <span>Created {createdDate}</span>
+                      </div>
                     )}
                   </div>
-                  {encounter.active && (
-                    <div className="text-sm text-muted-foreground">
-                      Round {encounter.round_number}
+
+                  {/* Monsters List */}
+                  {encounterMonsters.length > 0 && (
+                    <div className="space-y-2 pt-2 border-t">
+                      <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                        Creatures ({totalMonsters})
+                      </div>
+                      <div className="space-y-1 max-h-[120px] overflow-y-auto">
+                        {encounterMonsters.map((monster, idx) => (
+                          <div key={idx} className="flex items-center justify-between text-sm">
+                            <span className="truncate flex-1 min-w-0">
+                              {monster.quantity > 1 && (
+                                <span className="font-medium mr-1">{monster.quantity}x</span>
+                              )}
+                              {monster.name}
+                            </span>
+                            <span className="text-xs text-muted-foreground ml-2 flex-shrink-0">
+                              CR {monster.cr}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
-                  <div className="flex items-center gap-2 pt-2">
+
+                  {/* Action Buttons */}
+                  <div className="flex items-center gap-2 pt-2 border-t">
                     {isDm && (
                       <>
-                        {!encounter.active && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleStartEncounter(encounter)}
-                            className="flex-1"
-                          >
-                            <Play className="h-4 w-4 mr-2" />
-                            Start
-                          </Button>
-                        )}
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => setEditingEncounter(encounter)}
+                          className="flex-1"
                         >
-                          <Edit className="h-4 w-4" />
+                          <Edit className="h-4 w-4 mr-2" />
+                          Edit
                         </Button>
                         <Button
                           variant="outline"
@@ -265,7 +295,6 @@ export default function EncountersPage() {
           }
         }}
         campaignId={campaignId}
-        maps={maps}
         encounter={editingEncounter}
         onCreate={handleCreate}
         onUpdate={handleUpdate}

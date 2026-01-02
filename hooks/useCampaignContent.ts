@@ -41,6 +41,11 @@ export interface Encounter {
   active: boolean;
   round_number: number;
   current_turn_index: number;
+  monsters?: Array<{
+    monster_source: 'srd' | 'homebrew';
+    monster_index: string;
+    quantity: number;
+  }> | null;
   created_at: string | null;
 }
 
@@ -473,6 +478,11 @@ export function useCreateEncounter() {
     active?: boolean;
     round_number?: number;
     current_turn_index?: number;
+    monsters?: Array<{
+      monster_source: 'srd' | 'homebrew';
+      monster_index: string;
+      quantity: number;
+    }> | null;
   }) => {
     try {
       setLoading(true);
@@ -516,6 +526,11 @@ export function useUpdateEncounter() {
       active?: boolean;
       round_number?: number;
       current_turn_index?: number;
+      monsters?: Array<{
+        monster_source: 'srd' | 'homebrew';
+        monster_index: string;
+        quantity: number;
+      }> | null;
     }
   ) => {
     try {

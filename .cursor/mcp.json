@@ -6,7 +6,7 @@
         },
         "dnd-5e": {
           "command": "node",
-          "args": ["c:/Users/Tougen/dnd-mcp/dist/index.js"]
+          "args": ["c:/Users/Doruk/dnd-mcp/dist/index.js"]
         }
     }
   }
