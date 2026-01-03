@@ -4,7 +4,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import type { Spell, Equipment, Race, DndClass } from "@/hooks/useDndContent";
+import type { Spell, Equipment, Race, DndClass, Subclass } from "@/hooks/useDndContent";
+import { useClassFeatures, useSubclassFeatures } from "@/hooks/useDndContent";
 import { DND_SKILLS, getAbilityModifierString, getAbilityModifier } from "@/lib/utils/character";
 import { 
   BookOpen as SpellIcon, 
@@ -47,6 +48,7 @@ export type InfoSheetContent =
   | { type: "condition"; data: { name: string } }
   | { type: "race"; data: Race }
   | { type: "class"; data: DndClass }
+  | { type: "subclass"; data: Subclass & { className?: string } }
   | { type: "trait"; data: { name: string; description: string } }
   | { type: "feature"; data: { name: string; level?: number; description: string; class?: string } };
 
@@ -74,6 +76,8 @@ export function InfoSheet({ content, onClose }: InfoSheetProps) {
         return <RaceInfo race={content.data} />;
       case "class":
         return <ClassInfo class={content.data} />;
+      case "subclass":
+        return <SubclassInfo subclass={content.data} />;
       case "trait":
         return <TraitInfo trait={content.data} />;
       case "feature":
@@ -111,6 +115,11 @@ export function InfoSheet({ content, onClose }: InfoSheetProps) {
               {content.data.source.toUpperCase()}
             </Badge>
           )}
+          {content.type === "subclass" && content.data.source && (
+            <Badge variant={content.data.source === "srd" ? "default" : "secondary"}>
+              {content.data.source.toUpperCase()}
+            </Badge>
+          )}
         </div>
       </CardHeader>
       <CardContent>
@@ -138,6 +147,7 @@ function getIcon(type: InfoSheetContent["type"]) {
       return <Info className={iconClass} />;
     case "race":
     case "class":
+    case "subclass":
       return <Users className={iconClass} />;
     case "trait":
     case "feature":
@@ -164,6 +174,8 @@ function getTitle(content: InfoSheetContent): string {
     case "race":
       return content.data.name;
     case "class":
+      return content.data.name;
+    case "subclass":
       return content.data.name;
     case "trait":
       return content.data.name;
@@ -716,6 +728,29 @@ function RaceInfo({ race }: { race: Race }) {
 
 // Class Info Component
 function ClassInfo({ class: characterClass }: { class: DndClass }) {
+  // Fetch features from srd_features table
+  const { features, loading: featuresLoading } = useClassFeatures(characterClass.index);
+
+  // Parse proficiencies for better display
+  const parseProficiencies = (proficiencies: any): string[] => {
+    if (!proficiencies) return [];
+    if (Array.isArray(proficiencies)) {
+      return proficiencies.map((p: any) => 
+        typeof p === 'string' ? p : (p.name || p.index || '')
+      ).filter(Boolean);
+    }
+    return [];
+  };
+
+  const proficiencyList = parseProficiencies(characterClass.proficiencies);
+
+  // Group features by level
+  const featuresByLevel = features.reduce((acc, feat) => {
+    if (!acc[feat.level]) acc[feat.level] = [];
+    acc[feat.level].push(feat);
+    return acc;
+  }, {} as Record<number, typeof features>);
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2">
@@ -745,14 +780,16 @@ function ClassInfo({ class: characterClass }: { class: DndClass }) {
         </>
       )}
 
-      {characterClass.proficiencies && (
+      {proficiencyList.length > 0 && (
         <>
           <div>
             <div className="font-semibold text-muted-foreground text-sm mb-2">Proficiencies</div>
-            <div className="text-sm">
-              {typeof characterClass.proficiencies === "object" 
-                ? JSON.stringify(characterClass.proficiencies)
-                : String(characterClass.proficiencies)}
+            <div className="flex flex-wrap gap-1">
+              {proficiencyList.map((prof, idx) => (
+                <Badge key={idx} variant="outline" className="text-xs">
+                  {prof}
+                </Badge>
+              ))}
             </div>
           </div>
           <Separator />
@@ -775,120 +812,116 @@ function ClassInfo({ class: characterClass }: { class: DndClass }) {
         </>
       )}
 
-      {characterClass.class_levels && (
-        <>
-          <div>
-            <div className="font-semibold text-muted-foreground text-sm mb-2">Class Features</div>
-            <div className="space-y-3 text-sm">
-              {(() => {
-                const classLevels = characterClass.class_levels as any;
-                const features: Array<{ level: number; name: string; description: string }> = [];
-                
-                // Parse class_levels to extract features
-                if (classLevels) {
-                  // Handle different data structures
-                  const levels = typeof classLevels === 'object' && !Array.isArray(classLevels)
-                    ? Object.keys(classLevels).map(key => {
-                        const levelNum = parseInt(key.replace('level_', '').replace('level', '')) || parseInt(key) || 1;
-                        return { level: levelNum, data: classLevels[key] };
-                      }).sort((a, b) => a.level - b.level)
-                    : Array.isArray(classLevels)
-                    ? classLevels.map((data: any, idx: number) => ({ level: idx + 1, data }))
-                    : [];
-                  
-                  levels.forEach(({ level, data }) => {
-                    if (!data) return;
-                    
-                    // Extract features
-                    if (data.features) {
-                      if (Array.isArray(data.features)) {
-                        data.features.forEach((feat: any) => {
-                          if (typeof feat === 'string') {
-                            features.push({ level, name: feat, description: '' });
-                          } else if (feat.name || feat.index) {
-                            features.push({
-                              level,
-                              name: feat.name || feat.index || 'Feature',
-                              description: feat.desc || feat.description || ''
-                            });
-                          }
-                        });
-                      } else if (typeof data.features === 'object') {
-                        Object.entries(data.features).forEach(([key, value]: [string, any]) => {
-                          features.push({
-                            level,
-                            name: value?.name || key,
-                            description: value?.desc || value?.description || ''
-                          });
-                        });
-                      }
-                    }
-                    
-                    // Extract feature choices
-                    if (data.feature_choices) {
-                      if (Array.isArray(data.feature_choices)) {
-                        data.feature_choices.forEach((choice: any) => {
-                          features.push({
-                            level,
-                            name: choice.name || 'Feature Choice',
-                            description: choice.desc || choice.description || 'Choose a feature'
-                          });
-                        });
-                      }
-                    }
-                    
-                    // Extract class-specific features
-                    if (data.class_specific) {
-                      Object.entries(data.class_specific).forEach(([key, value]: [string, any]) => {
-                        features.push({
-                          level,
-                          name: key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-                          description: typeof value === 'object' ? JSON.stringify(value) : String(value)
-                        });
-                      });
-                    }
-                  });
-                }
-                
-                if (features.length === 0) {
-                  return (
-                    <div className="text-muted-foreground">
-                      Class features are displayed in the character sheet. Level progression information is available in the class levels data.
-                    </div>
-                  );
-                }
-                
-                // Group features by level
-                const featuresByLevel = features.reduce((acc, feat) => {
-                  if (!acc[feat.level]) acc[feat.level] = [];
-                  acc[feat.level].push(feat);
-                  return acc;
-                }, {} as Record<number, typeof features>);
-                
-                return Object.entries(featuresByLevel)
-                  .sort(([a], [b]) => parseInt(a) - parseInt(b))
-                  .map(([level, levelFeatures]) => (
-                    <div key={level} className="border-l-2 border-primary/30 pl-3">
-                      <div className="font-semibold mb-1">Level {level}</div>
-                      <div className="space-y-2">
-                        {levelFeatures.map((feat, idx) => (
-                          <div key={idx} className="pl-2">
-                            <div className="font-medium">{feat.name}</div>
-                            {feat.description && (
-                              <div className="text-muted-foreground text-xs mt-0.5">
-                                {feat.description}
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ));
-              })()}
+      <div>
+        <div className="font-semibold text-muted-foreground text-sm mb-2">Class Features</div>
+        <div className="space-y-3 text-sm">
+          {featuresLoading ? (
+            <div className="text-muted-foreground">Loading features...</div>
+          ) : features.length === 0 ? (
+            <div className="text-muted-foreground">
+              No class features available.
             </div>
+          ) : (
+            Object.entries(featuresByLevel)
+              .sort(([a], [b]) => parseInt(a) - parseInt(b))
+              .map(([level, levelFeatures]) => (
+                <div key={level} className="border-l-2 border-primary/30 pl-3">
+                  <div className="font-semibold mb-1">Level {level}</div>
+                  <div className="space-y-2">
+                    {levelFeatures.map((feat) => (
+                      <div key={feat.id} className="pl-2 p-2 bg-muted/20 rounded">
+                        <div className="font-medium">{feat.name}</div>
+                        {feat.description && (
+                          <div className="text-muted-foreground text-xs mt-1 whitespace-pre-wrap">
+                            {feat.description}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Subclass Info Component
+function SubclassInfo({ subclass }: { subclass: Subclass & { className?: string } }) {
+  // Fetch subclass features from srd_features table
+  const { features, loading: featuresLoading } = useSubclassFeatures(
+    subclass.class_index,
+    subclass.index
+  );
+
+  // Group features by level
+  const featuresByLevel = features.reduce((acc, feat) => {
+    if (!acc[feat.level]) acc[feat.level] = [];
+    acc[feat.level].push(feat);
+    return acc;
+  }, {} as Record<number, typeof features>);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-2">
+        {subclass.className && (
+          <Badge variant="secondary">{subclass.className}</Badge>
+        )}
+      </div>
+
+      {subclass.subclass_flavor && (
+        <>
+          <div className="p-3 bg-muted/30 rounded-lg italic text-sm">
+            {subclass.subclass_flavor}
           </div>
+          <Separator />
         </>
       )}
+
+      {subclass.description && (
+        <>
+          <div>
+            <div className="font-semibold text-muted-foreground text-sm mb-2">Description</div>
+            <div className="text-sm whitespace-pre-wrap">{subclass.description}</div>
+          </div>
+          <Separator />
+        </>
+      )}
+
+      <div>
+        <div className="font-semibold text-muted-foreground text-sm mb-2">Subclass Features</div>
+        <div className="space-y-3 text-sm">
+          {featuresLoading ? (
+            <div className="text-muted-foreground">Loading features...</div>
+          ) : features.length === 0 ? (
+            <div className="text-muted-foreground">
+              No subclass features available.
+            </div>
+          ) : (
+            Object.entries(featuresByLevel)
+              .sort(([a], [b]) => parseInt(a) - parseInt(b))
+              .map(([level, levelFeatures]) => (
+                <div key={level} className="border-l-2 border-primary/30 pl-3">
+                  <div className="font-semibold mb-1">Level {level}</div>
+                  <div className="space-y-2">
+                    {levelFeatures.map((feat) => (
+                      <div key={feat.id} className="pl-2 p-2 bg-muted/20 rounded">
+                        <div className="font-medium">{feat.name}</div>
+                        {feat.description && (
+                          <div className="text-muted-foreground text-xs mt-1 whitespace-pre-wrap">
+                            {feat.description}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))
+          )}
+        </div>
+      </div>
     </div>
   );
 }

@@ -802,7 +802,7 @@ const FULL_CASTERS = ['bard', 'cleric', 'druid', 'sorcerer', 'wizard'];
 const HALF_CASTERS = ['paladin', 'ranger'];
 
 /**
- * Calculate spell slots based on class and level
+ * Calculate spell slots based on class and level (single class)
  * @param classIndex - The class index (e.g., "wizard", "paladin")
  * @param level - Character level
  * @returns Array of spell slot objects with level, total, and used (0)
@@ -849,6 +849,59 @@ export function calculateSpellSlots(
   
   // Non-casters or unknown classes
   return [];
+}
+
+/**
+ * Calculate spell slots for multiclass characters
+ * Uses multiclass spell slot table based on combined caster level
+ * Warlock Pact Magic slots are separate and returned separately
+ * @param characterClasses - Array of character classes with levels
+ * @returns Object with spell slots and separate warlock slots
+ */
+export function calculateMulticlassSpellSlots(
+  characterClasses: Array<{
+    class_source: 'srd' | 'homebrew';
+    class_index: string;
+    level: number;
+    subclass_source?: 'srd' | 'homebrew' | null;
+    subclass_index?: string | null;
+  }>
+): {
+  spellSlots: Array<{ level: number; total: number; used: number }>;
+  warlockSlots: Array<{ level: number; total: number; used: number }>;
+} {
+  // Import multiclass utilities dynamically to avoid circular dependencies
+  const multiclassUtils = require('./multiclass');
+  const calculateCombinedCasterLevel = multiclassUtils.calculateCombinedCasterLevel;
+  const getMulticlassSpellSlots = multiclassUtils.getMulticlassSpellSlots;
+  const getCasterType = multiclassUtils.getCasterType;
+  
+  // Separate warlock from other classes
+  const warlockClasses = characterClasses.filter(c => 
+    getCasterType(c.class_index) === 'warlock'
+  );
+  const nonWarlockClasses = characterClasses.filter(c => 
+    getCasterType(c.class_index) !== 'warlock'
+  );
+  
+  // Calculate regular spell slots from combined caster level
+  let spellSlots: Array<{ level: number; total: number; used: number }> = [];
+  if (nonWarlockClasses.length > 0) {
+    const combinedLevel = calculateCombinedCasterLevel(nonWarlockClasses);
+    spellSlots = getMulticlassSpellSlots(combinedLevel);
+  }
+  
+  // Calculate warlock Pact Magic slots separately
+  let warlockSlots: Array<{ level: number; total: number; used: number }> = [];
+  if (warlockClasses.length > 0) {
+    const warlockLevel = warlockClasses.reduce((sum, c) => sum + c.level, 0);
+    warlockSlots = calculateSpellSlots('warlock', warlockLevel);
+  }
+  
+  return {
+    spellSlots,
+    warlockSlots,
+  };
 }
 
 export function extractDefensesFromTraits(traits: any): {

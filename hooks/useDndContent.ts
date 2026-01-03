@@ -61,6 +61,28 @@ export interface DndClass extends SrdClass {
   source: 'srd' | 'homebrew';
 }
 
+export interface SrdSubclass {
+  id: string;
+  index: string;
+  name: string;
+  class_index: string;
+  subclass_flavor?: string;
+  description?: string;
+  features?: any;
+  created_at: string;
+}
+
+export interface HomebrewSubclass extends Omit<SrdSubclass, 'index' | 'created_at'> {
+  campaign_id: string;
+  based_on_srd: string | null;
+  created_by: string;
+  created_at: string;
+}
+
+export interface Subclass extends SrdSubclass {
+  source: 'srd' | 'homebrew';
+}
+
 export interface SrdRace {
   id: string;
   index: string;
@@ -215,6 +237,34 @@ export interface CharacterProficiency {
   source_type: 'race' | 'background' | 'class' | 'custom';
 }
 
+export interface CharacterClass {
+  id?: string;
+  character_id: string;
+  class_source: 'srd' | 'homebrew';
+  class_index: string;
+  level: number;
+  subclass_source?: 'srd' | 'homebrew' | null;
+  subclass_index?: string | null;
+  is_primary_class?: boolean;
+  level_acquired_at?: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface CharacterClassFeature {
+  id?: string;
+  character_id: string;
+  class_source: 'srd' | 'homebrew';
+  class_index: string;
+  class_level: number;
+  feature_index?: string | null;
+  feature_name: string;
+  feature_description?: string | null;
+  feature_specific?: any;
+  acquired_at_character_level: number;
+  created_at?: string;
+}
+
 export interface Character {
   id: string;
   campaign_id: string | null;
@@ -222,10 +272,11 @@ export interface Character {
   name: string;
   race_source: 'srd' | 'homebrew';
   race_index: string;
-  class_source: 'srd' | 'homebrew';
-  class_index: string;
-  subclass_source: 'srd' | 'homebrew';
-  subclass_index: string;
+  class_source: 'srd' | 'homebrew' | null;
+  class_index: string | null;
+  subclass_source: 'srd' | 'homebrew' | null;
+  subclass_index: string | null;
+  uses_multiclass?: boolean;
   level: number;
   experience_points: number;
   background: string | null;
@@ -427,7 +478,7 @@ export function useSpell(source: 'srd' | 'homebrew', indexOrId: string) {
 // CLASSES HOOKS
 // ============================================
 
-export function useClasses(campaignId: string | null) {
+export function useClasses(campaignId: string | null, sourceVersion: "2014" | "2024" | null = null) {
   const [classes, setClasses] = useState<DndClass[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -438,8 +489,11 @@ export function useClasses(campaignId: string | null) {
         setLoading(true);
         const supabase = createClient();
         
+        // Determine which SRD table to query based on source version
+        const srdTable = sourceVersion === "2024" ? "srd2024_classes" : "srd_classes";
+        
         const { data: srdClasses, error: srdError } = await supabase
-          .from('srd_classes')
+          .from(srdTable)
           .select('*')
           .order('name', { ascending: true });
 
@@ -473,7 +527,7 @@ export function useClasses(campaignId: string | null) {
     }
 
     fetchClasses();
-  }, [campaignId]);
+  }, [campaignId, sourceVersion]);
 
   return { classes, loading, error };
 }
@@ -482,7 +536,7 @@ export function useClasses(campaignId: string | null) {
 // RACES HOOKS
 // ============================================
 
-export function useRaces(campaignId: string | null) {
+export function useRaces(campaignId: string | null, sourceVersion: "2014" | "2024" | null = null) {
   const [races, setRaces] = useState<Race[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -493,8 +547,11 @@ export function useRaces(campaignId: string | null) {
         setLoading(true);
         const supabase = createClient();
         
+        // Determine which SRD table to query based on source version
+        const srdTable = sourceVersion === "2024" ? "srd2024_races" : "srd_races";
+        
         const { data: srdRaces, error: srdError } = await supabase
-          .from('srd_races')
+          .from(srdTable)
           .select('*')
           .order('name', { ascending: true });
 
@@ -528,9 +585,181 @@ export function useRaces(campaignId: string | null) {
     }
 
     fetchRaces();
-  }, [campaignId]);
+  }, [campaignId, sourceVersion]);
 
   return { races, loading, error };
+}
+
+// ============================================
+// SUBCLASSES HOOKS
+// ============================================
+
+export function useSubclasses(classIndex: string | null, classSource: 'srd' | 'homebrew' | null, campaignId: string | null, sourceVersion: "2014" | "2024" | null = null) {
+  const [subclasses, setSubclasses] = useState<Subclass[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  useEffect(() => {
+    async function fetchSubclasses() {
+      if (!classIndex || !classSource) {
+        setSubclasses([]);
+        setLoading(false);
+        return;
+      }
+
+      try {
+        setLoading(true);
+        const supabase = createClient();
+        
+        if (classSource === 'srd') {
+          // Determine which SRD table to query based on source version
+          const srdTable = sourceVersion === "2024" ? "srd2024_subclasses" : "srd_subclasses";
+          
+          const { data: srdSubclasses, error: srdError } = await supabase
+            .from(srdTable)
+            .select('*')
+            .eq('class_index', classIndex)
+            .order('name', { ascending: true });
+
+          if (srdError) throw srdError;
+
+          const combined: Subclass[] = (srdSubclasses || []).map(s => ({ ...s, source: 'srd' as const }));
+          setSubclasses(combined);
+        } else {
+          // Homebrew subclasses
+          if (!campaignId) {
+            setSubclasses([]);
+            setLoading(false);
+            return;
+          }
+
+          const { data: homebrewSubclasses, error: homebrewError } = await supabase
+            .from('homebrew_subclasses')
+            .select('*')
+            .eq('campaign_id', campaignId)
+            .eq('class_index', classIndex)
+            .order('name', { ascending: true });
+
+          if (homebrewError) throw homebrewError;
+
+          const combined: Subclass[] = (homebrewSubclasses || []).map(s => ({ ...s, index: s.id, source: 'homebrew' as const }));
+          setSubclasses(combined);
+        }
+
+        setError(null);
+      } catch (err) {
+        setError(err as Error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchSubclasses();
+  }, [classIndex, classSource, campaignId, sourceVersion]);
+
+  return { subclasses, loading, error };
+}
+
+// ============================================
+// FEATURES HOOKS
+// ============================================
+
+export interface SrdFeature {
+  id: string;
+  index: string;
+  name: string;
+  level: number;
+  class_index: string;
+  subclass_index: string | null;
+  description: string;
+  feature_specific: any;
+  created_at: string;
+}
+
+export function useClassFeatures(classIndex: string | null) {
+  const [features, setFeatures] = useState<SrdFeature[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  useEffect(() => {
+    async function fetchFeatures() {
+      if (!classIndex) {
+        setFeatures([]);
+        setLoading(false);
+        return;
+      }
+
+      try {
+        setLoading(true);
+        const supabase = createClient();
+        
+        // Fetch class features (excluding subclass-specific features)
+        const { data, error: fetchError } = await supabase
+          .from('srd_features')
+          .select('*')
+          .eq('class_index', classIndex)
+          .is('subclass_index', null)
+          .order('level', { ascending: true })
+          .order('name', { ascending: true });
+
+        if (fetchError) throw fetchError;
+
+        setFeatures(data || []);
+        setError(null);
+      } catch (err) {
+        setError(err as Error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchFeatures();
+  }, [classIndex]);
+
+  return { features, loading, error };
+}
+
+export function useSubclassFeatures(classIndex: string | null, subclassIndex: string | null) {
+  const [features, setFeatures] = useState<SrdFeature[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  useEffect(() => {
+    async function fetchFeatures() {
+      if (!classIndex || !subclassIndex) {
+        setFeatures([]);
+        setLoading(false);
+        return;
+      }
+
+      try {
+        setLoading(true);
+        const supabase = createClient();
+        
+        // Fetch subclass-specific features
+        const { data, error: fetchError } = await supabase
+          .from('srd_features')
+          .select('*')
+          .eq('class_index', classIndex)
+          .eq('subclass_index', subclassIndex)
+          .order('level', { ascending: true })
+          .order('name', { ascending: true });
+
+        if (fetchError) throw fetchError;
+
+        setFeatures(data || []);
+        setError(null);
+      } catch (err) {
+        setError(err as Error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchFeatures();
+  }, [classIndex, subclassIndex]);
+
+  return { features, loading, error };
 }
 
 // ============================================
@@ -661,7 +890,7 @@ export interface Background {
   created_at: string;
 }
 
-export function useBackgrounds() {
+export function useBackgrounds(sourceVersion: "2014" | "2024" | null = null) {
   const [backgrounds, setBackgrounds] = useState<Background[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -672,8 +901,11 @@ export function useBackgrounds() {
         setLoading(true);
         const supabase = createClient();
         
+        // Determine which SRD table to query based on source version
+        const srdTable = sourceVersion === "2024" ? "srd2024_backgrounds" : "srd_backgrounds";
+        
         const { data, error: fetchError } = await supabase
-          .from('srd_backgrounds')
+          .from(srdTable)
           .select('*')
           .order('name', { ascending: true });
 
@@ -688,7 +920,7 @@ export function useBackgrounds() {
     }
 
     fetchBackgrounds();
-  }, []);
+  }, [sourceVersion]);
 
   return { backgrounds, loading, error };
 }
@@ -1328,4 +1560,112 @@ export function useCharacterProficiencies(characterId: string) {
   }, [characterId]);
 
   return { proficiencies, loading, error };
+}
+
+/**
+ * Hook to fetch all classes for a character (multiclass support)
+ */
+export function useCharacterClasses(characterId: string) {
+  const [characterClasses, setCharacterClasses] = useState<CharacterClass[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  useEffect(() => {
+    async function fetchCharacterClasses() {
+      try {
+        setLoading(true);
+        const supabase = createClient();
+        
+        const { data, error: fetchError } = await supabase
+          .from('character_classes')
+          .select('*')
+          .eq('character_id', characterId)
+          .order('is_primary_class', { ascending: false })
+          .order('level_acquired_at', { ascending: true });
+
+        if (fetchError) throw fetchError;
+        setCharacterClasses(data || []);
+        setError(null);
+      } catch (err) {
+        setError(err as Error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    if (characterId) {
+      fetchCharacterClasses();
+      
+      // Subscribe to real-time updates
+      const supabase = createClient();
+      const channel = supabase
+        .channel(`character-classes-${characterId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'character_classes',
+            filter: `character_id=eq.${characterId}`
+          },
+          () => {
+            fetchCharacterClasses();
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
+  }, [characterId]);
+
+  return { characterClasses, loading, error };
+}
+
+/**
+ * Hook to fetch features for a specific character class
+ */
+export function useCharacterClassFeatures(
+  characterId: string,
+  classSource: 'srd' | 'homebrew' | null,
+  classIndex: string | null
+) {
+  const [features, setFeatures] = useState<CharacterClassFeature[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  useEffect(() => {
+    async function fetchClassFeatures() {
+      if (!characterId || !classSource || !classIndex) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        setLoading(true);
+        const supabase = createClient();
+        
+        const { data, error: fetchError } = await supabase
+          .from('character_class_features')
+          .select('*')
+          .eq('character_id', characterId)
+          .eq('class_source', classSource)
+          .eq('class_index', classIndex)
+          .order('class_level', { ascending: true });
+
+        if (fetchError) throw fetchError;
+        setFeatures(data || []);
+        setError(null);
+      } catch (err) {
+        setError(err as Error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchClassFeatures();
+  }, [characterId, classSource, classIndex]);
+
+  return { features, loading, error };
 }

@@ -350,7 +350,7 @@ name TEXT
 x INTEGER NOT NULL
 y INTEGER NOT NULL
 size TEXT DEFAULT 'medium' -- tiny, small, medium, large, huge, gargantuan
-color TEXT DEFAULT '#3b82f6'
+color TEXT DEFAULT '#c9b882'
 rotation INTEGER DEFAULT 0 -- 0-359 degrees
 visible_to UUID[] -- user_ids, null = visible to all
 conditions TEXT[] DEFAULT '{}' -- status effects

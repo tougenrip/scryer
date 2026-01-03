@@ -36,8 +36,8 @@ import {
   Radiant,
   Thunder
 } from "dnd-icons/damage";
-import { Touch, Range as RangeIcon } from "dnd-icons/attribute";
-import { Filter, Zap } from "lucide-react";
+import { Range as RangeIcon } from "dnd-icons/attribute";
+import { Filter, Zap, Hand } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { Character } from "@/hooks/useDndContent";
@@ -522,7 +522,7 @@ export function ActionsTab({
                             <TableCell>
                               <div className="flex items-center gap-1">
                                 {action.range?.toLowerCase().includes("touch") && (
-                                  <Touch className="h-4 w-4" />
+                                  <Hand className="h-4 w-4" />
                                 )}
                                 {action.range && !action.range.toLowerCase().includes("touch") && (
                                   <RangeIcon className="h-4 w-4" />

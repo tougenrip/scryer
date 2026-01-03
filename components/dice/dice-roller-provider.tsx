@@ -106,7 +106,7 @@ function DiceBoxInitializer({
           id: canvasElementId, // This will be the canvas element's id
           assetPath: "/assets/",
           theme: "default",
-          themeColor: "#3b82f6",
+          themeColor: "#c9b882",
           scale: 6,
           gravity: 1,
           mass: 1,

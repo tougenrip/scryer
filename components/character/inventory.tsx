@@ -36,6 +36,7 @@ interface InventoryProps {
   onItemToggle?: (itemId: string, field: "equipped" | "attuned", value: boolean) => void;
   onItemDelete?: (itemId: string) => void;
   onItemAdd?: (item: Equipment, quantity: number, notes?: string) => Promise<void>;
+  onItemQuantityUpdate?: (itemId: string, quantity: number) => Promise<void>;
   onMoneyUpdate?: (money: CharacterMoney) => Promise<void>;
   editable?: boolean;
 }
@@ -56,6 +57,7 @@ export function Inventory({
   onItemToggle,
   onItemDelete,
   onItemAdd,
+  onItemQuantityUpdate,
   onMoneyUpdate,
   editable = false,
 }: InventoryProps) {
@@ -72,6 +74,8 @@ export function Inventory({
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(['equipment', 'attunement', 'other']));
   const [partyInventory, setPartyInventory] = useState<PartyInventoryItem[]>([]);
   const [loadingPartyInventory, setLoadingPartyInventory] = useState(false);
+  const [editingQuantity, setEditingQuantity] = useState<string | null>(null);
+  const [quantityValue, setQuantityValue] = useState<string>("");
 
   const { characters: campaignCharacters } = useCampaignCharacters(campaignId || "", { enabled: !!campaignId });
 
@@ -420,7 +424,46 @@ export function Inventory({
           </div>
         </TableCell>
         <TableCell className="text-right">{itemWeight > 0 ? `${itemWeight.toFixed(1)} lb.` : "—"}</TableCell>
-        <TableCell className="text-right">{item.quantity}</TableCell>
+        <TableCell className="text-right">
+          {editingQuantity === item.id ? (
+            <Input
+              type="number"
+              min="0"
+              value={quantityValue}
+              onChange={(e) => setQuantityValue(e.target.value)}
+              onBlur={async () => {
+                const newQuantity = parseInt(quantityValue) || 0;
+                if (newQuantity >= 0 && newQuantity !== item.quantity) {
+                  await onItemQuantityUpdate?.(item.id, newQuantity);
+                }
+                setEditingQuantity(null);
+                setQuantityValue("");
+              }}
+              onKeyDown={async (e) => {
+                if (e.key === 'Enter') {
+                  e.currentTarget.blur();
+                } else if (e.key === 'Escape') {
+                  setEditingQuantity(null);
+                  setQuantityValue("");
+                }
+              }}
+              className="w-20 h-7 text-center"
+              autoFocus
+            />
+          ) : (
+            <span
+              className={editable ? "cursor-pointer hover:bg-muted/50 px-2 py-1 rounded transition-colors" : ""}
+              onClick={() => {
+                if (editable) {
+                  setEditingQuantity(item.id);
+                  setQuantityValue(item.quantity.toString());
+                }
+              }}
+            >
+              {item.quantity}
+            </span>
+          )}
+        </TableCell>
         <TableCell className="text-right">{itemCost > 0 ? itemCost.toFixed(1) : "—"}</TableCell>
         <TableCell className="max-w-xs truncate">{item.notes || "—"}</TableCell>
         {editable && (

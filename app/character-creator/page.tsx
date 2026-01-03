@@ -4,7 +4,8 @@ import { useState, useEffect, useRef } from "react";
 import type { Equipment } from "@/hooks/useDndContent";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { useRaces, useClasses, useEquipment, useCreateCharacter, useBackgrounds } from "@/hooks/useDndContent";
+import { useRaces, useClasses, useEquipment, useCreateCharacter, useBackgrounds, useCharacter, useSubclasses } from "@/hooks/useDndContent";
+import { useCampaigns } from "@/hooks/useCampaigns";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,13 +15,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Navbar } from "@/components/shared/navbar";
-import { ChevronLeft, ChevronRight, Check, Upload, X, Loader2, Info, Star } from "lucide-react";
+import { ChevronLeft, ChevronRight, Check, Upload, X, Loader2, Info, Star, Plus, Minus } from "lucide-react";
 import { useInfoSheet } from "@/hooks/useInfoSheet";
 import { InfoSheetDialog } from "@/components/shared/info-sheet-dialog";
 import { toast } from "sonner";
 import { Artificer, Barbarian, Bard, Cleric, Druid, Fighter, Monk, Paladin, Ranger, Rogue, Sorcerer, Warlock, Wizard } from "dnd-icons/class";
 import { Strength, Dexterity, Constitution, Intelligence, Wisdom, Charisma } from "dnd-icons/ability";
-import { Character, Campaign } from "dnd-icons/game";
+import { Character as CharacterIcon, Campaign } from "dnd-icons/game";
 import { Weapon, Armor, Book, Person } from "dnd-icons/entity";
 import {
   getAbilityModifier,
@@ -35,15 +36,29 @@ import {
   DND_SKILLS,
   getFullAbilityName,
 } from "@/lib/utils/character";
-import type { Race, DndClass } from "@/hooks/useDndContent";
+import { checkMulticlassPrerequisites } from "@/lib/utils/multiclass";
+import type { Race, DndClass, Subclass } from "@/hooks/useDndContent";
 import type { Character } from "@/hooks/useDndContent";
 
 type AbilityScoreMethod = "point-buy" | "standard-array" | "manual";
 
+interface CharacterClassForm {
+  classSource: "srd" | "homebrew";
+  classIndex: string;
+  level: number;
+  subclassSource?: "srd" | "homebrew" | null;
+  subclassIndex?: string | null;
+  isPrimary?: boolean;
+}
+
 interface CharacterFormData {
+  sourceVersion: "2014" | "2024" | null;
   campaignId: string | null;
+  characterType: "campaign" | "standalone" | null;
   raceSource: "srd" | "homebrew" | null;
   raceIndex: string | null;
+  classes: CharacterClassForm[]; // Array of classes for multiclass support
+  // Keep for backward compatibility during transition
   classSource: "srd" | "homebrew" | null;
   classIndex: string | null;
   subclassSource: "srd" | "homebrew" | null;
@@ -207,16 +222,22 @@ export default function CharacterCreatorPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const campaignId = searchParams.get("campaignId");
+  const editId = searchParams.get("editId");
+  const isEditMode = !!editId;
 
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState(isEditMode ? 2 : 0); // Start at step 0 for new characters, step 2 for edit mode
   const [user, setUser] = useState<any>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isLoadingCharacter, setIsLoadingCharacter] = useState(isEditMode);
 
   const [formData, setFormData] = useState<CharacterFormData>({
+    sourceVersion: null,
+    characterType: campaignId ? "campaign" : null,
     campaignId: campaignId || null,
     raceSource: null,
     raceIndex: null,
+    classes: [], // Array for multiclass support
     classSource: null,
     classIndex: null,
     subclassSource: null,
@@ -247,11 +268,23 @@ export default function CharacterCreatorPage() {
     },
   });
 
-  const { races, loading: racesLoading, error: racesError } = useRaces(campaignId);
-  const { classes, loading: classesLoading, error: classesError } = useClasses(campaignId);
-  const { equipment, loading: equipmentLoading } = useEquipment(campaignId);
+  // Load character data if in edit mode
+  const { character: existingCharacter, loading: characterLoading } = useCharacter(editId || "");
+  
+  // Fetch campaigns for selection
+  const { campaigns } = useCampaigns(userId);
+  
+  const { races, loading: racesLoading, error: racesError } = useRaces(formData.campaignId, formData.sourceVersion);
+  const { classes, loading: classesLoading, error: classesError } = useClasses(formData.campaignId, formData.sourceVersion);
+  const { subclasses, loading: subclassesLoading, error: subclassesError } = useSubclasses(
+    formData.classIndex,
+    formData.classSource,
+    formData.campaignId,
+    formData.sourceVersion
+  );
+  const { equipment, loading: equipmentLoading } = useEquipment(formData.campaignId);
   const { createCharacter, loading: creating } = useCreateCharacter();
-  const { backgrounds, loading: backgroundsLoading } = useBackgrounds();
+  const { backgrounds, loading: backgroundsLoading } = useBackgrounds(formData.sourceVersion);
   const infoSheet = useInfoSheet();
 
   useEffect(() => {
@@ -269,6 +302,180 @@ export default function CharacterCreatorPage() {
     getUser();
   }, [router]);
 
+  // Load existing character data in edit mode
+  useEffect(() => {
+    if (isEditMode && existingCharacter && !characterLoading && races.length > 0 && classes.length > 0) {
+      async function loadCharacterData() {
+        const char = existingCharacter; // Store in const for type narrowing
+        if (!char) return;
+        
+        // Determine source version from character's race/class source
+        // For now, default to 2014 if not determinable, but we should store this
+        const sourceVersion: "2014" | "2024" = "2014"; // TODO: Get from character.source_version if stored
+        
+        // Extract base ability scores (subtract racial bonuses)
+        const selectedRaceForChar = races.find(r => r.source === char.race_source && r.index === char.race_index);
+        let baseAbilityScores = {
+          strength: char.strength || 10,
+          dexterity: char.dexterity || 10,
+          constitution: char.constitution || 10,
+          intelligence: char.intelligence || 10,
+          wisdom: char.wisdom || 10,
+          charisma: char.charisma || 10,
+        };
+        
+        // Subtract racial bonuses to get base scores
+        if (selectedRaceForChar?.ability_bonuses) {
+          const bonuses = selectedRaceForChar.ability_bonuses as Array<any>;
+          bonuses.forEach((bonus: any) => {
+            const abilityName = (bonus.ability_score?.index || bonus.ability_score?.name || bonus.ability || '').toLowerCase();
+            if (abilityName.includes('str')) baseAbilityScores.strength -= bonus.bonus;
+            else if (abilityName.includes('dex')) baseAbilityScores.dexterity -= bonus.bonus;
+            else if (abilityName.includes('con')) baseAbilityScores.constitution -= bonus.bonus;
+            else if (abilityName.includes('int')) baseAbilityScores.intelligence -= bonus.bonus;
+            else if (abilityName.includes('wis')) baseAbilityScores.wisdom -= bonus.bonus;
+            else if (abilityName.includes('cha')) baseAbilityScores.charisma -= bonus.bonus;
+          });
+        }
+        
+        // Fetch skill proficiencies from character_skills table
+        // Only include skills that are from class skill choices (not automatic class/race/background skills)
+        const supabase = createClient();
+        const { data: characterSkills } = await supabase
+          .from('character_skills')
+          .select('skill_name')
+          .eq('character_id', char.id)
+          .eq('proficient', true);
+        
+        // Get the selected class to determine which skills are from class choices
+        const selectedClassForChar = classes.find(c => c.source === char.class_source && c.index === char.class_index);
+        const classProficiencyChoices = selectedClassForChar?.proficiency_choices as any;
+        const skillChoices = Array.isArray(classProficiencyChoices) 
+          ? classProficiencyChoices.find((choice: any) => 
+              choice.type === 'skills' || choice.from?.option_set_type === 'options_array'
+            )
+          : null;
+        
+        // Get available skill options from class
+        const availableSkillOptions = skillChoices?.from?.options?.map((opt: any) => 
+          typeof opt === 'string' ? opt : opt.item?.name || opt.name || opt
+        ) || [];
+        
+        // Only include skills that are in the class's skill choice options
+        const allCharacterSkills = (characterSkills || []).map(s => s.skill_name);
+        const skillProficiencies = allCharacterSkills.filter(skillName => {
+          // Check if this skill is in the class's skill choice options
+          return availableSkillOptions.some((opt: string) => {
+            const optNormalized = opt.toLowerCase().replace(/\s+/g, '-');
+            return skillName === optNormalized || skillName === opt;
+          });
+        });
+        
+        // Extract ASI improvements from class_features
+        const asiImprovements: Array<{ level: number; ability: string; bonus: number }> = [];
+        if (char.class_features && Array.isArray(char.class_features)) {
+          char.class_features.forEach((feature: any) => {
+            if (feature.choice && feature.choice.type === 'ability_score_improvement' && feature.choice.selected) {
+              const selections = Array.isArray(feature.choice.selected) ? feature.choice.selected : [feature.choice.selected];
+              selections.forEach((selection: any) => {
+                if (typeof selection === 'object' && selection.ability && selection.bonus) {
+                  asiImprovements.push({
+                    level: feature.level || char.level || 1,
+                    ability: selection.ability.toLowerCase(),
+                    bonus: selection.bonus,
+                  });
+                }
+              });
+            }
+          });
+        }
+        
+        // Extract background choices from extras
+        const backgroundLanguages: string[] = [];
+        const backgroundTools: string[] = [];
+        if (char.extras) {
+          const extras = char.extras as any;
+          if (extras.background_languages && Array.isArray(extras.background_languages)) {
+            backgroundLanguages.push(...extras.background_languages);
+          }
+          if (extras.background_tools && Array.isArray(extras.background_tools)) {
+            backgroundTools.push(...extras.background_tools);
+          }
+        }
+        
+        // Load character classes if multiclass
+        let loadedClasses: CharacterClassForm[] = [];
+        if (char.uses_multiclass) {
+          // Fetch from character_classes table
+          const { data: charClasses } = await supabase
+            .from('character_classes')
+            .select('*')
+            .eq('character_id', char.id);
+          
+          if (charClasses && charClasses.length > 0) {
+            loadedClasses = charClasses.map(cc => ({
+              classSource: cc.class_source as 'srd' | 'homebrew',
+              classIndex: cc.class_index,
+              level: cc.level,
+              subclassSource: cc.subclass_source as 'srd' | 'homebrew' | null | undefined,
+              subclassIndex: cc.subclass_index || undefined,
+              isPrimary: cc.is_primary_class || false,
+            }));
+          }
+        } else {
+          // Single class - create from legacy fields
+          if (char.class_source && char.class_index) {
+            loadedClasses = [{
+              classSource: char.class_source as 'srd' | 'homebrew',
+              classIndex: char.class_index,
+              level: char.level || 1,
+              subclassSource: char.subclass_source as 'srd' | 'homebrew' | null | undefined,
+              subclassIndex: char.subclass_index || undefined,
+              isPrimary: true,
+            }];
+          }
+        }
+        
+        setFormData({
+          sourceVersion,
+          characterType: char.campaign_id ? "campaign" : "standalone",
+          campaignId: char.campaign_id || null,
+          raceSource: char.race_source,
+          raceIndex: char.race_index,
+          classes: loadedClasses,
+          classSource: char.class_source,
+          classIndex: char.class_index,
+          subclassSource: char.subclass_source || null,
+          subclassIndex: char.subclass_index || null,
+          abilityScores: baseAbilityScores,
+          abilityScoreMethod: "point-buy", // Default, could be stored
+          background: char.background || "",
+          alignment: char.alignment || "True Neutral",
+          name: char.name,
+          level: char.level || 1,
+          selectedEquipment: (char.inventory || []).map((item: any) => ({
+            itemIndex: item.index,
+            itemSource: item.source,
+            quantity: item.quantity || 1,
+          })),
+          imageUrl: char.image_url,
+          featureChoices: {
+            skillProficiencies,
+            asiImprovements,
+            otherChoices: [],
+          },
+          backgroundChoices: {
+            languages: backgroundLanguages,
+            tools: backgroundTools,
+          },
+        });
+        setIsLoadingCharacter(false);
+      }
+      
+      loadCharacterData();
+    }
+  }, [isEditMode, existingCharacter, characterLoading, races, classes]);
+
 
   const selectedRace = formData.raceSource && formData.raceIndex
     ? races.find(r => r.source === formData.raceSource && r.index === formData.raceIndex)
@@ -276,6 +483,10 @@ export default function CharacterCreatorPage() {
 
   const selectedClass = formData.classSource && formData.classIndex
     ? classes.find(c => c.source === formData.classSource && c.index === formData.classIndex)
+    : null;
+
+  const selectedSubclass = formData.subclassSource && formData.subclassIndex
+    ? subclasses.find(s => s.source === formData.subclassSource && s.index === formData.subclassIndex)
     : null;
 
   // Calculate ability modifiers with racial bonuses and ASI improvements
@@ -305,13 +516,39 @@ export default function CharacterCreatorPage() {
   };
 
   const handleNext = () => {
-    if (step < 7) {
+    // Validate current step before proceeding
+    if (step === 0 && !formData.sourceVersion) {
+      toast.error("Please select a source version");
+      return;
+    }
+    if (step === 1 && !formData.characterType) {
+      toast.error("Please select character type");
+      return;
+    }
+    if (step === 1 && formData.characterType === "campaign" && !formData.campaignId) {
+      toast.error("Please select a campaign");
+      return;
+    }
+    
+    // Validation for current step
+    if (step === 2 && (!formData.raceSource || !formData.raceIndex)) {
+      toast.error("Please select a race");
+      return;
+    }
+    if (step === 3 && formData.classes.length === 0) {
+      toast.error("Please select at least one class");
+      return;
+    }
+    
+    const maxStep = isEditMode ? 11 : 11; // All steps available in edit mode (including race and class)
+    if (step < maxStep) {
       setStep(step + 1);
     }
   };
 
   const handleBack = () => {
-    if (step > 1) {
+    const minStep = isEditMode ? 2 : 0; // In edit mode, don't go below step 2 (race selection)
+    if (step > minStep) {
       setStep(step - 1);
     }
   };
@@ -322,8 +559,22 @@ export default function CharacterCreatorPage() {
       return;
     }
 
-    if (!formData.raceSource || !formData.raceIndex || !formData.classSource || !formData.classIndex) {
+    if (!isEditMode && (!formData.raceSource || !formData.raceIndex || formData.classes.length === 0)) {
       toast.error("Please complete all required fields");
+      return;
+    }
+    
+    // Validate level distribution for multiclass
+    if (formData.classes.length > 0) {
+      const totalLevels = formData.classes.reduce((sum, c) => sum + c.level, 0);
+      if (totalLevels !== formData.level) {
+        toast.error(`Total class levels (${totalLevels}) must equal character level (${formData.level})`);
+        return;
+      }
+    }
+
+    if (!formData.sourceVersion) {
+      toast.error("Please select a source version");
       return;
     }
 
@@ -337,20 +588,42 @@ export default function CharacterCreatorPage() {
     };
 
     const proficiencyBonus = getProficiencyBonus(formData.level);
-    const hitDie = selectedClass?.hit_die || 8;
+    
+    // Get primary class for backward compatibility and initial calculations
+    const primaryClass = formData.classes.find(c => c.isPrimary) || formData.classes[0];
+    const primaryClassData = classes.find(c => c.source === primaryClass?.classSource && c.index === primaryClass?.classIndex);
+    const hitDie = primaryClassData?.hit_die || 8;
     const constitutionMod = getAbilityModifier(finalAbilityScores.constitution);
     const hpMax = hitDie + constitutionMod;
+    
+    // Calculate hit dice breakdown for multiclass
+    const { getHitDiceBreakdown } = require('@/lib/utils/multiclass');
+    const hitDiceBreakdown = formData.classes.length > 1 
+      ? getHitDiceBreakdown(formData.classes.map(c => ({
+          class_source: c.classSource,
+          class_index: c.classIndex,
+          level: c.level,
+        })), new Map(classes.map(c => [`${c.source}:${c.index}`, { hit_die: c.hit_die }])))
+      : null;
+    
+    const hitDiceTotalStr = hitDiceBreakdown 
+      ? Object.entries(hitDiceBreakdown).map(([die, count]) => `${count}${die}`).join(' + ')
+      : `${formData.level}d${hitDie}`;
 
+    const usesMulticlass = formData.classes.length > 1;
+    
     const characterData: Partial<Character> & Omit<Character, "id" | "created_at" | "updated_at"> = {
       campaign_id: formData.campaignId,
       user_id: userId,
       name: formData.name || "Unnamed Character",
-      race_source: formData.raceSource,
-      race_index: formData.raceIndex,
-      class_source: formData.classSource,
-      class_index: formData.classIndex,
-      subclass_source: formData.subclassSource || "srd",
-      subclass_index: formData.subclassIndex || "",
+      race_source: formData.raceSource as "srd" | "homebrew",
+      race_index: formData.raceIndex as string,
+      // Keep for backward compatibility, but use primary class
+      class_source: primaryClass ? primaryClass.classSource as "srd" | "homebrew" : null,
+      class_index: primaryClass ? primaryClass.classIndex : null,
+      subclass_source: primaryClass?.subclassSource || null,
+      subclass_index: primaryClass?.subclassIndex || null,
+      uses_multiclass: usesMulticlass,
       level: formData.level,
       experience_points: 0,
       background: formData.background && formData.background !== "custom" ? formData.background : null as string | null,
@@ -367,8 +640,8 @@ export default function CharacterCreatorPage() {
       hp_max: hpMax,
       hp_current: hpMax,
       hp_temp: 0,
-      hit_dice_total: `${formData.level}d${hitDie}`,
-      hit_dice_current: `${formData.level}d${hitDie}`,
+      hit_dice_total: hitDiceTotalStr,
+      hit_dice_current: hitDiceTotalStr,
       proficiency_bonus: proficiencyBonus,
       inspiration: false,
       conditions: [],
@@ -382,14 +655,33 @@ export default function CharacterCreatorPage() {
       image_url: formData.imageUrl,
     };
 
-    // Set saving throw proficiencies from class
-    if (selectedClass?.saving_throws) {
-      selectedClass.saving_throws.forEach(ability => {
+    // Set saving throw proficiencies from primary class only (multiclass rule)
+    if (primaryClassData?.saving_throws) {
+      primaryClassData.saving_throws.forEach(ability => {
         const abilityKey = `${ability.toLowerCase().slice(0, 3)}_save_prof` as keyof typeof characterData;
         if (abilityKey in characterData) {
           (characterData as any)[abilityKey] = true;
         }
       });
+    }
+
+    if (isEditMode && editId) {
+      // Update existing character
+      const supabase = createClient();
+      const { error: updateError } = await supabase
+        .from('characters')
+        .update(characterData)
+        .eq('id', editId);
+
+      if (updateError) {
+        toast.error("Failed to update character");
+        console.error(updateError);
+        return;
+      }
+
+      toast.success("Character updated successfully");
+      router.push(`/characters/${editId}`);
+      return;
     }
 
     const result = await createCharacter(characterData);
@@ -398,6 +690,29 @@ export default function CharacterCreatorPage() {
       const supabase = createClient();
       const characterId = result.data.id;
       console.log('Character created with ID:', characterId);
+
+      // Create character_classes entries for multiclass support
+      if (formData.classes.length > 0) {
+        const characterClasses = formData.classes.map((charClass, idx) => ({
+          character_id: characterId,
+          class_source: charClass.classSource,
+          class_index: charClass.classIndex,
+          level: charClass.level,
+          subclass_source: charClass.subclassSource || null,
+          subclass_index: charClass.subclassIndex || null,
+          is_primary_class: charClass.isPrimary || idx === 0,
+          level_acquired_at: idx === 0 ? 1 : formData.level, // First class at level 1, others at current level
+        }));
+        
+        const { error: classesError } = await supabase
+          .from('character_classes')
+          .insert(characterClasses);
+        
+        if (classesError) {
+          console.error('Error creating character classes:', classesError);
+          toast.error('Character created but failed to save class information');
+        }
+      }
 
       // Add selected equipment to character inventory
       const inventoryItems: Array<{
@@ -924,7 +1239,7 @@ export default function CharacterCreatorPage() {
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar user={user} />
-      <main className="flex-1 container py-8 px-4 md:px-6 max-w-4xl mx-auto">
+      <main className="flex-1 container py-8 px-4 md:px-6 mx-auto">
         <div className="mb-8">
           <h1 className="font-serif text-3xl font-bold">Character Creator</h1>
           <p className="text-muted-foreground mt-1">Create your D&D 5e character</p>
@@ -932,130 +1247,267 @@ export default function CharacterCreatorPage() {
 
         {/* Step Progress */}
         <div className="mb-6 flex items-center justify-between">
-          {[1, 2, 3, 4, 5, 6, 7].map((s) => (
+          {Array.from({ length: isEditMode ? 8 : 10 }).map((_, s) => {
+            const stepNum = isEditMode ? s + 2 : s; // Edit mode starts at step 2 (skips source and campaign)
+            return (
             <div key={s} className="flex items-center flex-1">
               <div className="flex flex-col items-center flex-1">
                 <div
                   className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                    step === s
+                    step === stepNum
                       ? "bg-primary text-primary-foreground"
-                      : step > s
+                      : step > stepNum
                       ? "bg-primary/20 text-primary"
                       : "bg-muted text-muted-foreground"
                   }`}
                 >
-                  {step > s ? <Check className="h-5 w-5" /> : s}
+                  {step > stepNum ? <Check className="h-5 w-5" /> : stepNum + 1}
                 </div>
-                <span className="text-xs mt-1 text-muted-foreground hidden sm:block flex items-center gap-1">
-                  {s === 1 && (
+                <div className="text-xs mt-1 text-muted-foreground hidden sm:block flex items-center place-items-center gap-1">
+                  {!isEditMode && s === 0 && (
                     <>
-                      <Character size={12} />
+                      <Book size={24} />
+                      Source
+                    </>
+                  )}
+                  {!isEditMode && s === 1 && (
+                    <>
+                      <Campaign size={24} />
+                      Campaign
+                    </>
+                  )}
+                  {stepNum === 2 && (
+                    <>
+                      <CharacterIcon size={24} />
                       Race
                     </>
                   )}
-                  {s === 2 && (
+                  {stepNum === 3 && (
                     <>
-                      <Fighter size={12} />
+                      <Fighter size={24} />
                       Class
                     </>
                   )}
-                  {s === 3 && (
+                  {stepNum === 4 && (
                     <>
-                      <Star size={12} />
+                      <Star size={24} />
+                      Subclass
+                    </>
+                  )}
+                  {stepNum === 5 && (
+                    <>
+                      <Star size={24} />
                       Features
                     </>
                   )}
-                  {s === 4 && (
+                  {stepNum === 6 && (
                     <>
-                      <Strength size={12} />
-                      Ability Scores
+                      <Strength size={24} />
+                      Abilities
                     </>
                   )}
-                  {s === 5 && (
+                  {stepNum === 7 && (
                     <>
-                      <Book size={12} />
+                      <Book size={24} />
                       Background
                     </>
                   )}
-                  {s === 6 && (
+                  {stepNum === 8 && (
                     <>
-                      <Weapon size={12} />
+                      <Weapon size={24} />
                       Equipment
                     </>
                   )}
-                  {s === 7 && (
+                  {stepNum === 9 && (
                     <>
-                      <Check size={12} />
+                      <Check size={24} />
                       Review
                     </>
                   )}
-                </span>
+                </div>
               </div>
-              {s < 7 && <div className={`h-1 flex-1 mx-2 ${step > s ? "bg-primary" : "bg-muted"}`} />}
+              {s !== (isEditMode ? 8 : 9) && <div className={`h-1 flex-1 mx-2 ${step > stepNum ? "bg-primary" : "bg-muted"}`} />}
             </div>
-          ))}
+            );
+          })}
         </div>
 
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              Step {step}:{" "}
+              Step {step + 1}:{" "}
+              {step === 0 && (
+                <>
+                  <Book size={20} />
+                  Source Version
+                </>
+              )}
               {step === 1 && (
                 <>
-                  <Character size={20} />
+                  <Campaign size={20} />
+                  Character Type
+                </>
+              )}
+                  {step === 2 && (
+                <>
+                  <CharacterIcon size={20} />
                   Choose Race
                 </>
               )}
-              {step === 2 && (
+              {step === 3 && (
                 <>
                   <Fighter size={20} />
                   Choose Class
                 </>
               )}
-              {step === 3 && (
+              {step === 4 && (
+                <>
+                  <Star size={20} />
+                  Choose Subclass
+                </>
+              )}
+              {step === 5 && (
                 <>
                   <Star size={20} />
                   Feature Choices
                 </>
               )}
-              {step === 4 && (
+              {step === 6 && (
                 <>
                   <Strength size={20} />
                   Assign Ability Scores
                 </>
               )}
-              {step === 5 && (
+              {step === 7 && (
                 <>
                   <Book size={20} />
                   Background & Details
                 </>
               )}
-              {step === 6 && (
+              {step === 8 && (
                 <>
                   <Weapon size={20} />
                   Starting Equipment
                 </>
               )}
-              {step === 7 && (
+              {step === 9 && (
                 <>
                   <Check size={20} />
-                  Review & Create
+                  Review & {isEditMode ? "Update" : "Create"}
                 </>
               )}
             </CardTitle>
             <CardDescription>
-              {step === 1 && "Select your character's race"}
-              {step === 2 && "Select your character's class"}
-              {step === 3 && "Choose skill proficiencies and other features"}
-              {step === 4 && "Assign your ability scores using your preferred method"}
-              {step === 5 && "Choose background and add character details"}
-              {step === 6 && "Select starting equipment"}
-              {step === 7 && "Review your character before creating"}
+              {step === 0 && "Choose between 2014 or 2024 SRD+PHB content"}
+              {step === 1 && "Create for a campaign or as a standalone character"}
+              {step === 2 && "Select your character's race"}
+              {step === 3 && "Select your character's class"}
+              {step === 4 && formData.classes.length > 1 && "Distribute levels among classes"}
+              {step === 4 && formData.classes.length === 1 && "Select your character's subclass (optional)"}
+              {step === 5 && "Choose skill proficiencies and other features"}
+              {step === 6 && "Assign your ability scores using your preferred method"}
+              {step === 7 && "Choose background and add character details"}
+              {step === 8 && "Select starting equipment"}
+              {step === 9 && `${isEditMode ? "Review and update" : "Review your character before creating"} your character`}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            {/* Step 1: Race Selection */}
+            {/* Step 0: Source Version Selection */}
+            {step === 0 && (
+              <div className="space-y-4">
+                <Label>Select Source Version</Label>
+                <p className="text-sm text-muted-foreground">
+                  Choose which version of the D&D rules to use for this character. This affects all available races, classes, backgrounds, and other content.
+                </p>
+                <div className="grid grid-cols-2 gap-4">
+                  <Card 
+                    className={`cursor-pointer transition-all ${formData.sourceVersion === "2014" ? "ring-2 ring-primary" : ""}`}
+                    onClick={() => setFormData({ ...formData, sourceVersion: "2014" })}
+                  >
+                    <CardContent className="pt-6">
+                      <div className="text-center space-y-2">
+                        <h3 className="font-semibold">2014 SRD + PHB</h3>
+                        <p className="text-sm text-muted-foreground">Original 5th Edition rules</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card 
+                    className={`cursor-pointer transition-all ${formData.sourceVersion === "2024" ? "ring-2 ring-primary" : ""}`}
+                    onClick={() => setFormData({ ...formData, sourceVersion: "2024" })}
+                  >
+                    <CardContent className="pt-6">
+                      <div className="text-center space-y-2">
+                        <h3 className="font-semibold">2024 SRD + PHB</h3>
+                        <p className="text-sm text-muted-foreground">Updated 5th Edition rules</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
+            )}
+
+            {/* Step 1: Campaign Selection */}
             {step === 1 && (
+              <div className="space-y-4">
+                <Label>Character Type</Label>
+                <p className="text-sm text-muted-foreground">
+                  Choose whether to create this character for a specific campaign or as a standalone character.
+                </p>
+                <div className="space-y-3">
+                  <Card 
+                    className={`cursor-pointer transition-all ${formData.characterType === "standalone" ? "ring-2 ring-primary" : ""}`}
+                    onClick={() => setFormData({ ...formData, characterType: "standalone", campaignId: null })}
+                  >
+                    <CardContent className="pt-6">
+                      <div className="flex items-center gap-3">
+                        <Person size={24} />
+                        <div>
+                          <h3 className="font-semibold">Standalone Character</h3>
+                          <p className="text-sm text-muted-foreground">Create a character not tied to any campaign</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card 
+                    className={`cursor-pointer transition-all ${formData.characterType === "campaign" ? "ring-2 ring-primary" : ""}`}
+                    onClick={() => setFormData({ ...formData, characterType: "campaign" })}
+                  >
+                    <CardContent className="pt-6">
+                      <div className="flex items-center gap-3">
+                        <Campaign size={24} />
+                        <div>
+                          <h3 className="font-semibold">Campaign Character</h3>
+                          <p className="text-sm text-muted-foreground">Create a character for a specific campaign</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+                {formData.characterType === "campaign" && (
+                  <div className="mt-4 space-y-2">
+                    <Label>Select Campaign</Label>
+                    <Select
+                      value={formData.campaignId || ""}
+                      onValueChange={(value) => setFormData({ ...formData, campaignId: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Choose a campaign" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {campaigns?.map((campaign) => (
+                          <SelectItem key={campaign.id} value={campaign.id}>
+                            {campaign.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Step 2: Race Selection */}
+            {step === 2 && (
               <RaceSelectionStep
                 races={races}
                 loading={racesLoading}
@@ -1072,26 +1524,91 @@ export default function CharacterCreatorPage() {
               />
             )}
 
-            {/* Step 2: Class Selection */}
-            {step === 2 && (
+            {/* Step 3: Class Selection */}
+            {step === 3 && (
               <ClassSelectionStep
                 classes={classes}
                 loading={classesLoading}
-                selectedClass={selectedClass}
+                selectedClasses={formData.classes}
                 error={classesError}
                 infoSheet={infoSheet}
-                onSelect={(cls) => {
+                abilityScores={formData.abilityScores}
+                onAddClass={(cls: DndClass) => {
+                  // Check if already added
+                  if (formData.classes.some(c => c.classSource === cls.source && c.classIndex === cls.index)) {
+                    return;
+                  }
+                  
+                  // Check prerequisites
+                  const prereqError = checkMulticlassPrerequisites(formData.abilityScores, cls.index);
+                  if (prereqError && formData.classes.length > 0) {
+                    toast.error(prereqError);
+                    return;
+                  }
+                  
+                  const isFirstClass = formData.classes.length === 0;
+                  const newClasses = [
+                    ...formData.classes,
+                    {
+                      classSource: cls.source,
+                      classIndex: cls.index,
+                      level: isFirstClass ? formData.level : 1, // First class gets all levels initially
+                      isPrimary: isFirstClass,
+                    },
+                  ];
+                  
                   setFormData({
                     ...formData,
-                    classSource: cls.source,
-                    classIndex: cls.index,
+                    classes: newClasses,
+                    // Keep backward compatibility
+                    classSource: isFirstClass ? cls.source : formData.classSource,
+                    classIndex: isFirstClass ? cls.index : formData.classIndex,
+                  });
+                }}
+                onRemoveClass={(classSource, classIndex) => {
+                  const newClasses = formData.classes.filter(
+                    c => !(c.classSource === classSource && c.classIndex === classIndex)
+                  );
+                  
+                  // Update primary class if removing primary
+                  if (newClasses.length > 0 && formData.classes.find(c => c.isPrimary && c.classSource === classSource && c.classIndex === classIndex)) {
+                    newClasses[0].isPrimary = true;
+                  }
+                  
+                  setFormData({
+                    ...formData,
+                    classes: newClasses,
+                    classSource: newClasses[0]?.classSource || null,
+                    classIndex: newClasses[0]?.classIndex || null,
                   });
                 }}
               />
             )}
 
-            {/* Step 3: Feature Choices */}
-            {step === 3 && (
+            {/* Step 4: Level Distribution (Multiclass) or Subclass Selection */}
+            {step === 4 && !isEditMode && formData.classes.length > 1 && (
+              <LevelDistributionStep
+                formData={formData}
+                setFormData={setFormData}
+                classes={classes}
+              />
+            )}
+
+            {/* Step 4: Subclass Selection for all classes (when not multiclassing) */}
+            {step === 4 && !isEditMode && formData.classes.length === 1 && (
+              <MulticlassSubclassStep
+                formData={formData}
+                setFormData={setFormData}
+                classes={classes}
+                campaignId={formData.campaignId}
+                sourceVersion={formData.sourceVersion}
+                infoSheet={infoSheet}
+                onSkip={handleNext}
+              />
+            )}
+
+            {/* Step 5: Feature Choices */}
+            {step === 5 && (
               <FeatureChoicesStep
                 formData={formData}
                 setFormData={setFormData}
@@ -1099,8 +1616,8 @@ export default function CharacterCreatorPage() {
               />
             )}
 
-            {/* Step 4: Ability Scores */}
-            {step === 4 && (
+            {/* Step 6: Ability Scores */}
+            {step === 6 && (
               <AbilityScoresStep
                 formData={formData}
                 setFormData={setFormData}
@@ -1109,8 +1626,8 @@ export default function CharacterCreatorPage() {
               />
             )}
 
-            {/* Step 5: Background & Details */}
-            {step === 5 && (
+            {/* Step 7: Background & Details */}
+            {step === 7 && (
               <BackgroundStep
                 formData={formData}
                 setFormData={setFormData}
@@ -1119,24 +1636,25 @@ export default function CharacterCreatorPage() {
               />
             )}
 
-            {/* Step 6: Equipment */}
-            {step === 6 && (
+            {/* Step 8: Equipment */}
+            {step === 8 && (
               <EquipmentStep
                 selectedClass={selectedClass}
                 formData={formData}
                 setFormData={setFormData}
                 equipment={equipment}
                 loading={equipmentLoading}
-                campaignId={campaignId}
+                campaignId={formData.campaignId}
               />
             )}
 
-            {/* Step 7: Review */}
-            {step === 7 && (
+            {/* Step 9: Review */}
+            {step === 9 && (
               <ReviewStep
                 formData={formData}
                 selectedRace={selectedRace}
                 selectedClass={selectedClass}
+                selectedSubclass={selectedSubclass}
                 getFinalAbilityScore={getFinalAbilityScore}
               />
             )}
@@ -1146,19 +1664,19 @@ export default function CharacterCreatorPage() {
               <Button
                 variant="outline"
                 onClick={handleBack}
-                disabled={step === 1}
+                disabled={step === (isEditMode ? 2 : 0)}
               >
                 <ChevronLeft className="h-4 w-4 mr-2" />
                 Back
               </Button>
-              {step < 7 ? (
+              {step < 9 ? (
                 <Button onClick={handleNext}>
                   Next
                   <ChevronRight className="h-4 w-4 ml-2" />
                 </Button>
               ) : (
-                <Button onClick={handleSubmit} disabled={creating}>
-                  {creating ? "Creating..." : "Create Character"}
+                <Button onClick={handleSubmit} disabled={creating || isLoadingCharacter}>
+                  {creating ? (isEditMode ? "Updating..." : "Creating...") : (isEditMode ? "Update Character" : "Create Character")}
                 </Button>
               )}
             </div>
@@ -1282,17 +1800,21 @@ function RaceSelectionStep({
 function ClassSelectionStep({
   classes,
   loading,
-  selectedClass,
-  onSelect,
+  selectedClasses,
   error,
   infoSheet,
+  abilityScores,
+  onAddClass,
+  onRemoveClass,
 }: {
   classes: DndClass[];
   loading: boolean;
-  selectedClass: DndClass | null | undefined;
-  onSelect: (cls: DndClass) => void;
+  selectedClasses: CharacterClassForm[];
   error?: Error | null;
   infoSheet: ReturnType<typeof useInfoSheet>;
+  abilityScores: CharacterFormData['abilityScores'];
+  onAddClass: (cls: DndClass) => void;
+  onRemoveClass: (classSource: 'srd' | 'homebrew', classIndex: string) => void;
 }) {
   if (loading) {
     return <Skeleton className="h-64 w-full" />;
@@ -1315,63 +1837,520 @@ function ClassSelectionStep({
     );
   }
 
+  const selectedClassIndices = new Set(
+    selectedClasses.map((c: CharacterClassForm) => `${c.classSource}:${c.classIndex}`)
+  );
+  
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      {classes.map((cls) => {
-        const savingThrows = cls.saving_throws || [];
-        return (
-          <Card
-            key={`${cls.source}-${cls.index}`}
-            className={`cursor-pointer transition-all hover:shadow-md ${
-              selectedClass?.source === cls.source && selectedClass?.index === cls.index
-                ? "ring-2 ring-primary"
-                : ""
-            }`}
-            onClick={() => onSelect(cls)}
-          >
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-lg">{cls.name}</CardTitle>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      infoSheet.showClass(cls);
-                    }}
-                  >
-                    <Info className="h-4 w-4" />
-                  </Button>
-                  <Badge variant={cls.source === "srd" ? "default" : "secondary"}>
-                    {cls.source}
-                  </Badge>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2 text-sm">
-                <div>
-                  <span className="font-medium">Hit Die:</span> d{cls.hit_die}
-                </div>
-                {savingThrows.length > 0 && (
-                  <div>
-                    <span className="font-medium">Saving Throws:</span>
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {savingThrows.map((st, i) => (
-                        <Badge key={i} variant="outline">
-                          {st}
-                        </Badge>
-                      ))}
-                    </div>
+    <div className="space-y-4">
+      {/* Show selected classes */}
+      {selectedClasses.length > 0 && (
+        <div className="space-y-2">
+          <Label>Selected Classes</Label>
+          <div className="flex flex-wrap gap-2">
+            {selectedClasses.map((charClass: CharacterClassForm, idx: number) => {
+              const cls = classes.find(c => c.source === charClass.classSource && c.index === charClass.classIndex);
+              return (
+                <Badge key={idx} variant={charClass.isPrimary ? "default" : "secondary"} className="text-sm px-3 py-1">
+                  {cls?.name || charClass.classIndex} {charClass.isPrimary && "(Primary)"}
+                  {!charClass.isPrimary && (
+                    <button
+                      onClick={() => onRemoveClass(charClass.classSource, charClass.classIndex)}
+                      className="ml-2 hover:bg-destructive/20 rounded px-1"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  )}
+                </Badge>
+              );
+            })}
+          </div>
+        </div>
+      )}
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {classes.map((cls) => {
+          const savingThrows = cls.saving_throws || [];
+          const isSelected = selectedClassIndices.has(`${cls.source}:${cls.index}`);
+          const prereqError = selectedClasses.length > 0 
+            ? checkMulticlassPrerequisites(abilityScores, cls.index)
+            : null;
+          
+          return (
+            <Card
+              key={`${cls.source}-${cls.index}`}
+              className={`cursor-pointer transition-all hover:shadow-md ${
+                isSelected
+                  ? "ring-2 ring-primary"
+                  : ""
+              } ${prereqError ? "opacity-50" : ""}`}
+              onClick={() => !isSelected && !prereqError && onAddClass(cls)}
+            >
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-lg">{cls.name}</CardTitle>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        infoSheet.showClass(cls);
+                      }}
+                    >
+                      <Info className="h-4 w-4" />
+                    </Button>
+                    {isSelected && <Badge variant="default">Selected</Badge>}
+                    <Badge variant={cls.source === "srd" ? "default" : "secondary"}>
+                      {cls.source}
+                    </Badge>
                   </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2 text-sm">
+                  <div>
+                    <span className="font-medium">Hit Die:</span> d{cls.hit_die}
+                  </div>
+                  {savingThrows.length > 0 && (
+                    <div>
+                      <span className="font-medium">Saving Throws:</span>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {savingThrows.map((st, i) => (
+                          <Badge key={i} variant="outline">
+                            {st}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <div className="text-xs text-muted-foreground mt-2">
+                    Click <Info className="h-3 w-3 inline" /> for full class features
+                  </div>
+                  {prereqError && (
+                    <div className="text-xs text-destructive mt-2">
+                      {prereqError}
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+      
+      {selectedClasses.length === 0 && (
+        <div className="text-sm text-muted-foreground text-center py-4">
+          Select your first class to begin. You can add additional classes after selecting the first one.
+        </div>
+      )}
+      
+      {selectedClasses.length > 0 && selectedClasses.length < 3 && (
+        <div className="text-sm text-muted-foreground text-center py-2">
+          You can add more classes. Make sure you meet the prerequisites (13+ in required ability score).
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LevelDistributionStep({
+  formData,
+  setFormData,
+  classes,
+}: {
+  formData: CharacterFormData;
+  setFormData: (data: CharacterFormData) => void;
+  classes: DndClass[];
+}) {
+  const totalLevel = formData.classes.reduce((sum, c) => sum + c.level, 0);
+  const remainingLevels = formData.level - totalLevel;
+  
+  const updateClassLevel = (index: number, newLevel: number) => {
+    if (newLevel < 1) return;
+    
+    const newClasses = [...formData.classes];
+    newClasses[index] = { ...newClasses[index], level: newLevel };
+    
+    // Ensure total doesn't exceed character level
+    const newTotal = newClasses.reduce((sum, c) => sum + c.level, 0);
+    if (newTotal > formData.level) {
+      toast.error(`Total class levels cannot exceed character level ${formData.level}`);
+      return;
+    }
+    
+    setFormData({ ...formData, classes: newClasses });
+  };
+  
+  return (
+    <div className="space-y-4">
+      <div className="text-sm text-muted-foreground">
+        Distribute your {formData.level} character level(s) among your classes.
+        Total class levels: {totalLevel} / {formData.level}
+        {remainingLevels !== 0 && (
+          <span className="text-destructive ml-2">
+            {remainingLevels > 0 ? `${remainingLevels} level(s) remaining` : `${Math.abs(remainingLevels)} level(s) over`}
+          </span>
+        )}
+      </div>
+      
+      <div className="space-y-3">
+        {formData.classes.map((charClass, idx) => {
+          const cls = classes.find(c => c.source === charClass.classSource && c.index === charClass.classIndex);
+          return (
+            <Card key={idx}>
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex-1">
+                    <div className="font-medium">{cls?.name || charClass.classIndex}</div>
+                    {charClass.isPrimary && (
+                      <Badge variant="outline" className="mt-1">Primary Class</Badge>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => updateClassLevel(idx, charClass.level - 1)}
+                      disabled={charClass.level <= 1}
+                    >
+                      <Minus className="h-4 w-4" />
+                    </Button>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={formData.level}
+                      value={charClass.level}
+                      onChange={(e) => {
+                        const value = parseInt(e.target.value) || 1;
+                        updateClassLevel(idx, value);
+                      }}
+                      className="w-16 text-center"
+                    />
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => updateClassLevel(idx, charClass.level + 1)}
+                      disabled={totalLevel >= formData.level}
+                    >
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+      
+      {remainingLevels < 0 && (
+        <div className="p-3 bg-destructive/10 border border-destructive rounded-md text-sm text-destructive">
+          Total class levels exceed character level. Please reduce class levels.
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SubclassSelectionStep({
+  subclasses,
+  loading,
+  selectedSubclass,
+  selectedClass,
+  onSelect,
+  onSkip,
+  error,
+  infoSheet,
+}: {
+  subclasses: Subclass[];
+  loading: boolean;
+  selectedSubclass: Subclass | null | undefined;
+  selectedClass: DndClass | null | undefined;
+  onSelect: (subclass: Subclass) => void;
+  onSkip: () => void;
+  error?: Error | null;
+  infoSheet: ReturnType<typeof useInfoSheet>;
+}) {
+  if (!selectedClass) {
+    return (
+      <div className="p-4 border border-muted rounded-md">
+        <p className="text-muted-foreground">Please select a class first.</p>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return <Skeleton className="h-64 w-full" />;
+  }
+
+  if (error) {
+    return (
+      <div className="p-4 border border-destructive rounded-md bg-destructive/10">
+        <p className="text-destructive font-medium">Error loading subclasses</p>
+        <p className="text-sm text-muted-foreground mt-1">{error.message}</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">
+          {subclasses.length === 0 
+            ? "No subclasses available for this class. You can skip this step."
+            : "Select a subclass for your character. Subclasses are optional but provide additional features."}
+        </p>
+        <Button variant="outline" onClick={onSkip}>
+          Skip Subclass
+        </Button>
+      </div>
+
+      {subclasses.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {subclasses.map((subclass) => (
+            <Card
+              key={`${subclass.source}-${subclass.index}`}
+              className={`cursor-pointer transition-all hover:shadow-md ${
+                selectedSubclass?.source === subclass.source && selectedSubclass?.index === subclass.index
+                  ? "ring-2 ring-primary"
+                  : ""
+              }`}
+              onClick={() => onSelect(subclass)}
+            >
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-lg">{subclass.name}</CardTitle>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        // Show full subclass info including features
+                        infoSheet.showSubclass(subclass, selectedClass?.name);
+                      }}
+                    >
+                      <Info className="h-4 w-4" />
+                    </Button>
+                    <Badge variant={subclass.source === "srd" ? "default" : "secondary"}>
+                      {subclass.source}
+                    </Badge>
+                  </div>
+                </div>
+                {subclass.subclass_flavor && (
+                  <CardDescription>{subclass.subclass_flavor}</CardDescription>
                 )}
-              </div>
-            </CardContent>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {subclass.description && (
+                    <p className="text-sm text-muted-foreground line-clamp-2">
+                      {subclass.description}
+                    </p>
+                  )}
+                  <div className="text-xs text-muted-foreground mt-2">
+                    Click <Info className="h-3 w-3 inline" /> for full subclass features
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Single class subclass selector (used within MulticlassSubclassStep)
+function SingleClassSubclassSelector({
+  charClass,
+  classData,
+  campaignId,
+  sourceVersion,
+  infoSheet,
+  onSubclassChange,
+}: {
+  charClass: CharacterClassForm;
+  classData: DndClass | undefined;
+  campaignId: string | null;
+  sourceVersion: "2014" | "2024" | null;
+  infoSheet: ReturnType<typeof useInfoSheet>;
+  onSubclassChange: (subclassSource: "srd" | "homebrew" | null, subclassIndex: string | null) => void;
+}) {
+  const { subclasses, loading, error } = useSubclasses(
+    charClass.classIndex,
+    charClass.classSource,
+    campaignId,
+    sourceVersion
+  );
+
+  if (loading) {
+    return (
+      <div className="p-4 border rounded-md">
+        <Skeleton className="h-8 w-32 mb-2" />
+        <Skeleton className="h-24 w-full" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-4 border border-destructive rounded-md bg-destructive/10">
+        <p className="text-destructive text-sm">Error loading subclasses for {classData?.name}</p>
+      </div>
+    );
+  }
+
+  const selectedSubclass = subclasses.find(
+    s => s.source === charClass.subclassSource && s.index === charClass.subclassIndex
+  );
+
+  return (
+    <div className="border rounded-lg p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <h4 className="font-medium">{classData?.name || charClass.classIndex}</h4>
+        {charClass.isPrimary && <Badge variant="outline">Primary</Badge>}
+      </div>
+      
+      {subclasses.length === 0 ? (
+        <p className="text-sm text-muted-foreground">No subclasses available for this class.</p>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+          {/* None option */}
+          <Card
+            className={`cursor-pointer transition-all hover:shadow-sm p-3 ${
+              !charClass.subclassIndex ? "ring-2 ring-primary" : ""
+            }`}
+            onClick={() => onSubclassChange(null, null)}
+          >
+            <div className="text-sm font-medium">No Subclass</div>
+            <div className="text-xs text-muted-foreground">Skip subclass selection</div>
           </Card>
-        );
-      })}
+          
+          {subclasses.map((subclass) => (
+            <Card
+              key={`${subclass.source}-${subclass.index}`}
+              className={`cursor-pointer transition-all hover:shadow-sm p-3 ${
+                charClass.subclassSource === subclass.source && charClass.subclassIndex === subclass.index
+                  ? "ring-2 ring-primary"
+                  : ""
+              }`}
+              onClick={() => onSubclassChange(subclass.source, subclass.index)}
+            >
+              <div className="flex items-center justify-between">
+                <div className="text-sm font-medium">{subclass.name}</div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-5 w-5"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    infoSheet.showSubclass(subclass, classData?.name);
+                  }}
+                >
+                  <Info className="h-3 w-3" />
+                </Button>
+              </div>
+              {subclass.subclass_flavor && (
+                <div className="text-xs text-muted-foreground mt-1">{subclass.subclass_flavor}</div>
+              )}
+            </Card>
+          ))}
+        </div>
+      )}
+      
+      {selectedSubclass && (
+        <div className="text-sm text-primary">
+          Selected: {selectedSubclass.name}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Multiclass subclass step - allows selecting subclass for each class
+function MulticlassSubclassStep({
+  formData,
+  setFormData,
+  classes,
+  campaignId,
+  sourceVersion,
+  infoSheet,
+  onSkip,
+}: {
+  formData: CharacterFormData;
+  setFormData: (data: CharacterFormData) => void;
+  classes: DndClass[];
+  campaignId: string | null;
+  sourceVersion: "2014" | "2024" | null;
+  infoSheet: ReturnType<typeof useInfoSheet>;
+  onSkip: () => void;
+}) {
+  if (formData.classes.length === 0) {
+    return (
+      <div className="p-4 border border-muted rounded-md">
+        <p className="text-muted-foreground">Please select at least one class first.</p>
+      </div>
+    );
+  }
+
+  const handleSubclassChange = (classIndex: number, subclassSource: "srd" | "homebrew" | null, subclassIndex: string | null) => {
+    const newClasses = [...formData.classes];
+    newClasses[classIndex] = {
+      ...newClasses[classIndex],
+      subclassSource,
+      subclassIndex,
+    };
+    
+    // Also update legacy fields if this is the primary class
+    const primaryIdx = newClasses.findIndex(c => c.isPrimary);
+    const updatedFormData: CharacterFormData = {
+      ...formData,
+      classes: newClasses,
+    };
+    
+    if (classIndex === primaryIdx || (primaryIdx === -1 && classIndex === 0)) {
+      updatedFormData.subclassSource = subclassSource;
+      updatedFormData.subclassIndex = subclassIndex;
+    }
+    
+    setFormData(updatedFormData);
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">
+          Select subclasses for your character. Subclasses are optional and provide additional features.
+        </p>
+        <Button variant="outline" onClick={onSkip}>
+          Continue
+        </Button>
+      </div>
+
+      <div className="space-y-4">
+        {formData.classes.map((charClass, idx) => {
+          const classData = classes.find(
+            c => c.source === charClass.classSource && c.index === charClass.classIndex
+          );
+          
+          return (
+            <SingleClassSubclassSelector
+              key={`${charClass.classSource}-${charClass.classIndex}`}
+              charClass={charClass}
+              classData={classData}
+              campaignId={campaignId}
+              sourceVersion={sourceVersion}
+              infoSheet={infoSheet}
+              onSubclassChange={(subSource, subIndex) => handleSubclassChange(idx, subSource, subIndex)}
+            />
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -1718,7 +2697,14 @@ function AbilityScoresStep({
     const newScore = current + delta;
 
     if (newScore < POINT_BUY_MIN || newScore > POINT_BUY_MAX) return;
-    if (delta > 0 && pointBuyRemaining < (POINT_BUY_COSTS[newScore] || 0) - (POINT_BUY_COSTS[current] || 0)) {
+    
+    // Calculate the cost difference for this change
+    const currentCost = POINT_BUY_COSTS[current] || 0;
+    const newCost = POINT_BUY_COSTS[newScore] || 0;
+    const costDifference = newCost - currentCost;
+    
+    // For increments, check if we have enough remaining points
+    if (delta > 0 && pointBuyRemaining < costDifference) {
       return;
     }
 
@@ -2004,7 +2990,7 @@ function BackgroundStep({
     <div className="space-y-4">
       <div>
         <Label htmlFor="name" className="flex items-center gap-2">
-          <Character size={18} />
+          <CharacterIcon size={18} />
           Character Name *
         </Label>
         <Input
@@ -2211,7 +3197,7 @@ function BackgroundStep({
 
       <div>
         <Label htmlFor="level" className="flex items-center gap-2">
-          <Character size={18} />
+          <CharacterIcon size={18} />
           Starting Level
         </Label>
         <Input
@@ -2726,16 +3712,18 @@ function ReviewStep({
   formData,
   selectedRace,
   selectedClass,
+  selectedSubclass,
   getFinalAbilityScore,
 }: {
   formData: CharacterFormData;
   selectedRace: Race | null | undefined;
   selectedClass: DndClass | null | undefined;
+  selectedSubclass: Subclass | null | undefined;
   getFinalAbilityScore: (ability: keyof typeof formData.abilityScores) => number;
 }) {
   const abilities = ["strength", "dexterity", "constitution", "intelligence", "wisdom", "charisma"] as const;
   const proficiencyBonus = getProficiencyBonus(formData.level);
-  const { backgrounds } = useBackgrounds();
+  const { backgrounds } = useBackgrounds(formData.sourceVersion);
   const { equipment } = useEquipment(formData.campaignId);
   
   const selectedBackground = backgrounds.find(bg => bg.name === formData.background || bg.index === formData.background.toLowerCase().replace(/\s+/g, '-'));
@@ -2752,7 +3740,7 @@ function ReviewStep({
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Character size={20} />
+              <CharacterIcon size={20} />
               Basic Info
             </CardTitle>
           </CardHeader>

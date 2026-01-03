@@ -27,6 +27,21 @@ interface FeaturesTraitsProps {
     classLevels?: any;
     source: "srd" | "homebrew";
   };
+  classes?: Array<{
+    characterClass: {
+      class_source: 'srd' | 'homebrew';
+      class_index: string;
+      level: number;
+      subclass_source?: 'srd' | 'homebrew' | null;
+      subclass_index?: string | null;
+    };
+    classData?: {
+      name: string;
+      index: string;
+      source: 'srd' | 'homebrew';
+      classLevels?: any;
+    } | null;
+  }>;
   level: number;
   character?: {
     id?: string;
@@ -38,7 +53,7 @@ interface FeaturesTraitsProps {
     wisdom?: number;
     charisma?: number;
   };
-  onFeatureChoice?: (featureIndex: string, choice: any) => void;
+  onFeatureChoice?: (featureIndex: string, choice: any, classSource?: 'srd' | 'homebrew', classIndex?: string) => void;
 }
 
 interface Trait {
@@ -50,6 +65,7 @@ interface Trait {
 export function FeaturesTraits({
   race,
   class: characterClass,
+  classes: multiclassClasses,
   level,
   character,
   onFeatureChoice,
@@ -61,6 +77,8 @@ export function FeaturesTraits({
   const [activeFilter, setActiveFilter] = useState<string>("all");
   const [choiceDialogOpen, setChoiceDialogOpen] = useState(false);
   const [selectedFeature, setSelectedFeature] = useState<FeatureWithChoices | null>(null);
+  const [subFeatures, setSubFeatures] = useState<Map<string, FeatureWithChoices>>(new Map());
+  const [multiclassAcquiredFeatures, setMulticlassAcquiredFeatures] = useState<Map<string, any>>(new Map());
 
   useEffect(() => {
     async function fetchTraits() {
@@ -172,9 +190,57 @@ export function FeaturesTraits({
     fetchTraits();
   }, [race]);
 
-  // Fetch class features from srd_features table
+  // Fetch class features from srd_features table or character_class_features for multiclass
   useEffect(() => {
     async function fetchClassFeatures() {
+      // For multiclass, fetch from character_class_features table
+      if (multiclassClasses && multiclassClasses.length > 0 && character?.id) {
+        try {
+          setFeaturesLoading(true);
+          const supabase = createClient();
+          
+          // Fetch features for all classes from character_class_features
+          const { data: classFeaturesData, error: featuresError } = await supabase
+            .from('character_class_features')
+            .select('*')
+            .eq('character_id', character.id)
+            .order('acquired_at_character_level', { ascending: true });
+          
+          if (featuresError) {
+            console.error('Error fetching multiclass features:', featuresError);
+            setFeaturesLoading(false);
+            return;
+          }
+          
+          if (classFeaturesData) {
+            const formattedFeatures: FeatureWithChoices[] = classFeaturesData.map((f: any) => {
+              const hasChoices = f.feature_specific && (hasFeatureChoices(f.feature_specific) || isAbilityScoreImprovement(f.feature_name));
+              const choice = hasChoices && f.feature_specific?.choice ? parseFeatureChoices(f.feature_specific, f.feature_name) : null;
+              
+              return {
+                level: f.class_level || f.acquired_at_character_level || 1,
+                name: f.feature_name,
+                description: f.feature_description || '',
+                index: f.feature_index || '',
+                class_index: f.class_index,
+                subclass_index: null,
+                feature_specific: f.feature_specific,
+                choice: choice,
+                requiresChoice: hasChoices && choice !== null,
+              };
+            });
+            
+            setClassFeatures(formattedFeatures);
+          }
+        } catch (error) {
+          console.error('Error fetching multiclass features:', error);
+        } finally {
+          setFeaturesLoading(false);
+        }
+        return;
+      }
+      
+      // Legacy: single class
       if (!characterClass || !characterClass.classLevels) {
         setFeaturesLoading(false);
         return;
@@ -183,14 +249,7 @@ export function FeaturesTraits({
       try {
         setFeaturesLoading(true);
         const supabase = createClient();
-
-        // Get class index from the class object
-        // We need to find the class index - it might be in the class object
-        // For now, we'll try to get it from the class name or we need to pass it
-        // Let's check if we can get it from the class data structure
         
-        // Since we don't have direct access to class index here, we'll need to pass it
-        // But for now, let's try to fetch by class name or we need to update the props
         console.log('Fetching class features for:', characterClass);
         
         // Filter by class_index if available
@@ -246,9 +305,135 @@ export function FeaturesTraits({
     }
 
     fetchClassFeatures();
-  }, [characterClass, level]);
+  }, [characterClass, multiclassClasses, level, character?.id]);
 
-  // Features are now fetched from srd_features table in useEffect above
+  // Fetch acquired features for multiclass and selected sub-features for feature_selection choices
+  useEffect(() => {
+    async function fetchMulticlassAndSubFeatures() {
+      if (!character?.id) {
+        return;
+      }
+
+      const supabase = createClient();
+      const subFeaturesMap = new Map<string, FeatureWithChoices>();
+      const acquiredFeaturesMap = new Map<string, any>();
+      const indicesToFetch: string[] = [];
+
+      // For multiclass, fetch acquired features from character_class_features
+      if (multiclassClasses && multiclassClasses.length > 0) {
+        try {
+          const { data: classFeaturesData, error } = await supabase
+            .from('character_class_features')
+            .select('*')
+            .eq('character_id', character.id);
+
+          if (!error && classFeaturesData) {
+            classFeaturesData.forEach((f: any) => {
+              const key = `${f.class_source}-${f.class_index}-${f.feature_index || f.feature_name}`;
+              const hasChoices = f.feature_specific && (hasFeatureChoices(f.feature_specific) || isAbilityScoreImprovement(f.feature_name));
+              const choice = hasChoices && f.feature_specific?.choice ? parseFeatureChoices(f.feature_specific, f.feature_name) : null;
+              
+              // If choice exists in feature_specific, use it
+              if (f.feature_specific?.choice) {
+                choice && (choice.selected = f.feature_specific.choice.selected);
+              }
+              
+              acquiredFeaturesMap.set(key, {
+                feature_index: f.feature_index,
+                choice: choice,
+                acquired: true,
+              });
+
+              // Collect sub-feature indices from feature_selection choices
+              if (
+                choice &&
+                choice.type === 'feature_selection' &&
+                choice.selected &&
+                Array.isArray(choice.selected)
+              ) {
+                indicesToFetch.push(...choice.selected);
+              }
+            });
+          }
+        } catch (error) {
+          console.error('Error fetching multiclass acquired features:', error);
+        }
+      }
+
+      // Collect all selected sub-feature indices from feature_selection choices (legacy single class)
+      if (character.class_features) {
+        character.class_features.forEach((acquiredFeature) => {
+          if (
+            acquiredFeature.choice &&
+            acquiredFeature.choice.type === 'feature_selection' &&
+            acquiredFeature.choice.selected &&
+            Array.isArray(acquiredFeature.choice.selected)
+          ) {
+            indicesToFetch.push(...acquiredFeature.choice.selected);
+          }
+        });
+      }
+
+      // Also check classFeatures for any feature_selection choices with selections
+      classFeatures.forEach((feature) => {
+        if (
+          feature.choice &&
+          feature.choice.type === 'feature_selection' &&
+          feature.choice.selected &&
+          Array.isArray(feature.choice.selected)
+        ) {
+          indicesToFetch.push(...feature.choice.selected);
+        }
+      });
+
+      setMulticlassAcquiredFeatures(acquiredFeaturesMap);
+
+      if (indicesToFetch.length === 0) {
+        return;
+      }
+
+      // Remove duplicates
+      const uniqueIndices = [...new Set(indicesToFetch)];
+
+      try {
+        // Fetch sub-features from srd_features table
+        const { data: subFeaturesData, error } = await supabase
+          .from('srd_features')
+          .select('*')
+          .in('index', uniqueIndices);
+
+        if (error) {
+          console.error('Error fetching sub-features:', error);
+          return;
+        }
+
+        if (subFeaturesData) {
+          subFeaturesData.forEach((subFeat: any) => {
+            const hasChoices = hasFeatureChoices(subFeat.feature_specific) || isAbilityScoreImprovement(subFeat.name);
+            const choice = hasChoices ? parseFeatureChoices(subFeat.feature_specific, subFeat.name) : null;
+            
+            subFeaturesMap.set(subFeat.index, {
+              level: subFeat.level || 1,
+              name: subFeat.name,
+              description: subFeat.description || '',
+              index: subFeat.index,
+              class_index: subFeat.class_index,
+              subclass_index: subFeat.subclass_index,
+              feature_specific: subFeat.feature_specific,
+              choice: choice,
+              requiresChoice: hasChoices && choice !== null,
+            });
+          });
+
+          setSubFeatures(subFeaturesMap);
+        }
+      } catch (error) {
+        console.error('Error in fetchSubFeatures:', error);
+      }
+    }
+
+    fetchMulticlassAndSubFeatures();
+  }, [character?.id, character?.class_features, classFeatures, multiclassClasses]);
 
   return (
     <div className="space-y-2">
@@ -297,35 +482,189 @@ export function FeaturesTraits({
         </Card>
             )}
 
-            {(activeFilter === "all" || activeFilter === "class-features") && characterClass && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              Class Features (Level {level})
-              <Badge
-                variant={characterClass.source === "srd" ? "default" : "secondary"}
-              >
-                {characterClass.name}
-              </Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {(() => {
-              // Use features from srd_features table
-              let allAvailableFeatures: Array<{ level: number; name: string; description: string; index: string }> = [];
-              
-              if (featuresLoading) {
-                return <p className="text-muted-foreground">Loading class features...</p>;
-              }
-              
-              // Use features from database
-              allAvailableFeatures = classFeatures;
-              
-              // Get acquired features from character
-              const acquiredFeatures = character?.class_features || [];
-              const acquiredFeatureMap = new Map(
-                acquiredFeatures.map((f: StoredFeatureChoice) => [f.feature_index || `${f.level}-${f.name}`, f])
+            {(activeFilter === "all" || activeFilter === "class-features") && (characterClass || (multiclassClasses && multiclassClasses.length > 0)) && (
+        <div className="space-y-4">
+          {multiclassClasses && multiclassClasses.length > 0 ? (
+            // Multiclass: show features grouped by class
+            multiclassClasses.map(({ characterClass: charClass, classData }, classIdx) => {
+              const classFeaturesForClass = classFeatures.filter(f => 
+                f.class_index === charClass.class_index
               );
+              
+              // Get acquired features for this class from character_class_features
+              const classAcquiredFeatures = character?.id ? (async () => {
+                const supabase = createClient();
+                const { data } = await supabase
+                  .from('character_class_features')
+                  .select('*')
+                  .eq('character_id', character.id)
+                  .eq('class_source', charClass.class_source)
+                  .eq('class_index', charClass.class_index);
+                return data || [];
+              })() : Promise.resolve([]);
+              
+              return (
+                <Card key={classIdx}>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      {classData?.name || charClass.class_index} Features (Level {charClass.level})
+                      <Badge variant={charClass.is_primary_class ? "default" : "secondary"}>
+                        {charClass.is_primary_class ? "Primary" : ""}
+                      </Badge>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {(() => {
+                      if (featuresLoading) {
+                        return <p className="text-muted-foreground">Loading features...</p>;
+                      }
+                      
+                      if (classFeaturesForClass.length === 0) {
+                        return (
+                          <p className="text-muted-foreground">
+                            No features found for this class level.
+                          </p>
+                        );
+                      }
+                      
+                      // Group by class level
+                      const featuresByLevel = classFeaturesForClass.reduce((acc, feat) => {
+                        if (!acc[feat.level]) acc[feat.level] = [];
+                        acc[feat.level].push(feat);
+                        return acc;
+                      }, {} as Record<number, typeof classFeaturesForClass>);
+                      
+                      return Object.entries(featuresByLevel)
+                        .sort(([a], [b]) => parseInt(a) - parseInt(b))
+                        .map(([lvl, features]) => (
+                          <div key={lvl} className="space-y-2 mb-4">
+                            <h4 className="font-semibold text-xs text-muted-foreground uppercase tracking-wide">
+                              Level {lvl} Features
+                            </h4>
+                            <div className="space-y-2 pl-2 border-l-2 border-border/30">
+                              {features.map((feature, idx) => {
+                                const featureKey = `${charClass.class_source}-${charClass.class_index}-${feature.index || feature.name}`;
+                                const acquiredData = multiclassAcquiredFeatures.get(featureKey);
+                                
+                                // Check if this is a feature_selection choice with selected sub-features
+                                const isFeatureSelection = 
+                                  feature.choice?.type === 'feature_selection' &&
+                                  acquiredData?.choice?.type === 'feature_selection' &&
+                                  acquiredData.choice.selected &&
+                                  Array.isArray(acquiredData.choice.selected) &&
+                                  acquiredData.choice.selected.length > 0;
+                                
+                                // If feature_selection with selections, show selected sub-features instead
+                                if (isFeatureSelection) {
+                                  const selectedSubFeatures = acquiredData.choice.selected
+                                    .map((subIndex: string) => subFeatures.get(subIndex))
+                                    .filter((subFeat): subFeat is FeatureWithChoices => subFeat !== undefined);
+                                  
+                                  // If we have fetched sub-features, display them
+                                  if (selectedSubFeatures.length > 0) {
+                                    return (
+                                      <div key={feature.index || idx} className="space-y-2">
+                                        {selectedSubFeatures.map((subFeat, subIdx) => (
+                                          <div
+                                            key={subFeat.index || subIdx}
+                                            className="border-b border-border/30 pb-2 last:border-0"
+                                          >
+                                            <div className="font-semibold mb-1 flex items-center gap-2">
+                                              {subFeat.name}
+                                              <Badge variant="outline" className="text-xs">
+                                                {feature.name}
+                                              </Badge>
+                                            </div>
+                                            {subFeat.description && (
+                                              <div className="text-muted-foreground whitespace-pre-wrap text-sm">
+                                                {subFeat.description}
+                                              </div>
+                                            )}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    );
+                                  }
+                                  
+                                  // Fallback: show base feature with selected names if sub-features not found
+                                  // Get options from the original feature's choice if available, otherwise from acquired choice
+                                  const choiceOptions = feature.choice?.type === 'feature_selection' 
+                                    ? feature.choice.options 
+                                    : (acquiredData.choice.options || []);
+                                  const selectedNames = choiceOptions
+                                    .filter((opt: any) => acquiredData.choice.selected?.includes(opt.index))
+                                    .map((opt: any) => opt.name)
+                                    .join(', ');
+                                  
+                                  return (
+                                    <div key={feature.index || idx} className="border-b border-border/30 pb-2 last:border-0">
+                                      <div className="font-semibold mb-1 flex items-center gap-2">
+                                        {feature.name}
+                                        {selectedNames && (
+                                          <Badge variant="outline" className="text-xs">
+                                            ({selectedNames})
+                                          </Badge>
+                                        )}
+                                      </div>
+                                      {feature.description && (
+                                        <div className="text-muted-foreground whitespace-pre-wrap text-sm">
+                                          {feature.description}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                }
+                                
+                                // Default: show base feature
+                                return (
+                                  <div key={idx} className="border-b border-border/30 pb-2 last:border-0">
+                                    <div className="font-semibold mb-1">{feature.name}</div>
+                                    {feature.description && (
+                                      <div className="text-muted-foreground whitespace-pre-wrap text-sm">
+                                        {feature.description}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ));
+                    })()}
+                  </CardContent>
+                </Card>
+              );
+            })
+          ) : characterClass ? (
+            // Single class: original display
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  Class Features (Level {level})
+                  <Badge
+                    variant={characterClass.source === "srd" ? "default" : "secondary"}
+                  >
+                    {characterClass.name}
+                  </Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {(() => {
+                  // Use features from srd_features table
+                  let allAvailableFeatures: Array<{ level: number; name: string; description: string; index: string }> = [];
+                  
+                  if (featuresLoading) {
+                    return <p className="text-muted-foreground">Loading class features...</p>;
+                  }
+                  
+                  // Use features from database
+                  allAvailableFeatures = classFeatures;
+                  
+                  // Get acquired features from character
+                  const acquiredFeatures = character?.class_features || [];
+                  const acquiredFeatureMap = new Map(
+                    acquiredFeatures.map((f: StoredFeatureChoice) => [f.feature_index || `${f.level}-${f.name}`, f])
+                  );
               
               if (allAvailableFeatures.length === 0) {
                 return (
@@ -358,7 +697,85 @@ export function FeaturesTraits({
                         const choiceMade = acquiredData?.choice && acquiredData?.acquired;
                         const needsAction = hasChoice && !choiceMade;
                         
-                        // Get selected choice display text
+                        // Check if this is a feature_selection choice with selected sub-features
+                        const isFeatureSelection = 
+                          feature.choice?.type === 'feature_selection' &&
+                          acquiredData?.choice?.type === 'feature_selection' &&
+                          acquiredData.choice.selected &&
+                          Array.isArray(acquiredData.choice.selected) &&
+                          acquiredData.choice.selected.length > 0;
+                        
+                        // If feature_selection with selections, show selected sub-features instead
+                        if (isFeatureSelection) {
+                          const selectedSubFeatures = acquiredData.choice.selected
+                            .map((subIndex: string) => subFeatures.get(subIndex))
+                            .filter((subFeat): subFeat is FeatureWithChoices => subFeat !== undefined);
+                          
+                          // If we have fetched sub-features, display them
+                          if (selectedSubFeatures.length > 0) {
+                            return (
+                              <div key={feature.index || idx} className="space-y-2">
+                                {selectedSubFeatures.map((subFeat, subIdx) => (
+                                  <div
+                                    key={subFeat.index || subIdx}
+                                    className="pb-2 last:pb-0 rounded-md p-2 bg-background/50"
+                                  >
+                                    <div className="flex items-start gap-2 mb-1">
+                                      <div className="flex-1">
+                                        <div className="font-medium flex items-center gap-2">
+                                          {subFeat.name}
+                                          <Badge variant="outline" className="text-xs">
+                                            {feature.name}
+                                          </Badge>
+                                        </div>
+                                      </div>
+                                    </div>
+                                    {subFeat.description && (
+                                      <div className="text-muted-foreground whitespace-pre-wrap text-xs">
+                                        {subFeat.description}
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            );
+                          }
+                          
+                          // Fallback: show base feature with selected names if sub-features not found
+                          // Get options from the original feature's choice if available, otherwise from acquired choice
+                          const choiceOptions = feature.choice?.type === 'feature_selection' 
+                            ? feature.choice.options 
+                            : (acquiredData.choice.options || []);
+                          const selectedNames = choiceOptions
+                            .filter((opt: any) => acquiredData.choice.selected?.includes(opt.index))
+                            .map((opt: any) => opt.name)
+                            .join(', ');
+                          
+                          return (
+                            <div 
+                              key={feature.index || idx} 
+                              className="pb-2 last:pb-0 rounded-md p-2 bg-background/50"
+                            >
+                              <div className="flex items-start gap-2 mb-1">
+                                <div className="flex-1">
+                                  <div className="font-medium flex items-center gap-2">
+                                    {feature.name}
+                                    <Badge variant="outline" className="text-xs">
+                                      ({selectedNames})
+                                    </Badge>
+                                  </div>
+                                </div>
+                              </div>
+                              {feature.description && (
+                                <div className="text-muted-foreground whitespace-pre-wrap text-xs">
+                                  {feature.description}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        }
+                        
+                        // Get selected choice display text for other choice types
                         let choiceDisplay = '';
                         if (acquiredData?.choice) {
                           const choice = acquiredData.choice;
@@ -368,16 +785,10 @@ export function FeaturesTraits({
                               .map(([ability, val]) => `${ability.substring(0, 3).toUpperCase()}+${val}`)
                               .join(', ');
                             choiceDisplay = `(${choice.selected.option === 'one_score' ? 'One score +2' : 'Two scores +1'}: ${scores})`;
-                          } else if (choice.type === 'feature_selection' && choice.selected) {
-                            const selectedNames = choice.options
-                              .filter(opt => choice.selected?.includes(opt.index))
-                              .map(opt => opt.name)
-                              .join(', ');
-                            choiceDisplay = `(${selectedNames})`;
                           } else if (choice.type === 'skill_selection' && choice.selected) {
                             const selectedNames = choice.options
-                              .filter(opt => choice.selected?.includes(opt.index))
-                              .map(opt => opt.name)
+                              .filter((opt: any) => choice.selected?.includes(opt.index))
+                              .map((opt: any) => opt.name)
                               .join(', ');
                             choiceDisplay = `(${selectedNames})`;
                           } else if (choice.type === 'string_selection' && choice.selected) {
@@ -439,6 +850,8 @@ export function FeaturesTraits({
             })()}
           </CardContent>
         </Card>
+          ) : null}
+        </div>
             )}
 
             {activeFilter === "feats" && (

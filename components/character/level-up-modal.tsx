@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Sparkles, CheckCircle2, AlertCircle } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FeatureChoiceDialog } from "./feature-choice-dialog";
 import type { AnyFeatureChoice } from "@/types/feature-choices";
 import type { AbilityScores } from "@/lib/utils/ability-scores";
@@ -33,6 +34,26 @@ interface LevelUpModalProps {
   onConfirm: () => void;
   onFeatureChoice?: (featureIndex: string, choice: any) => void;
   currentAbilityScores?: AbilityScores;
+  multiclassClasses?: Array<{
+    characterClass: {
+      class_source: 'srd' | 'homebrew';
+      class_index: string;
+      level: number;
+      subclass_source?: 'srd' | 'homebrew' | null;
+      subclass_index?: string | null;
+      is_primary_class?: boolean;
+    };
+    classData?: {
+      name: string;
+      index: string;
+      source: 'srd' | 'homebrew';
+    } | null;
+  }>;
+  selectedClassForLevelUp?: {
+    class_source: 'srd' | 'homebrew';
+    class_index: string;
+  } | null;
+  onClassSelectForLevelUp?: (class_source: 'srd' | 'homebrew', class_index: string) => void;
 }
 
 export function LevelUpModal({
@@ -43,6 +64,9 @@ export function LevelUpModal({
   onConfirm,
   onFeatureChoice,
   currentAbilityScores,
+  multiclassClasses,
+  selectedClassForLevelUp,
+  onClassSelectForLevelUp,
 }: LevelUpModalProps) {
   const [choiceDialogOpen, setChoiceDialogOpen] = useState(false);
   const [selectedFeature, setSelectedFeature] = useState<NewFeature | null>(null);
@@ -77,7 +101,36 @@ export function LevelUpModal({
             Level Up! - Level {newLevel}
           </DialogTitle>
           <DialogDescription>
-            Your character has gained new abilities and features. Review them below.
+            {multiclassClasses && multiclassClasses.length > 1 ? (
+              <div className="space-y-2">
+                <p>Choose which class to level up, then review the new features below.</p>
+                {onClassSelectForLevelUp && (
+                  <Select
+                    value={selectedClassForLevelUp ? `${selectedClassForLevelUp.class_source}:${selectedClassForLevelUp.class_index}` : undefined}
+                    onValueChange={(value) => {
+                      const [source, index] = value.split(':');
+                      onClassSelectForLevelUp(source as 'srd' | 'homebrew', index);
+                    }}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select class to level" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {multiclassClasses.map(({ characterClass, classData }, idx) => (
+                        <SelectItem
+                          key={idx}
+                          value={`${characterClass.class_source}:${characterClass.class_index}`}
+                        >
+                          {classData?.name || characterClass.class_index} (Level {characterClass.level} → {characterClass.level + 1})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+            ) : (
+              "Your character has gained new abilities and features. Review them below."
+            )}
           </DialogDescription>
         </DialogHeader>
 

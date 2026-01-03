@@ -86,7 +86,7 @@ interface IconProps {
 <Wizard className="text-red-500 hover:text-red-700" />
 
 // With inline styles
-<Action style={{ color: '#3b82f6' }} />
+<Action style={{ color: '#c9b882' }} />
 
 // All props are forwarded to the SVG element
 <Dexterity 

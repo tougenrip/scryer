@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Character } from "@/hooks/useDndContent";
-import { useRaces, useClasses } from "@/hooks/useDndContent";
+import { useRaces, useClasses, useCharacterClasses } from "@/hooks/useDndContent";
 import { AbilityScores } from "./ability-scores";
 import { CombatStats } from "./combat-stats";
 import { SavingThrows } from "./saving-throws";
@@ -41,7 +41,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { getProficiencyBonus, extractFeaturesForLevel, getAllFeaturesUpToLevel, calculateSpellSlots, calculateSkillProficiencies, calculateSavingThrowProficiencies, type ExtractedFeature } from "@/lib/utils/character";
-import { Plus, Minus } from "lucide-react";
+import { Plus, Minus, Edit } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { LevelUpModal, type NewFeature } from "./level-up-modal";
 import { useFeatureChoices } from "@/hooks/useFeatureChoices";
 import { parseFeatureChoices, hasFeatureChoices, isAbilityScoreImprovement } from "@/lib/utils/feature-parser";
@@ -61,6 +62,7 @@ export function CharacterSheet({
   onUpdate,
   editable = false,
 }: CharacterSheetProps) {
+  const router = useRouter();
   const [skills, setSkills] = useState<Record<SkillName, { proficient: boolean; expertise: boolean }>>({} as Record<SkillName, { proficient: boolean; expertise: boolean }>);
   const [spellSlots, setSpellSlots] = useState<Array<{ level: number; total: number; used: number }>>([]);
   const [characterSpells, setCharacterSpells] = useState<Array<{ spell: any; prepared: boolean; alwaysPrepared: boolean }>>([]);
@@ -69,10 +71,12 @@ export function CharacterSheet({
   const [previousLevel, setPreviousLevel] = useState(character.level || 1);
   const [levelUpModalOpen, setLevelUpModalOpen] = useState(false);
   const [newLevelFeatures, setNewLevelFeatures] = useState<NewFeature[]>([]);
+  const [selectedClassForLevelUp, setSelectedClassForLevelUp] = useState<{class_source: 'srd' | 'homebrew', class_index: string} | null>(null);
   const { saveFeatureChoice, applyAbilityScoreImprovement } = useFeatureChoices();
 
   const { races } = useRaces(character.campaign_id || null);
   const { classes } = useClasses(character.campaign_id || null);
+  const { characterClasses } = useCharacterClasses(character.id);
   const infoSheet = useInfoSheet();
   const { rollDice, rollWithAdvantage } = useDiceRoller();
   
@@ -145,9 +149,21 @@ export function CharacterSheet({
   const selectedRace = races.find(
     (r) => r.source === character.race_source && r.index === character.race_index
   );
-  const selectedClass = classes.find(
-    (c) => c.source === character.class_source && c.index === character.class_index
-  );
+  
+  // Get classes for multiclass support - prefer character_classes table, fallback to legacy fields
+  const multiclassClasses = characterClasses && characterClasses.length > 0
+    ? characterClasses.map(cc => ({
+        characterClass: cc,
+        classData: classes.find(c => c.source === cc.class_source && c.index === cc.class_index)
+      })).filter(item => item.classData)
+    : null;
+  
+  // For backward compatibility, use legacy fields if no multiclass
+  const selectedClass = multiclassClasses 
+    ? multiclassClasses.find(c => c.characterClass.is_primary_class)?.classData || multiclassClasses[0]?.classData
+    : classes.find(
+        (c) => c.source === character.class_source && c.index === character.class_index
+      );
 
   // Helper function to get damage type icon
   const getDamageIcon = (damageType: string) => {
@@ -265,8 +281,30 @@ export function CharacterSheet({
           }))
         );
       } else {
-        // Calculate spell slots based on class and level as fallback
-        const calculatedSlots = calculateSpellSlots(character.class_index, character.level || 1);
+        // Calculate spell slots - use multiclass calculation if multiclass
+        let calculatedSlots: Array<{ level: number; total: number; used: number }> = [];
+        
+        if (multiclassClasses && multiclassClasses.length > 0) {
+          const { calculateMulticlassSpellSlots } = require('@/lib/utils/character');
+          const classArray = multiclassClasses.map(({ characterClass }) => ({
+            class_source: characterClass.class_source,
+            class_index: characterClass.class_index,
+            level: characterClass.level,
+            subclass_source: characterClass.subclass_source,
+            subclass_index: characterClass.subclass_index,
+          }));
+          const { spellSlots: multiclassSlots, warlockSlots } = calculateMulticlassSpellSlots(classArray);
+          // Combine regular and warlock slots for now
+          calculatedSlots = [...multiclassSlots];
+          if (warlockSlots.length > 0) {
+            // Warlock slots are separate, but we'll merge for display
+            calculatedSlots = [...calculatedSlots, ...warlockSlots];
+          }
+        } else {
+          // Single class fallback
+          calculatedSlots = calculateSpellSlots(character.class_index, character.level || 1);
+        }
+        
         setSpellSlots(calculatedSlots);
         
         // Optionally persist the calculated slots to the database
@@ -913,78 +951,162 @@ export function CharacterSheet({
   };
 
   const handleLevelUpConfirm = async () => {
-    if (!onUpdate || !selectedClass) return;
+    if (!onUpdate) return;
     
-    // Update class_features to include new features from the modal
-    const currentFeatures = character.class_features || [];
-    
-    // Merge new features into class_features, marking them as acquired
-    const updatedFeatures = [...currentFeatures];
-    
-    for (const feat of newLevelFeatures) {
-      // Save feature choice if it has one
-      if (feat.choice && feat.feature_index) {
-        const choiceWithSelection = {
-          ...feat.choice,
-          selected: feat.choice.type === 'ability_score_improvement'
-            ? feat.choice.selected
-            : (feat.choice as any).selected,
-        };
-        
-        // Save the choice
-        await saveFeatureChoice(
-          character.id,
-          feat.feature_index,
-          choiceWithSelection as AnyFeatureChoice,
-          {
-            level: feat.level,
-            name: feat.name,
-            description: feat.description,
-          }
-        );
-        
-        // Apply ASI if it's an ability score improvement
-        if (feat.choice.type === 'ability_score_improvement' && feat.choice.selected) {
-          await applyAbilityScoreImprovement(character, choiceWithSelection as AnyFeatureChoice);
-        }
-      }
-      
-      // Update class_features array
-      const existingIndex = updatedFeatures.findIndex((f: any) => 
-        f.feature_index === feat.feature_index || (f.level === feat.level && f.name === feat.name)
+    // For multiclass, need to update character_classes table
+    if (multiclassClasses && multiclassClasses.length > 0 && selectedClassForLevelUp) {
+      const supabase = createClient();
+      const classToLevel = multiclassClasses.find(
+        c => c.characterClass.class_source === selectedClassForLevelUp.class_source &&
+             c.characterClass.class_index === selectedClassForLevelUp.class_index
       );
       
-      if (existingIndex >= 0) {
-        // Update existing feature
-        const existing = updatedFeatures[existingIndex] as any;
-        updatedFeatures[existingIndex] = {
-          ...existing,
-          level: feat.level,
-          name: feat.name,
-          description: feat.description,
-          feature_index: feat.feature_index,
-          choice: feat.choice,
-          acquired: true,
-        };
-      } else {
-        // Add new feature
-        updatedFeatures.push({
-          level: feat.level,
-          name: feat.name,
-          description: feat.description,
-          feature_index: feat.feature_index,
-          choice: feat.choice,
-          acquired: true,
-        });
+      if (classToLevel) {
+        // Update the class level in character_classes
+        const { error: updateError } = await supabase
+          .from('character_classes')
+          .update({ level: classToLevel.characterClass.level + 1 })
+          .eq('character_id', character.id)
+          .eq('class_source', selectedClassForLevelUp.class_source)
+          .eq('class_index', selectedClassForLevelUp.class_index);
+        
+        if (updateError) {
+          console.error('Error updating class level:', updateError);
+          toast.error('Failed to update class level');
+          return;
+        }
       }
     }
     
-    await onUpdate({
-      class_features: updatedFeatures,
-    });
+    // For multiclass, save to character_class_features table
+    if (multiclassClasses && multiclassClasses.length > 0 && selectedClassForLevelUp) {
+      const supabase = createClient();
+      const classToLevel = multiclassClasses.find(
+        c => c.characterClass.class_source === selectedClassForLevelUp.class_source &&
+             c.characterClass.class_index === selectedClassForLevelUp.class_index
+      );
+      
+      if (classToLevel) {
+        const newClassLevel = classToLevel.characterClass.level + 1;
+        
+        for (const feat of newLevelFeatures) {
+          // Save feature choice if it has one
+          if (feat.choice && feat.feature_index) {
+            const choiceWithSelection = {
+              ...feat.choice,
+              selected: feat.choice.type === 'ability_score_improvement'
+                ? feat.choice.selected
+                : (feat.choice as any).selected,
+            };
+            
+            // Save the choice
+            await saveFeatureChoice(
+              character.id,
+              feat.feature_index,
+              choiceWithSelection as AnyFeatureChoice,
+              {
+                level: feat.level,
+                name: feat.name,
+                description: feat.description,
+              }
+            );
+            
+            // Apply ASI if it's an ability score improvement
+            if (feat.choice.type === 'ability_score_improvement' && feat.choice.selected) {
+              await applyAbilityScoreImprovement(character, choiceWithSelection as AnyFeatureChoice);
+            }
+          }
+          
+          // Insert into character_class_features
+          await supabase
+            .from('character_class_features')
+            .insert({
+              character_id: character.id,
+              class_source: selectedClassForLevelUp.class_source,
+              class_index: selectedClassForLevelUp.class_index,
+              class_level: newClassLevel,
+              feature_index: feat.feature_index || null,
+              feature_name: feat.name,
+              feature_description: feat.description,
+              feature_specific: feat.choice ? { choice: feat.choice } : null,
+              acquired_at_character_level: character.level || 1,
+            });
+        }
+      }
+    } else {
+      // Legacy: single class - update class_features array
+      const classToUse = selectedClass;
+      if (!classToUse) return;
+      
+      const currentFeatures = character.class_features || [];
+      const updatedFeatures = [...currentFeatures];
+      
+      for (const feat of newLevelFeatures) {
+        // Save feature choice if it has one
+        if (feat.choice && feat.feature_index) {
+          const choiceWithSelection = {
+            ...feat.choice,
+            selected: feat.choice.type === 'ability_score_improvement'
+              ? feat.choice.selected
+              : (feat.choice as any).selected,
+          };
+          
+          // Save the choice
+          await saveFeatureChoice(
+            character.id,
+            feat.feature_index,
+            choiceWithSelection as AnyFeatureChoice,
+            {
+              level: feat.level,
+              name: feat.name,
+              description: feat.description,
+            }
+          );
+          
+          // Apply ASI if it's an ability score improvement
+          if (feat.choice.type === 'ability_score_improvement' && feat.choice.selected) {
+            await applyAbilityScoreImprovement(character, choiceWithSelection as AnyFeatureChoice);
+          }
+        }
+        
+        // Update class_features array
+        const existingIndex = updatedFeatures.findIndex((f: any) => 
+          f.feature_index === feat.feature_index || (f.level === feat.level && f.name === feat.name)
+        );
+        
+        if (existingIndex >= 0) {
+          // Update existing feature
+          const existing = updatedFeatures[existingIndex] as any;
+          updatedFeatures[existingIndex] = {
+            ...existing,
+            level: feat.level,
+            name: feat.name,
+            description: feat.description,
+            feature_index: feat.feature_index,
+            choice: feat.choice,
+            acquired: true,
+          };
+        } else {
+          // Add new feature
+          updatedFeatures.push({
+            level: feat.level,
+            name: feat.name,
+            description: feat.description,
+            feature_index: feat.feature_index,
+            choice: feat.choice,
+            acquired: true,
+          });
+        }
+      }
+      
+      await onUpdate({
+        class_features: updatedFeatures,
+      });
+    }
     
     setLevelUpModalOpen(false);
     setNewLevelFeatures([]);
+    setSelectedClassForLevelUp(null);
   };
 
   const handleFeatureChoice = (featureIndex: string, choice: any) => {
@@ -1003,7 +1125,7 @@ export function CharacterSheet({
   return (
     <div className="space-y-2">
       {/* Top Section: Portrait, Name, Basic Info */}
-      <div className="grid grid-cols-1 lg:grid-cols-10 gap-3">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
         {/* Left Column: Portrait and Basic Info */}
         <div className="lg:col-span-2 space-y-2">
           {/* Portrait with Glow Effect */}
@@ -1021,7 +1143,20 @@ export function CharacterSheet({
 
           {/* Character Name and Info */}
           <div>
-            <h1 className="text-2xl font-bold font-serif mb-1">{character.name}</h1>
+            <div className="flex items-center gap-2 mb-1">
+              <h1 className="text-2xl font-bold font-serif">{character.name}</h1>
+              {editable && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => router.push(`/character-creator?editId=${character.id}`)}
+                  title="Edit Character"
+                >
+                  <Edit className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
             <div className="flex flex-wrap gap-1.5 mb-2">
               {selectedRace && (
                 <Badge 
@@ -1032,7 +1167,20 @@ export function CharacterSheet({
                   {selectedRace.name}
                 </Badge>
               )}
-              {selectedClass && (
+              {/* Display multiclass badges if multiclass, otherwise single class */}
+              {multiclassClasses && multiclassClasses.length > 0 ? (
+                multiclassClasses.map(({ characterClass, classData }, idx) => (
+                  <Badge 
+                    key={idx}
+                    variant={characterClass.is_primary_class ? "default" : "secondary"}
+                    className="text-sm cursor-pointer hover:opacity-80 transition-opacity"
+                    onClick={() => classData && infoSheet.showClass(classData)}
+                  >
+                    {classData?.name || characterClass.class_index} {characterClass.level}
+                    {characterClass.is_primary_class && " (Primary)"}
+                  </Badge>
+                ))
+              ) : selectedClass && (
                 <Badge 
                   variant="outline" 
                   className="text-sm cursor-pointer hover:opacity-80 transition-opacity"
@@ -1273,7 +1421,7 @@ export function CharacterSheet({
         </div>
 
         {/* Right Column: Combat Stats and Main Content */}
-        <div className="lg:col-span-8 space-y-2">
+        <div className="lg:col-span-10 space-y-2">
           {/* Combat Stats Row - Made Shorter */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
             <CombatStats
@@ -1319,7 +1467,7 @@ export function CharacterSheet({
           {/* Skills + Main Content Tabs - Inside Right Column */}
           <div className="grid grid-cols-1 md:grid-cols-12 gap-2">
             {/* Skills Panel - Narrowed, On Left Side */}
-            <div className="md:col-span-4">
+            <div className="md:col-span-3">
               <SkillsPanel
                 abilityScores={abilityScores}
                 skillProficiencies={skills}
@@ -1337,7 +1485,7 @@ export function CharacterSheet({
             </div>
 
             {/* Main Content Tabs - On Right Side */}
-            <div className="md:col-span-8">
+            <div className="md:col-span-9">
               <Tabs defaultValue="actions" className="w-full">
             <TabsList className="grid w-full grid-cols-7 h-9">
               <TabsTrigger value="actions" className="text-xs flex items-center gap-1">
@@ -1683,13 +1831,77 @@ export function CharacterSheet({
                     toast.error('Failed to remove item from inventory');
                   }
                 }}
+                onItemQuantityUpdate={async (itemId, quantity) => {
+                  const item = inventory.find(i => i.id === itemId);
+                  if (!item) return;
+                  
+                  if (quantity < 0) {
+                    toast.error('Quantity cannot be negative');
+                    return;
+                  }
+                  
+                  const supabase = createClient();
+                  
+                  // Get current inventory from JSONB column
+                  const currentInventory = (character.inventory as Array<{
+                    source: 'srd' | 'homebrew';
+                    index: string;
+                    quantity: number;
+                    equipped: boolean;
+                    attuned: boolean;
+                    notes?: string | null;
+                  }>) || [];
+                  
+                  // If quantity is 0, remove the item
+                  let updatedInventory: typeof currentInventory;
+                  if (quantity === 0) {
+                    updatedInventory = currentInventory.filter(
+                      inv => !(inv.source === item.source && inv.index === item.index)
+                    );
+                  } else {
+                    // Find and update the item quantity in the inventory array
+                    updatedInventory = currentInventory.map(inv => {
+                      if (inv.source === item.source && inv.index === item.index) {
+                        return { ...inv, quantity };
+                      }
+                      return inv;
+                    });
+                  }
+                  
+                  // Update JSONB column in database
+                  const { error } = await supabase
+                    .from('characters')
+                    .update({ inventory: updatedInventory })
+                    .eq('id', character.id);
+                  
+                  if (!error) {
+                    if (quantity === 0) {
+                      setInventory(prev => prev.filter(inv => inv.id !== itemId));
+                      toast.success(`Removed ${item.name} from inventory`);
+                    } else {
+                      setInventory(prev => prev.map(inv => 
+                        inv.id === itemId ? { ...inv, quantity } : inv
+                      ));
+                      toast.success(`Updated ${item.name} quantity to ${quantity}`);
+                    }
+                    
+                    // Update character prop via callback
+                    if (onUpdate) {
+                      await onUpdate({ inventory: updatedInventory });
+                    }
+                  } else {
+                    console.error('Error updating item quantity:', error);
+                    toast.error('Failed to update item quantity');
+                  }
+                }}
                 editable={editable}
               />
             </TabsContent>
 
             <TabsContent value="features" className="mt-2">
               <FeaturesTraits
-                onFeatureChoice={async (featureIndex, choice) => {
+                classes={multiclassClasses}
+                onFeatureChoice={async (featureIndex, choice, classSource, classIndex) => {
                   // Find the feature to get its details
                   const supabase = createClient();
                   const { data: featureData } = await supabase
@@ -1815,6 +2027,46 @@ export function CharacterSheet({
           intelligence: character.intelligence || 10,
           wisdom: character.wisdom || 10,
           charisma: character.charisma || 10,
+        }}
+        multiclassClasses={multiclassClasses?.map(({ characterClass, classData }) => ({
+          characterClass,
+          classData: classData || null,
+        }))}
+        selectedClassForLevelUp={selectedClassForLevelUp}
+        onClassSelectForLevelUp={(source, index) => {
+          setSelectedClassForLevelUp({ class_source: source, class_index: index });
+          // Fetch features for selected class
+          const selectedCharClass = multiclassClasses?.find(
+            c => c.characterClass.class_source === source && c.characterClass.class_index === index
+          );
+          if (selectedCharClass) {
+            // Refetch features for this class level
+            const supabase = createClient();
+            supabase
+              .from("srd_features")
+              .select("*")
+              .eq("class_index", index)
+              .eq("level", selectedCharClass.characterClass.level + 1)
+              .then(({ data, error }) => {
+                if (!error && data) {
+                  const formattedFeatures: NewFeature[] = data.map(feat => {
+                    const hasChoices = hasFeatureChoices(feat.feature_specific) || isAbilityScoreImprovement(feat.name);
+                    const choice = hasChoices ? parseFeatureChoices(feat.feature_specific, feat.name) : null;
+                    return {
+                      level: feat.level || selectedCharClass.characterClass.level + 1,
+                      name: feat.name,
+                      description: feat.description || '',
+                      type: isAbilityScoreImprovement(feat.name) ? 'asi' : 'feature',
+                      requiresChoice: hasChoices && choice !== null,
+                      feature_index: feat.index,
+                      choice: choice,
+                      feature_specific: feat.feature_specific,
+                    };
+                  });
+                  setNewLevelFeatures(formattedFeatures);
+                }
+              });
+          }
         }}
       />
     </div>

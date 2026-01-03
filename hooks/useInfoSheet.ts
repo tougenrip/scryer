@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from "react";
 import type { InfoSheetContent } from "@/components/shared/info-sheet";
-import type { Spell, Equipment, Race, DndClass } from "@/hooks/useDndContent";
+import type { Spell, Equipment, Race, DndClass, Subclass } from "@/hooks/useDndContent";
 import { getAbilityModifier } from "@/lib/utils/character";
 
 export function useInfoSheet() {
@@ -81,6 +81,11 @@ export function useInfoSheet() {
     setOpen(true);
   }, []);
 
+  const showSubclass = useCallback((subclass: Subclass, className?: string) => {
+    setContent({ type: "subclass", data: { ...subclass, className } });
+    setOpen(true);
+  }, []);
+
   const showTrait = useCallback((name: string, description: string) => {
     setContent({ type: "trait", data: { name, description } });
     setOpen(true);
@@ -112,6 +117,7 @@ export function useInfoSheet() {
     showCondition,
     showRace,
     showClass,
+    showSubclass,
     showTrait,
     showFeature,
     close,
