@@ -9,10 +9,8 @@ import {
   Settings,
   ChevronLeft,
   Home,
-  Image,
-  User,
-  Swords,
-  ScrollText
+  Hammer,
+  Image
 } from "lucide-react";
 
 interface SidebarProps {
@@ -34,19 +32,9 @@ const sidebarItems = [
     icon: Image,
   },
   {
-    title: "NPCs",
-    href: "/npcs",
-    icon: User,
-  },
-  {
-    title: "Encounters",
-    href: "/encounters",
-    icon: Swords,
-  },
-  {
-    title: "Quest Board",
-    href: "/quest-board",
-    icon: ScrollText,
+    title: "The Forge",
+    href: "/forge",
+    icon: Hammer,
   },
 ];
 

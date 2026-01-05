@@ -1,11 +1,9 @@
 "use client";
 
-import { useEffect } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useCampaign } from "@/hooks/useCampaigns";
 import {
   useCampaignQuests,
   useCreateQuest,
@@ -29,27 +27,21 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-export default function QuestBoardPage() {
-  const params = useParams();
-  const router = useRouter();
-  const campaignId = params.campaignId as string;
+interface QuestBoardTabProps {
+  campaignId: string;
+  isDm: boolean;
+}
 
-  useEffect(() => {
-    router.replace(`/campaigns/${campaignId}/forge?tab=quests`);
-  }, [campaignId, router]);
-
-  return null;
+export function QuestBoardTab({ campaignId, isDm }: QuestBoardTabProps) {
   const [userId, setUserId] = useState<string | null>(null);
-  const [isDm, setIsDm] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editingQuest, setEditingQuest] = useState<Quest | null>(null);
   const [deletingQuestId, setDeletingQuestId] = useState<string | null>(null);
 
-  const { campaign, loading: campaignLoading } = useCampaign(campaignId);
-  const { quests, loading: questsLoading, refetch: refetchQuests } = useCampaignQuests(campaignId);
+  const { quests, loading, refetch } = useCampaignQuests(campaignId);
   const { createQuest } = useCreateQuest();
   const { updateQuest } = useUpdateQuest();
-  const { deleteQuest, loading: deleting } = useDeleteQuest();
+  const { deleteQuest, deleting } = useDeleteQuest();
 
   useEffect(() => {
     async function getUser() {
@@ -57,13 +49,10 @@ export default function QuestBoardPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         setUserId(user.id);
-        if (campaign) {
-          setIsDm(campaign.dm_user_id === user.id);
-        }
       }
     }
     getUser();
-  }, [campaign]);
+  }, []);
 
   const handleCreate = async (data: {
     campaign_id: string;
@@ -78,10 +67,9 @@ export default function QuestBoardPage() {
     if (result.success) {
       toast.success("Quest added successfully");
       setCreateDialogOpen(false);
-      refetchQuests();
+      refetch();
     } else {
       toast.error(result.error?.message || "Failed to create quest");
-      return result;
     }
     return { success: true };
   };
@@ -100,10 +88,9 @@ export default function QuestBoardPage() {
     if (result.success) {
       toast.success("Quest updated successfully");
       setEditingQuest(null);
-      refetchQuests();
+      refetch();
     } else {
       toast.error(result.error?.message || "Failed to update quest");
-      return result;
     }
     return { success: true };
   };
@@ -114,53 +101,32 @@ export default function QuestBoardPage() {
     if (result.success) {
       toast.success("Quest deleted successfully");
       setDeletingQuestId(null);
-      refetchQuests();
+      refetch();
     } else {
       toast.error(result.error?.message || "Failed to delete quest");
     }
   };
 
-  if (campaignLoading || questsLoading) {
+  if (loading) {
     return (
-      <div className="space-y-8">
-        <div className="flex items-center justify-between">
-          <div>
-            <Skeleton className="h-9 w-64 mb-2" />
-            <Skeleton className="h-5 w-96" />
-          </div>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {[1, 2, 3].map((i) => (
-            <Card key={i} className="h-64">
-              <CardContent className="p-0">
-                <Skeleton className="h-full w-full" />
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  if (!campaign) {
-    return (
-      <div className="space-y-8">
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-destructive">Campaign not found</p>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {[1, 2, 3].map((i) => (
+          <Card key={i} className="h-64">
+            <CardContent className="p-0">
+              <Skeleton className="h-full w-full" />
+            </CardContent>
+          </Card>
+        ))}
       </div>
     );
   }
 
   return (
-    <div className="space-y-8">
-      {/* Header */}
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="font-serif text-3xl font-bold">Quest Board</h1>
-          <p className="text-muted-foreground mt-1">
+          <h2 className="font-serif text-2xl font-semibold">Quest Board</h2>
+          <p className="text-muted-foreground text-sm">
             Quests and side quests available in the campaign
           </p>
         </div>
@@ -172,41 +138,37 @@ export default function QuestBoardPage() {
         )}
       </div>
 
-      {/* Quest Board Grid */}
       {quests.length === 0 ? (
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex flex-col items-center justify-center py-12">
-                <ScrollText className="h-12 w-12 text-muted-foreground mb-4" />
-                <p className="text-muted-foreground text-center">
-                  No quests yet. {isDm && "Add your first quest to get started."}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {quests.map((quest) => (
-              <div 
-                key={quest.id} 
-                className="h-64"
-                style={{ 
-                  color: 'rgba(245, 243, 240, 1)',
-                  backgroundColor: 'rgba(253, 230, 138, 1)'
-                }}
-              >
-                <QuestNote
-                  quest={quest}
-                  isDm={isDm}
-                  onEdit={isDm ? (q) => setEditingQuest(q) : undefined}
-                  onDelete={isDm ? (id) => setDeletingQuestId(id) : undefined}
-                />
-              </div>
-            ))}
-          </div>
-        )}
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <ScrollText className="h-16 w-16 text-muted-foreground/50 mb-4" />
+            <p className="text-muted-foreground text-center">
+              No quests yet. {isDm && "Add your first quest to get started."}
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {quests.map((quest) => (
+            <div
+              key={quest.id}
+              className="h-64"
+              style={{
+                color: 'rgba(245, 243, 240, 1)',
+                backgroundColor: 'rgba(253, 230, 138, 1)'
+              }}
+            >
+              <QuestNote
+                quest={quest}
+                isDm={isDm}
+                onEdit={isDm ? (q) => setEditingQuest(q) : undefined}
+                onDelete={isDm ? (id) => setDeletingQuestId(id) : undefined}
+              />
+            </div>
+          ))}
+        </div>
+      )}
 
-      {/* Create/Edit Dialog */}
       {userId && (
         <QuestFormDialog
           open={createDialogOpen || editingQuest !== null}
@@ -224,7 +186,6 @@ export default function QuestBoardPage() {
         />
       )}
 
-      {/* Delete Confirmation Dialog */}
       <AlertDialog
         open={deletingQuestId !== null}
         onOpenChange={(open) => !open && setDeletingQuestId(null)}

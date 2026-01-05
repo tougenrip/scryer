@@ -1,11 +1,9 @@
 "use client";
 
-import { useEffect } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useCampaign } from "@/hooks/useCampaigns";
 import {
   useCampaignNPCs,
   useCreateNPC,
@@ -28,27 +26,21 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-export default function NPCsPage() {
-  const params = useParams();
-  const router = useRouter();
-  const campaignId = params.campaignId as string;
+interface NPCsTabProps {
+  campaignId: string;
+  isDm: boolean;
+}
 
-  useEffect(() => {
-    router.replace(`/campaigns/${campaignId}/forge?tab=npcs`);
-  }, [campaignId, router]);
-
-  return null;
+export function NPCsTab({ campaignId, isDm }: NPCsTabProps) {
   const [userId, setUserId] = useState<string | null>(null);
-  const [isDm, setIsDm] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editingNPC, setEditingNPC] = useState<NPC | null>(null);
   const [deletingNPCId, setDeletingNPCId] = useState<string | null>(null);
 
-  const { campaign, loading: campaignLoading } = useCampaign(campaignId);
-  const { npcs, loading: npcsLoading, refetch: refetchNPCs } = useCampaignNPCs(campaignId);
-  const { createNPC, loading: creating } = useCreateNPC();
-  const { updateNPC, loading: updating } = useUpdateNPC();
-  const { deleteNPC, loading: deleting } = useDeleteNPC();
+  const { npcs, loading, refetch } = useCampaignNPCs(campaignId);
+  const { createNPC } = useCreateNPC();
+  const { updateNPC } = useUpdateNPC();
+  const { deleteNPC, deleting } = useDeleteNPC();
 
   useEffect(() => {
     async function getUser() {
@@ -56,13 +48,10 @@ export default function NPCsPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         setUserId(user.id);
-        if (campaign) {
-          setIsDm(campaign.dm_user_id === user.id);
-        }
       }
     }
     getUser();
-  }, [campaign]);
+  }, []);
 
   const handleCreate = async (data: {
     campaign_id: string;
@@ -80,10 +69,9 @@ export default function NPCsPage() {
     if (result.success) {
       toast.success("NPC created successfully");
       setCreateDialogOpen(false);
-      refetchNPCs();
+      refetch();
     } else {
       toast.error(result.error?.message || "Failed to create NPC");
-      return result;
     }
     return { success: true };
   };
@@ -105,10 +93,9 @@ export default function NPCsPage() {
     if (result.success) {
       toast.success("NPC updated successfully");
       setEditingNPC(null);
-      refetchNPCs();
+      refetch();
     } else {
       toast.error(result.error?.message || "Failed to update NPC");
-      return result;
     }
     return { success: true };
   };
@@ -119,53 +106,32 @@ export default function NPCsPage() {
     if (result.success) {
       toast.success("NPC deleted successfully");
       setDeletingNPCId(null);
-      refetchNPCs();
+      refetch();
     } else {
       toast.error(result.error?.message || "Failed to delete NPC");
     }
   };
 
-  if (campaignLoading || npcsLoading) {
+  if (loading) {
     return (
-      <div className="space-y-8">
-        <div className="flex items-center justify-between">
-          <div>
-            <Skeleton className="h-9 w-64 mb-2" />
-            <Skeleton className="h-5 w-96" />
-          </div>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {[1, 2, 3].map((i) => (
-            <Card key={i} className="h-64">
-              <CardContent className="p-0">
-                <Skeleton className="h-full w-full" />
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  if (!campaign) {
-    return (
-      <div className="space-y-8">
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-destructive">Campaign not found</p>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {[1, 2, 3].map((i) => (
+          <Card key={i} className="h-64">
+            <CardContent className="p-0">
+              <Skeleton className="h-full w-full" />
+            </CardContent>
+          </Card>
+        ))}
       </div>
     );
   }
 
   return (
-    <div className="space-y-8">
-      {/* Header */}
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="font-serif text-3xl font-bold">NPCs</h1>
-          <p className="text-muted-foreground mt-1">
+          <h2 className="font-serif text-2xl font-semibold">NPCs</h2>
+          <p className="text-muted-foreground text-sm">
             Manage non-player characters for your campaign
           </p>
         </div>
@@ -177,7 +143,6 @@ export default function NPCsPage() {
         )}
       </div>
 
-      {/* NPCs Grid */}
       {npcs.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
@@ -192,7 +157,6 @@ export default function NPCsPage() {
           {npcs.map((npc) => (
             <Card key={npc.id} className="overflow-hidden flex flex-col h-full">
               <CardContent className="p-0 flex flex-col h-full">
-                {/* Image */}
                 <div className="w-full aspect-square bg-muted overflow-hidden flex-shrink-0">
                   {npc.image_url ? (
                     <img
@@ -206,7 +170,6 @@ export default function NPCsPage() {
                     </div>
                   )}
                 </div>
-                {/* Content */}
                 <div className="p-6 flex flex-col flex-1 min-h-0">
                   <div className="space-y-3 flex-1">
                     <div>
@@ -251,7 +214,6 @@ export default function NPCsPage() {
         </div>
       )}
 
-      {/* Create/Edit Dialog */}
       {userId && (
         <NPCFormDialog
           open={createDialogOpen || editingNPC !== null}
@@ -269,7 +231,6 @@ export default function NPCsPage() {
         />
       )}
 
-      {/* Delete Confirmation Dialog */}
       <AlertDialog
         open={deletingNPCId !== null}
         onOpenChange={(open) => !open && setDeletingNPCId(null)}

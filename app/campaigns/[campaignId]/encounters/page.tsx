@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useEffect } from "react";
+import { useParams, useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -33,7 +33,14 @@ import {
 
 export default function EncountersPage() {
   const params = useParams();
+  const router = useRouter();
   const campaignId = params.campaignId as string;
+
+  useEffect(() => {
+    router.replace(`/campaigns/${campaignId}/forge?tab=encounters`);
+  }, [campaignId, router]);
+
+  return null;
   const [userId, setUserId] = useState<string | null>(null);
   const [isDm, setIsDm] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
