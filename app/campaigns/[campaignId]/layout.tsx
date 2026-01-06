@@ -9,6 +9,7 @@ import { Menu } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { useCampaign } from "@/hooks/useCampaigns";
 import { createClient } from "@/lib/supabase/client";
+import type { User } from "@supabase/supabase-js";
 import { cn } from "@/lib/utils";
 
 export default function CampaignLayout({
@@ -21,7 +22,7 @@ export default function CampaignLayout({
   const campaignId = params.campaignId as string;
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
   const { campaign } = useCampaign(campaignId);
 
   const campaignName = campaign?.name || "Campaign";

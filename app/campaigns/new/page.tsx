@@ -6,10 +6,11 @@ import { Navbar } from "@/components/shared/navbar";
 import { CampaignForm } from "@/components/campaign/campaign-form";
 import { createClient } from "@/lib/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
+import type { User } from "@supabase/supabase-js";
 
 export default function NewCampaignPage() {
   const router = useRouter();
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
 
   useEffect(() => {

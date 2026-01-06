@@ -46,8 +46,8 @@ export default function NPCsPage() {
 
   const { campaign, loading: campaignLoading } = useCampaign(campaignId);
   const { npcs, loading: npcsLoading, refetch: refetchNPCs } = useCampaignNPCs(campaignId);
-  const { createNPC, loading: creating } = useCreateNPC();
-  const { updateNPC, loading: updating } = useUpdateNPC();
+  const { createNPC } = useCreateNPC(); // loading: creating unused
+  const { updateNPC } = useUpdateNPC(); // loading: updating unused
   const { deleteNPC, loading: deleting } = useDeleteNPC();
 
   useEffect(() => {

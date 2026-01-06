@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Character } from "@/hooks/useDndContent";
 import { useRaces, useClasses, useCharacterClasses } from "@/hooks/useDndContent";
-import { AbilityScores } from "./ability-scores";
+// import { AbilityScores } from "./ability-scores";
 import { CombatStats } from "./combat-stats";
 import { SavingThrows } from "./saving-throws";
 import { SensesCard } from "./senses-card";
@@ -22,25 +22,25 @@ import { BackgroundTab } from "./background-tab";
 import { ExtrasTab } from "./extras-tab";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { DND_SKILLS, type SkillName, getAbilityModifierString } from "@/lib/utils/character";
+import { type SkillName, getAbilityModifierString } from "@/lib/utils/character";
 import { toast } from "sonner";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useInfoSheet } from "@/hooks/useInfoSheet";
 import { InfoSheetDialog } from "@/components/shared/info-sheet-dialog";
 import { useDiceRoller } from "@/contexts/dice-roller-context";
 import { getAbilityModifier } from "@/lib/utils/character";
 import { Strength, Dexterity, Constitution, Intelligence, Wisdom, Charisma } from "dnd-icons/ability";
-import { Ac, SavingThrow } from "dnd-icons/attribute";
-import { Initiative } from "dnd-icons/combat";
+// import { Ac, SavingThrow } from "dnd-icons/attribute";
+// import { Initiative } from "dnd-icons/combat";
 import { Action } from "dnd-icons/combat";
 import { Spell } from "dnd-icons/game";
-import { Weapon, Armor, Book } from "dnd-icons/entity";
-import { Blinded, Charmed, Deafened, Exhaustion, Frightened, Grappled, Incapacitated, Invisible, Paralyzed, Petrified, Poisoned, Prone, Restrained, Stunned, Unconscious } from "dnd-icons/condition";
+import { Book } from "dnd-icons/entity";
+// import { Blinded, Charmed, Deafened, Exhaustion, Frightened, Grappled, Incapacitated, Invisible, Paralyzed, Petrified, Poisoned, Prone, Restrained, Stunned, Unconscious } from "dnd-icons/condition";
 import { Acid, Bludgeoning, Cold, Fire, Force, Lightning, Necrotic, Piercing, Poison, Psychic, Radiant, Slashing, Thunder } from "dnd-icons/damage";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+// import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { getProficiencyBonus, extractFeaturesForLevel, getAllFeaturesUpToLevel, calculateSpellSlots, calculateSkillProficiencies, calculateSavingThrowProficiencies, type ExtractedFeature } from "@/lib/utils/character";
+import { getProficiencyBonus, calculateSpellSlots, calculateSkillProficiencies, calculateSavingThrowProficiencies, calculateMulticlassSpellSlots } from "@/lib/utils/character";
 import { Plus, Minus, Edit } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { LevelUpModal, type NewFeature } from "./level-up-modal";
@@ -48,7 +48,7 @@ import { useFeatureChoices } from "@/hooks/useFeatureChoices";
 import { parseFeatureChoices, hasFeatureChoices, isAbilityScoreImprovement } from "@/lib/utils/feature-parser";
 import type { AnyFeatureChoice } from "@/types/feature-choices";
 import type { EnrichedInventoryItem } from "@/lib/utils/equipment-effects";
-import type { SrdEquipment, HomebrewEquipment, Equipment } from "@/hooks/useDndContent";
+import type { SrdEquipment, HomebrewEquipment, Equipment, SrdSpell, HomebrewSpell } from "@/hooks/useDndContent";
 import { useEquipmentEffects } from "@/hooks/useEquipmentEffects";
 
 interface CharacterSheetProps {
@@ -65,7 +65,7 @@ export function CharacterSheet({
   const router = useRouter();
   const [skills, setSkills] = useState<Record<SkillName, { proficient: boolean; expertise: boolean }>>({} as Record<SkillName, { proficient: boolean; expertise: boolean }>);
   const [spellSlots, setSpellSlots] = useState<Array<{ level: number; total: number; used: number }>>([]);
-  const [characterSpells, setCharacterSpells] = useState<Array<{ spell: any; prepared: boolean; alwaysPrepared: boolean }>>([]);
+  const [characterSpells, setCharacterSpells] = useState<Array<{ spell: SrdSpell | HomebrewSpell | any; prepared: boolean; alwaysPrepared: boolean }>>([]);
   const [inventory, setInventory] = useState<EnrichedInventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [previousLevel, setPreviousLevel] = useState(character.level || 1);
@@ -285,7 +285,7 @@ export function CharacterSheet({
         let calculatedSlots: Array<{ level: number; total: number; used: number }> = [];
         
         if (multiclassClasses && multiclassClasses.length > 0) {
-          const { calculateMulticlassSpellSlots } = require('@/lib/utils/character');
+          // const { calculateMulticlassSpellSlots } = require('@/lib/utils/character');
           const classArray = multiclassClasses.map(({ characterClass }) => ({
             class_source: characterClass.class_source,
             class_index: characterClass.class_index,
@@ -324,7 +324,7 @@ export function CharacterSheet({
 
       // Fetch spells - check JSONB column first, fall back to junction table
       console.log('Fetching spells for character ID:', character.id);
-      let spellsWithData: Array<{ spell: any; prepared: boolean; alwaysPrepared: boolean }> = [];
+      let spellsWithData: Array<{ spell: SrdSpell | HomebrewSpell | any; prepared: boolean; alwaysPrepared: boolean }> = [];
       
       // Check if character has spells in JSONB column
       if (character.spells && Array.isArray(character.spells) && character.spells.length > 0) {

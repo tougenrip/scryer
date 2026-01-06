@@ -10,6 +10,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { CheckCircle2, XCircle } from "lucide-react";
+import type { User } from "@supabase/supabase-js";
 
 export default function JoinCampaignPage() {
   const params = useParams();
@@ -17,7 +18,7 @@ export default function JoinCampaignPage() {
   const campaignId = params.campaignId as string;
   const { campaign, loading: campaignLoading } = useCampaign(campaignId);
   const { invitePlayer, loading: joining } = useInvitePlayer();
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [joined, setJoined] = useState(false);
 
@@ -87,7 +88,7 @@ export default function JoinCampaignPage() {
                 <XCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
                 <h2 className="font-serif text-xl font-semibold mb-2">Campaign Not Found</h2>
                 <p className="text-muted-foreground mb-6">
-                  This campaign doesn't exist or the invite link is invalid.
+                  This campaign doesn&apos;t exist or the invite link is invalid.
                 </p>
                 <Button onClick={() => router.push("/campaigns")}>
                   Go to My Campaigns
@@ -117,7 +118,7 @@ export default function JoinCampaignPage() {
                 <CheckCircle2 className="h-16 w-16 text-green-600 mx-auto mb-4" />
                 <h3 className="font-serif text-xl font-semibold mb-2">Successfully Joined!</h3>
                 <p className="text-muted-foreground mb-6">
-                  You've been added to the campaign. Redirecting...
+                  You&apos;ve been added to the campaign. Redirecting...
                 </p>
               </div>
             ) : (
@@ -125,7 +126,7 @@ export default function JoinCampaignPage() {
                 <div className="space-y-2">
                   <h3 className="font-semibold">Campaign Details</h3>
                   <p className="text-sm text-muted-foreground">
-                    You've been invited to join this campaign. Click the button below to accept the invitation.
+                    You&apos;ve been invited to join this campaign. Click the button below to accept the invitation.
                   </p>
                 </div>
                 <Button

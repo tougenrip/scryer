@@ -14,6 +14,7 @@ import {
 } from "@/hooks/useDndContent";
 import { CharacterCard } from "@/components/campaign/character-card";
 import { DmNotes } from "@/components/campaign/dm-notes";
+import { PartyToolsPanel } from "@/components/tools/PartyToolsPanel";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import Link from "next/link";
@@ -251,6 +252,21 @@ export default function CampaignDashboard() {
           )}
         </div>
       )}
+
+      {/* Party Tools Section */}
+      <div className="space-y-4">
+        <div>
+          <h2 className="font-serif text-2xl font-semibold">Party Tools</h2>
+          <p className="text-sm text-muted-foreground">
+            Quick access to campaign objectives, party inventory, and notes
+          </p>
+        </div>
+        <Card>
+          <CardContent className="pt-6">
+            <PartyToolsPanel campaignId={campaignId} isDm={isDm} />
+          </CardContent>
+        </Card>
+      </div>
 
       {/* DM Notes Section */}
       {isDm && campaign && (

@@ -32,7 +32,7 @@ import Link from "next/link";
 export default function MapsPage() {
   const params = useParams();
   const campaignId = params.campaignId as string;
-  const [userId, setUserId] = useState<string | null>(null);
+  // const [userId, setUserId] = useState<string | null>(null);
   const [isDm, setIsDm] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editingMap, setEditingMap] = useState<Map | null>(null);
@@ -40,8 +40,8 @@ export default function MapsPage() {
 
   const { campaign, loading: campaignLoading } = useCampaign(campaignId);
   const { maps, loading: mapsLoading, refetch: refetchMaps } = useCampaignMaps(campaignId);
-  const { createMap, loading: creating } = useCreateMap();
-  const { updateMap, loading: updating } = useUpdateMap();
+  const { createMap } = useCreateMap(); // loading: creating unused
+  const { updateMap } = useUpdateMap(); // loading: updating unused
   const { deleteMap, loading: deleting } = useDeleteMap();
 
   useEffect(() => {
@@ -49,7 +49,7 @@ export default function MapsPage() {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        setUserId(user.id);
+        // setUserId(user.id);
         if (campaign) {
           setIsDm(campaign.dm_user_id === user.id);
         }

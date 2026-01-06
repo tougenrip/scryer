@@ -11,10 +11,11 @@ import { CampaignCard } from "@/components/campaign/campaign-card";
 import { CampaignForm } from "@/components/campaign/campaign-form";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useRouter } from "next/navigation";
+import type { User } from "@supabase/supabase-js";
 
 export default function CampaignsPage() {
   const router = useRouter();
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const { campaigns, loading, error } = useCampaigns(userId);

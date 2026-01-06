@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
+// import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Navbar } from "@/components/shared/navbar";
@@ -22,7 +22,7 @@ import { toast } from "sonner";
 import { Artificer, Barbarian, Bard, Cleric, Druid, Fighter, Monk, Paladin, Ranger, Rogue, Sorcerer, Warlock, Wizard } from "dnd-icons/class";
 import { Strength, Dexterity, Constitution, Intelligence, Wisdom, Charisma } from "dnd-icons/ability";
 import { Character as CharacterIcon, Campaign } from "dnd-icons/game";
-import { Weapon, Armor, Book, Person } from "dnd-icons/entity";
+import { Weapon, Book, Person } from "dnd-icons/entity";
 import {
   getAbilityModifier,
   getAbilityModifierString,
@@ -36,8 +36,8 @@ import {
   DND_SKILLS,
   getFullAbilityName,
 } from "@/lib/utils/character";
-import { checkMulticlassPrerequisites } from "@/lib/utils/multiclass";
-import type { Race, DndClass, Subclass } from "@/hooks/useDndContent";
+import { checkMulticlassPrerequisites, getHitDiceBreakdown } from "@/lib/utils/multiclass";
+import type { Race, DndClass } from "@/hooks/useDndContent";
 import type { Character } from "@/hooks/useDndContent";
 
 type AbilityScoreMethod = "point-buy" | "standard-array" | "manual";
@@ -167,16 +167,16 @@ const MUSICAL_INSTRUMENTS = [
   "Viol",
 ];
 
-const OTHER_TOOLS = [
-  "Disguise kit",
-  "Forgery kit",
-  "Herbalism kit",
-  "Navigator's tools",
-  "Poisoner's kit",
-  "Thieves' tools",
-  "Vehicles (land)",
-  "Vehicles (water)",
-];
+// const OTHER_TOOLS = [
+//   "Disguise kit",
+//   "Forgery kit",
+//   "Herbalism kit",
+//   "Navigator's tools",
+//   "Poisoner's kit",
+//   "Thieves' tools",
+//   "Vehicles (land)",
+//   "Vehicles (water)",
+// ];
 
 // Helper to parse background requirements
 function parseBackgroundLanguages(languageStr: string | null): { count: number; fixed: string[] } {
@@ -276,7 +276,7 @@ export default function CharacterCreatorPage() {
   
   const { races, loading: racesLoading, error: racesError } = useRaces(formData.campaignId, formData.sourceVersion);
   const { classes, loading: classesLoading, error: classesError } = useClasses(formData.campaignId, formData.sourceVersion);
-  const { subclasses, loading: subclassesLoading, error: subclassesError } = useSubclasses(
+  const { subclasses } = useSubclasses(
     formData.classIndex,
     formData.classSource,
     formData.campaignId,
@@ -597,7 +597,7 @@ export default function CharacterCreatorPage() {
     const hpMax = hitDie + constitutionMod;
     
     // Calculate hit dice breakdown for multiclass
-    const { getHitDiceBreakdown } = require('@/lib/utils/multiclass');
+    // const { getHitDiceBreakdown } = require('@/lib/utils/multiclass');
     const hitDiceBreakdown = formData.classes.length > 1 
       ? getHitDiceBreakdown(formData.classes.map(c => ({
           class_source: c.classSource,
@@ -2055,115 +2055,115 @@ function LevelDistributionStep({
   );
 }
 
-function SubclassSelectionStep({
-  subclasses,
-  loading,
-  selectedSubclass,
-  selectedClass,
-  onSelect,
-  onSkip,
-  error,
-  infoSheet,
-}: {
-  subclasses: Subclass[];
-  loading: boolean;
-  selectedSubclass: Subclass | null | undefined;
-  selectedClass: DndClass | null | undefined;
-  onSelect: (subclass: Subclass) => void;
-  onSkip: () => void;
-  error?: Error | null;
-  infoSheet: ReturnType<typeof useInfoSheet>;
-}) {
-  if (!selectedClass) {
-    return (
-      <div className="p-4 border border-muted rounded-md">
-        <p className="text-muted-foreground">Please select a class first.</p>
-      </div>
-    );
-  }
+// function SubclassSelectionStep({
+//   subclasses,
+//   loading,
+//   selectedSubclass,
+//   selectedClass,
+//   onSelect,
+//   onSkip,
+//   error,
+//   infoSheet,
+// }: {
+//   subclasses: Subclass[];
+//   loading: boolean;
+//   selectedSubclass: Subclass | null | undefined;
+//   selectedClass: DndClass | null | undefined;
+//   onSelect: (subclass: Subclass) => void;
+//   onSkip: () => void;
+//   error?: Error | null;
+//   infoSheet: ReturnType<typeof useInfoSheet>;
+// }) {
+//   if (!selectedClass) {
+//     return (
+//       <div className="p-4 border border-muted rounded-md">
+//         <p className="text-muted-foreground">Please select a class first.</p>
+//       </div>
+//     );
+//   }
 
-  if (loading) {
-    return <Skeleton className="h-64 w-full" />;
-  }
+//   if (loading) {
+//     return <Skeleton className="h-64 w-full" />;
+//   }
 
-  if (error) {
-    return (
-      <div className="p-4 border border-destructive rounded-md bg-destructive/10">
-        <p className="text-destructive font-medium">Error loading subclasses</p>
-        <p className="text-sm text-muted-foreground mt-1">{error.message}</p>
-      </div>
-    );
-  }
+//   if (error) {
+//     return (
+//       <div className="p-4 border border-destructive rounded-md bg-destructive/10">
+//         <p className="text-destructive font-medium">Error loading subclasses</p>
+//         <p className="text-sm text-muted-foreground mt-1">{error.message}</p>
+//       </div>
+//     );
+//   }
 
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
-          {subclasses.length === 0 
-            ? "No subclasses available for this class. You can skip this step."
-            : "Select a subclass for your character. Subclasses are optional but provide additional features."}
-        </p>
-        <Button variant="outline" onClick={onSkip}>
-          Skip Subclass
-        </Button>
-      </div>
+//   return (
+//     <div className="space-y-4">
+//       <div className="flex items-center justify-between">
+//         <p className="text-sm text-muted-foreground">
+//           {subclasses.length === 0 
+//             ? "No subclasses available for this class. You can skip this step."
+//             : "Select a subclass for your character. Subclasses are optional but provide additional features."}
+//         </p>
+//         <Button variant="outline" onClick={onSkip}>
+//           Skip Subclass
+//         </Button>
+//       </div>
 
-      {subclasses.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {subclasses.map((subclass) => (
-            <Card
-              key={`${subclass.source}-${subclass.index}`}
-              className={`cursor-pointer transition-all hover:shadow-md ${
-                selectedSubclass?.source === subclass.source && selectedSubclass?.index === subclass.index
-                  ? "ring-2 ring-primary"
-                  : ""
-              }`}
-              onClick={() => onSelect(subclass)}
-            >
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg">{subclass.name}</CardTitle>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        // Show full subclass info including features
-                        infoSheet.showSubclass(subclass, selectedClass?.name);
-                      }}
-                    >
-                      <Info className="h-4 w-4" />
-                    </Button>
-                    <Badge variant={subclass.source === "srd" ? "default" : "secondary"}>
-                      {subclass.source}
-                    </Badge>
-                  </div>
-                </div>
-                {subclass.subclass_flavor && (
-                  <CardDescription>{subclass.subclass_flavor}</CardDescription>
-                )}
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {subclass.description && (
-                    <p className="text-sm text-muted-foreground line-clamp-2">
-                      {subclass.description}
-                    </p>
-                  )}
-                  <div className="text-xs text-muted-foreground mt-2">
-                    Click <Info className="h-3 w-3 inline" /> for full subclass features
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
+//       {subclasses.length > 0 && (
+//         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+//           {subclasses.map((subclass) => (
+//             <Card
+//               key={`${subclass.source}-${subclass.index}`}
+//               className={`cursor-pointer transition-all hover:shadow-md ${
+//                 selectedSubclass?.source === subclass.source && selectedSubclass?.index === subclass.index
+//                   ? "ring-2 ring-primary"
+//                   : ""
+//               }`}
+//               onClick={() => onSelect(subclass)}
+//             >
+//               <CardHeader>
+//                 <div className="flex items-center justify-between">
+//                   <CardTitle className="text-lg">{subclass.name}</CardTitle>
+//                   <div className="flex items-center gap-2">
+//                     <Button
+//                       variant="ghost"
+//                       size="icon"
+//                       className="h-6 w-6"
+//                       onClick={(e) => {
+//                         e.stopPropagation();
+//                         // Show full subclass info including features
+//                         infoSheet.showSubclass(subclass, selectedClass?.name);
+//                       }}
+//                     >
+//                       <Info className="h-4 w-4" />
+//                     </Button>
+//                     <Badge variant={subclass.source === "srd" ? "default" : "secondary"}>
+//                       {subclass.source}
+//                     </Badge>
+//                   </div>
+//                 </div>
+//                 {subclass.subclass_flavor && (
+//                   <CardDescription>{subclass.subclass_flavor}</CardDescription>
+//                 )}
+//               </CardHeader>
+//               <CardContent>
+//                 <div className="space-y-2">
+//                   {subclass.description && (
+//                     <p className="text-sm text-muted-foreground line-clamp-2">
+//                       {subclass.description}
+//                     </p>
+//                   )}
+//                   <div className="text-xs text-muted-foreground mt-2">
+//                     Click <Info className="h-3 w-3 inline" /> for full subclass features
+//                   </div>
+//                 </div>
+//               </CardContent>
+//             </Card>
+//           ))}
+//         </div>
+//       )}
+//     </div>
+//   );
+// }
 
 // Single class subclass selector (used within MulticlassSubclassStep)
 function SingleClassSubclassSelector({
@@ -3418,14 +3418,14 @@ function EquipmentStep({
   setFormData,
   equipment,
   loading,
-  campaignId,
+  // campaignId,
 }: {
   selectedClass: DndClass | null | undefined;
   formData: CharacterFormData;
   setFormData: (data: CharacterFormData) => void;
   equipment: Equipment[];
   loading: boolean;
-  campaignId: string | null;
+  // campaignId: string | null;
 }) {
   const [selectedItems, setSelectedItems] = useState<Map<string, number>>(
     new Map(formData.selectedEquipment.map(item => [`${item.itemSource}-${item.itemIndex}`, item.quantity]))
@@ -3712,13 +3712,13 @@ function ReviewStep({
   formData,
   selectedRace,
   selectedClass,
-  selectedSubclass,
+  // selectedSubclass,
   getFinalAbilityScore,
 }: {
   formData: CharacterFormData;
   selectedRace: Race | null | undefined;
   selectedClass: DndClass | null | undefined;
-  selectedSubclass: Subclass | null | undefined;
+  // selectedSubclass: Subclass | null | undefined;
   getFinalAbilityScore: (ability: keyof typeof formData.abilityScores) => number;
 }) {
   const abilities = ["strength", "dexterity", "constitution", "intelligence", "wisdom", "charisma"] as const;

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
@@ -31,7 +31,7 @@ import {
   Landmark,
   Castle,
   TreePine,
-  Island,
+  // Island,
   Waves,
 } from "lucide-react";
 import {
@@ -66,7 +66,7 @@ const typeIcons: Partial<Record<LocationType, any>> = {
   structure: Building2,
   lair: Castle,
   biome: TreePine,
-  island: Island,
+  island: Waves, // Island icon not available in this version
   archipelago: Waves,
 };
 
@@ -177,7 +177,7 @@ export function LocationsTab({ campaignId, isDm }: LocationsTabProps) {
     image_url?: string | null;
     marker_color?: string | null;
     status?: string | null;
-    metadata?: Record<string, any>;
+    metadata?: any;
   }) => {
     if (editingLocation) {
       const result = await updateLocation(editingLocation.id, data);

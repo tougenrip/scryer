@@ -19,7 +19,7 @@ import { MediaDragDrop } from "@/components/campaign/media-drag-drop";
 import { MediaLibraryGrid } from "@/components/campaign/media-library-grid";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
-import { Plus, Image as ImageIcon } from "lucide-react";
+import { Plus } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -36,7 +36,7 @@ type MediaType = 'all' | 'map' | 'token' | 'prop';
 export default function MediaLibraryPage() {
   const params = useParams();
   const campaignId = params.campaignId as string;
-  const [userId, setUserId] = useState<string | null>(null);
+  // const [userId, setUserId] = useState<string | null>(null);
   const [isDm, setIsDm] = useState(false);
   const [activeTab, setActiveTab] = useState<MediaType>('all');
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -50,7 +50,7 @@ export default function MediaLibraryPage() {
     activeTab === 'all' ? null : activeTab
   );
   const { createMediaItem, loading: creating } = useCreateMediaItem();
-  const { updateMediaItem, loading: updating } = useUpdateMediaItem();
+  const { updateMediaItem } = useUpdateMediaItem(); // loading: updating unused
   const { deleteMediaItem, loading: deleting } = useDeleteMediaItem();
 
   useEffect(() => {
@@ -58,7 +58,7 @@ export default function MediaLibraryPage() {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        setUserId(user.id);
+        // setUserId(user.id);
         if (campaign) {
           setIsDm(campaign.dm_user_id === user.id);
         }

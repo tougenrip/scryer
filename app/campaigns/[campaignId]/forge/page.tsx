@@ -37,7 +37,7 @@ export default function ForgePage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const campaignId = params.campaignId as string;
-  const [userId, setUserId] = useState<string | null>(null);
+  // const [userId, setUserId] = useState<string | null>(null);
   const [isDm, setIsDm] = useState(false);
   
   // Get initial tab from URL params or default to 'scenes'
@@ -56,7 +56,7 @@ export default function ForgePage() {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        setUserId(user.id);
+        // setUserId(user.id);
         if (campaign) {
           setIsDm(campaign.dm_user_id === user.id);
         }

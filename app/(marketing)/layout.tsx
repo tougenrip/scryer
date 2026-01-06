@@ -1,5 +1,6 @@
 import { Navbar } from "@/components/shared/navbar";
 import { createClient } from "@/lib/supabase/server";
+import Link from "next/link";
 
 export default async function MarketingLayout({
   children,
@@ -36,18 +37,18 @@ function Footer() {
           <div>
             <h4 className="font-medium mb-3">Product</h4>
             <ul className="space-y-2 text-sm text-muted-foreground">
-              <li><a href="#features" className="hover:text-foreground transition-colors">Features</a></li>
-              <li><a href="/campaigns" className="hover:text-foreground transition-colors">Campaigns</a></li>
-              <li><a href="/character-creator" className="hover:text-foreground transition-colors">Character Creator</a></li>
+              <li><Link href="#features" className="hover:text-foreground transition-colors">Features</Link></li>
+              <li><Link href="/campaigns" className="hover:text-foreground transition-colors">Campaigns</Link></li>
+              <li><Link href="/character-creator" className="hover:text-foreground transition-colors">Character Creator</Link></li>
             </ul>
           </div>
 
           <div>
             <h4 className="font-medium mb-3">Resources</h4>
             <ul className="space-y-2 text-sm text-muted-foreground">
-              <li><a href="/docs" className="hover:text-foreground transition-colors">Documentation</a></li>
+              <li><Link href="/docs" className="hover:text-foreground transition-colors">Documentation</Link></li>
               <li><a href="https://github.com" target="_blank" rel="noreferrer" className="hover:text-foreground transition-colors">GitHub</a></li>
-              <li><a href="/changelog" className="hover:text-foreground transition-colors">Changelog</a></li>
+              <li><Link href="/changelog" className="hover:text-foreground transition-colors">Changelog</Link></li>
             </ul>
           </div>
         </div>

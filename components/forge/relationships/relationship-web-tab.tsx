@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useRef } from "react";
+import { useMemo, useRef, useState, useEffect, useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { RelationshipGraph, UnifiedRelationship } from "./relationship-graph";
+import { RelationshipType } from "./affinity-edge";
 import { useCampaignNPCs } from "@/hooks/useCampaignContent";
 import {
   useFactions,
@@ -16,15 +17,17 @@ import {
   FactionRelationship,
 } from "@/hooks/useForgeContent";
 import { createClient } from "@/lib/supabase/client";
-import { useState, useEffect, useCallback } from "react";
+import { Tables } from "@/types/supabase";
 
 interface RelationshipWebTabProps {
   campaignId: string;
   isDm: boolean;
 }
 
+type LocationRelationship = Tables<"location_relationships">;
+
 // Fetch location relationships (need to check if there's a hook for this)
-async function fetchLocationRelationships(campaignId: string) {
+async function fetchLocationRelationships(campaignId: string): Promise<LocationRelationship[]> {
   const supabase = createClient();
   const { data, error } = await supabase
     .from('location_relationships')
@@ -39,7 +42,7 @@ async function fetchLocationRelationships(campaignId: string) {
   return data || [];
 }
 
-export function RelationshipWebTab({ campaignId, isDm }: RelationshipWebTabProps) {
+export function RelationshipWebTab({ campaignId }: RelationshipWebTabProps) {
   const { npcs, loading: npcsLoading } = useCampaignNPCs(campaignId);
   const { factions, loading: factionsLoading } = useFactions(campaignId);
   const { locations, loading: locationsLoading } = useWorldLocations(campaignId);
@@ -49,7 +52,7 @@ export function RelationshipWebTab({ campaignId, isDm }: RelationshipWebTabProps
   const { overrides: strengthOverrides, loading: overridesLoading, refetch: refetchOverrides } = useRelationshipStrengthOverrides(campaignId);
   const { upsertOverride } = useUpsertRelationshipStrengthOverride();
   
-  const [locationRelationships, setLocationRelationships] = useState<any[]>([]);
+  const [locationRelationships, setLocationRelationships] = useState<LocationRelationship[]>([]);
   const [locationRelsLoading, setLocationRelsLoading] = useState(true);
   
   // Convert overrides array to Map for easier lookup
@@ -75,7 +78,7 @@ export function RelationshipWebTab({ campaignId, isDm }: RelationshipWebTabProps
   const relationshipsStructure = useMemo(() => {
     return [
       factionRelationships.map((r: FactionRelationship) => `faction-${r.faction_a_id}-${r.faction_b_id}`).sort().join(','),
-      locationRelationships.map((r: any) => `location-${r.location_a_id}-${r.location_b_id}`).sort().join(','),
+      locationRelationships.map((r: LocationRelationship) => `location-${r.location_a_id}-${r.location_b_id}`).sort().join(','),
       factions?.filter(f => f.headquarters_location_id).map(f => `faction-hq-${f.id}-${f.headquarters_location_id}`).sort().join(','),
       factions?.filter(f => f.leader_npc_id).map(f => `faction-leader-${f.id}-${f.leader_npc_id}`).sort().join(','),
       locations?.filter(l => l.parent_location_id).map(l => `location-parent-${l.id}-${l.parent_location_id}`).sort().join(','),
@@ -98,8 +101,8 @@ export function RelationshipWebTab({ campaignId, isDm }: RelationshipWebTabProps
       factionRelationships.forEach((rel: FactionRelationship) => {
         strengthMap.set(`faction-${rel.id}`, rel.strength);
       });
-      locationRelationships.forEach((rel: any) => {
-        strengthMap.set(`location-${rel.id}`, Math.max(0, Math.min(100, rel.affection_score + 100)));
+      locationRelationships.forEach((rel: LocationRelationship) => {
+        strengthMap.set(`location-${rel.id}`, Math.max(0, Math.min(100, (rel.affection_score ?? 0) + 100)));
       });
       factions?.forEach((faction) => {
         if (faction.headquarters_location_id) {
@@ -117,12 +120,12 @@ export function RelationshipWebTab({ campaignId, isDm }: RelationshipWebTabProps
         if (location.parent_location_id) {
           const relId = `location-parent-${location.id}-${location.parent_location_id}`;
           const existingRel = locationRelationships.find(
-            (r: any) => 
+            (r: LocationRelationship) => 
               (r.location_a_id === location.id && r.location_b_id === location.parent_location_id) ||
               (r.location_a_id === location.parent_location_id && r.location_b_id === location.id)
           );
           if (existingRel) {
-            strengthMap.set(`location-${existingRel.id}`, Math.max(0, Math.min(100, existingRel.affection_score + 100)));
+            strengthMap.set(`location-${existingRel.id}`, Math.max(0, Math.min(100, (existingRel.affection_score ?? 0) + 100)));
           } else {
             strengthMap.set(relId, strengthOverridesMap.get(relId) ?? 80);
           }
@@ -162,7 +165,7 @@ export function RelationshipWebTab({ campaignId, isDm }: RelationshipWebTabProps
         targetId: rel.faction_b_id,
         sourceType: 'faction',
         targetType: 'faction',
-        type: (rel.relationship_type || 'neutral') as any,
+        type: (rel.relationship_type || 'neutral') as RelationshipType,
         strength: rel.strength,
         isSecret: !rel.public,
         description: rel.secret_notes || null,
@@ -170,15 +173,15 @@ export function RelationshipWebTab({ campaignId, isDm }: RelationshipWebTabProps
     });
 
     // 2. Convert explicit location relationships
-    locationRelationships.forEach((rel: any) => {
+    locationRelationships.forEach((rel: LocationRelationship) => {
       unified.push({
         id: `location-${rel.id}`,
         sourceId: rel.location_a_id,
         targetId: rel.location_b_id,
         sourceType: 'location',
         targetType: 'location',
-        type: (rel.relationship_type || 'neutral') as any,
-        strength: Math.max(0, Math.min(100, rel.affection_score + 100)),
+        type: (rel.relationship_type || 'neutral') as RelationshipType,
+        strength: Math.max(0, Math.min(100, (rel.affection_score ?? 0) + 100)),
         isSecret: false,
         description: rel.notes || null,
       });
@@ -225,7 +228,7 @@ export function RelationshipWebTab({ campaignId, isDm }: RelationshipWebTabProps
       if (location.parent_location_id) {
         const relId = `location-parent-${location.id}-${location.parent_location_id}`;
         const existingRel = locationRelationships.find(
-          (r: any) => 
+          (r: LocationRelationship) => 
             (r.location_a_id === location.id && r.location_b_id === location.parent_location_id) ||
             (r.location_a_id === location.parent_location_id && r.location_b_id === location.id)
         );
@@ -237,8 +240,8 @@ export function RelationshipWebTab({ campaignId, isDm }: RelationshipWebTabProps
             targetId: location.parent_location_id,
             sourceType: 'location',
             targetType: 'location',
-            type: (existingRel.relationship_type || 'alliance') as any,
-            strength: Math.max(0, Math.min(100, existingRel.affection_score + 100)),
+            type: (existingRel.relationship_type || 'alliance') as RelationshipType,
+            strength: Math.max(0, Math.min(100, (existingRel.affection_score ?? 0) + 100)),
             isSecret: false,
             description: existingRel.notes || 'Parent location',
           });
@@ -259,7 +262,7 @@ export function RelationshipWebTab({ campaignId, isDm }: RelationshipWebTabProps
     });
 
     // 6. Extract automatic relationships: Location -> Location (control)
-    locationRelationships.forEach((rel: any) => {
+    locationRelationships.forEach((rel: LocationRelationship) => {
       if (rel.controlling_location_id) {
         unified.push({
           id: `location-control-${rel.location_a_id}-${rel.controlling_location_id}`,
@@ -344,7 +347,7 @@ export function RelationshipWebTab({ campaignId, isDm }: RelationshipWebTabProps
       
       // Check if relationship already exists
       const existingRel = locationRelationships.find(
-        (r: any) => 
+        (r: LocationRelationship) => 
           (r.location_a_id === locationId && r.location_b_id === parentId) ||
           (r.location_a_id === parentId && r.location_b_id === locationId)
       );
@@ -449,4 +452,3 @@ export function RelationshipWebTab({ campaignId, isDm }: RelationshipWebTabProps
     </Card>
   );
 }
-

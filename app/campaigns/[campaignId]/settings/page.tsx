@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useCampaign, useUpdateCampaign, useDeleteCampaign } from "@/hooks/useCampaigns";
+import { useCampaign, useDeleteCampaign } from "@/hooks/useCampaigns";
 import { CampaignForm } from "@/components/campaign/campaign-form";
 import { MemberList } from "@/components/campaign/member-list";
 import { InviteDialog } from "@/components/campaign/invite-dialog";
@@ -28,7 +28,7 @@ export default function CampaignSettingsPage() {
   const router = useRouter();
   const campaignId = params.campaignId as string;
   const { campaign, loading: campaignLoading } = useCampaign(campaignId);
-  const { updateCampaign } = useUpdateCampaign();
+  // const { updateCampaign } = useUpdateCampaign();
   const { deleteCampaign, loading: deleting } = useDeleteCampaign();
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -186,7 +186,7 @@ export default function CampaignSettingsPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Campaign</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete "{campaign.name}"? This action cannot be undone.
+              Are you sure you want to delete &quot;{campaign.name}&quot;? This action cannot be undone.
               All campaign data, characters, maps, and homebrew content will be permanently deleted.
             </AlertDialogDescription>
           </AlertDialogHeader>
