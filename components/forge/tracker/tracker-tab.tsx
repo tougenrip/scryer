@@ -16,6 +16,16 @@ import {
 import { toast } from "sonner";
 import { TimelineEntryFormDialog } from "./timeline-entry-form-dialog";
 import { TimelineCanvas } from "./timeline-canvas-flow";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface CampaignTrackerTabProps {
   campaignId: string;
@@ -33,6 +43,11 @@ export function CampaignTrackerTab({ campaignId, isDm }: CampaignTrackerTabProps
   const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
   const [canvasContainerRef, setCanvasContainerRef] = useState<HTMLDivElement | null>(null);
   const [canvasSize, setCanvasSize] = useState({ width: 1200, height: 800 });
+  // Track main timeline branches: entryId -> sourceId
+  const [mainTimelineBranches, setMainTimelineBranches] = useState<Map<string, string>>(new Map());
+  // Delete confirmation dialog
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [entryToDelete, setEntryToDelete] = useState<CampaignTimeline | null>(null);
 
   // Update canvas size when container resizes
   useEffect(() => {
@@ -75,13 +90,12 @@ export function CampaignTrackerTab({ campaignId, isDm }: CampaignTrackerTabProps
       const parent = timeline.find(e => e.id === parentId);
       orderIndex = parent?.order_index || 0;
     } else if (branchType === 'main' && parentId) {
-      // Top branch - connected to parent but positioned at top
-      const topBranches = timeline.filter(e => e.parent_entry_id === parentId);
-      branchPathIndex = topBranches.length;
-      parentEntryId = parentId; // Still connected to parent, but positioned at top
-      // Keep parent's order_index
-      const parent = timeline.find(e => e.id === parentId);
-      orderIndex = parent?.order_index || 0;
+      // Main timeline branch - creates a new main timeline entry that branches away
+      // This is NOT a side quest, it's an alternative main timeline path
+      const mainPath = timeline.filter(e => !e.parent_entry_id);
+      orderIndex = mainPath.length > 0 ? Math.max(...mainPath.map(e => e.order_index)) + 1 : 0;
+      parentEntryId = null; // Main timeline entry, not a branch
+      branchPathIndex = 0;
     } else {
       // Default - new main timeline entry
       const mainPath = timeline.filter(e => !e.parent_entry_id);
@@ -106,13 +120,13 @@ export function CampaignTrackerTab({ campaignId, isDm }: CampaignTrackerTabProps
     });
 
     if (result.success && result.data) {
-      // Immediately set the position for top branches so auto-layout preserves it
+      // For main timeline branches, store the branch source for visual connection
       if (branchType === 'main' && parentId) {
-        // Store position info temporarily for auto-layout to pick up
-        // The canvas will handle setting the actual position
-        const pendingPositions = (window as any).__pendingTimelinePositions || {};
-        pendingPositions[result.data.id] = { x, y, isTopBranch: true };
-        (window as any).__pendingTimelinePositions = pendingPositions;
+        setMainTimelineBranches(prev => {
+          const newMap = new Map(prev);
+          newMap.set(result.data!.id, parentId);
+          return newMap;
+        });
       }
       toast.success("Session created");
       refetch();
@@ -135,13 +149,19 @@ export function CampaignTrackerTab({ campaignId, isDm }: CampaignTrackerTabProps
   };
 
   const handleDelete = async (entry: CampaignTimeline) => {
-    if (!confirm(`Are you sure you want to delete "${entry.title}"? This will also delete any branches from this entry.`)) {
-      return;
-    }
+    // Show the delete confirmation dialog
+    setEntryToDelete(entry);
+    setShowDeleteDialog(true);
+  };
 
-    const result = await deleteTimelineEntry(entry.id);
+  const confirmDelete = async () => {
+    if (!entryToDelete) return;
+
+    const result = await deleteTimelineEntry(entryToDelete.id);
     if (result.success) {
       toast.success("Timeline entry deleted");
+      setShowDeleteDialog(false);
+      setEntryToDelete(null);
       refetch();
     } else {
       toast.error(result.error?.message || "Failed to delete entry");
@@ -258,6 +278,7 @@ export function CampaignTrackerTab({ campaignId, isDm }: CampaignTrackerTabProps
                 width={canvasSize.width}
                 height={canvasSize.height}
                 entries={timeline}
+                mainTimelineBranches={mainTimelineBranches}
                 onEntrySelect={(id) => {
                   setSelectedEntryId(id);
                 }}
@@ -267,6 +288,13 @@ export function CampaignTrackerTab({ campaignId, isDm }: CampaignTrackerTabProps
                 onEntryDelete={async (entryId) => {
                   const entry = timeline.find(e => e.id === entryId);
                   if (!entry) return;
+                  
+                  // Clean up branch tracking
+                  setMainTimelineBranches(prev => {
+                    const newMap = new Map(prev);
+                    newMap.delete(entryId);
+                    return newMap;
+                  });
                   
                   await handleDelete(entry);
                 }}
@@ -284,6 +312,34 @@ export function CampaignTrackerTab({ campaignId, isDm }: CampaignTrackerTabProps
         </CardContent>
       </Card>
 
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Timeline Entry</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{entryToDelete?.title}"? This action cannot be undone.
+              {entryToDelete?.parent_entry_id === null && " This will also delete any branches from this entry."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => {
+              setShowDeleteDialog(false);
+              setEntryToDelete(null);
+            }}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleting}
+            >
+              {deleting ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Form Dialog */}
       <TimelineEntryFormDialog
         open={isFormOpen}
@@ -293,6 +349,11 @@ export function CampaignTrackerTab({ campaignId, isDm }: CampaignTrackerTabProps
         campaignId={campaignId}
         onSave={handleSave}
         loading={creating || updating}
+        isSideQuest={editingEntry ? (() => {
+          if (!editingEntry.parent_entry_id) return false;
+          const parent = timeline.find(e => e.id === editingEntry.parent_entry_id);
+          return parent ? parent.parent_entry_id === null : false;
+        })() : false}
       />
     </div>
   );

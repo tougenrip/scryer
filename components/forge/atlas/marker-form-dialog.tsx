@@ -42,9 +42,39 @@ import {
   TreePine,
   Landmark,
   Anchor,
-  Shield
+  Shield,
+  Sword,
+  Axe,
+  FlaskConical,
+  Gem,
+  Circle,
+  Diamond,
+  Square,
+  Star,
+  Moon,
+  Bridge
 } from "lucide-react";
 import { LocationMarker, WorldLocation } from "@/hooks/useForgeContent";
+import {
+  CircleIcon,
+  DiamondIcon,
+  SquareIcon,
+  TriangleIcon,
+  AxeIcon,
+  PotionIcon,
+  MoonStarIcon,
+  StarIcon,
+  SwordIcon,
+  FlagIcon,
+  CastleIcon,
+  HouseIcon,
+  GlobeIcon
+} from "./marker-icons";
+
+// Re-export shape icons for use as marker icons
+const SphereIcon = CircleIcon;
+const ShapeSquareIcon = SquareIcon;
+const ShapeDiamondIcon = DiamondIcon;
 
 interface MarkerFormDialogProps {
   open: boolean;
@@ -54,6 +84,7 @@ interface MarkerFormDialogProps {
   locations: WorldLocation[];
   onSave: (data: {
     location_id?: string | null;
+    background_shape?: LocationMarker['background_shape'];
     icon_type?: LocationMarker['icon_type'];
     status_icon?: LocationMarker['status_icon'];
     name: string;
@@ -93,8 +124,32 @@ const getTypeLabel = (type: string): string => {
   return labelMap[type] || type.charAt(0).toUpperCase() + type.slice(1);
 };
 
-// Icon type definitions for marker icons
-const markerIcons: Record<LocationMarker['icon_type'], { icon: React.ComponentType<{ className?: string }>, label: string }> = {
+// Background shapes (optional)
+const backgroundShapes: Record<LocationMarker['background_shape'], { icon: React.ComponentType<{ className?: string }>, label: string }> = {
+  circle: { icon: CircleIcon, label: 'Circle' },
+  diamond: { icon: DiamondIcon, label: 'Diamond' },
+  square: { icon: SquareIcon, label: 'Square' },
+  triangle: { icon: TriangleIcon, label: 'Triangle' },
+};
+
+// Icon type definitions for marker icons - using filled, outlined style
+const markerIcons: Record<NonNullable<LocationMarker['icon_type']>, { icon: React.ComponentType<{ className?: string }>, label: string }> = {
+  // Basic Shapes
+  sphere: { icon: SphereIcon, label: 'Sphere' },
+  shape_square: { icon: ShapeSquareIcon, label: 'Square' },
+  shape_diamond: { icon: ShapeDiamondIcon, label: 'Diamond' },
+  // Fantasy Icons
+  axe: { icon: AxeIcon, label: 'Axe' },
+  potion: { icon: PotionIcon, label: 'Potion' },
+  moon_star: { icon: MoonStarIcon, label: 'Moon & Stars' },
+  star: { icon: StarIcon, label: 'Star' },
+  sword: { icon: SwordIcon, label: 'Sword' },
+  flag: { icon: FlagIcon, label: 'Flag' },
+  // Location Icons
+  castle: { icon: CastleIcon, label: 'Castle' },
+  house: { icon: HouseIcon, label: 'House' },
+  globe: { icon: GlobeIcon, label: 'Globe' },
+  // Legacy icons (keeping for backward compatibility)
   city: { icon: Building2, label: 'City' },
   village: { icon: Home, label: 'Village' },
   fort: { icon: Castle, label: 'Fort' },
@@ -108,6 +163,70 @@ const markerIcons: Record<LocationMarker['icon_type'], { icon: React.ComponentTy
   border: { icon: Shield, label: 'Border' },
 };
 
+interface BackgroundShapeSelectorProps {
+  value: LocationMarker['background_shape'];
+  onChange: (value: LocationMarker['background_shape']) => void;
+  disabled?: boolean;
+}
+
+function BackgroundShapeSelector({ value, onChange, disabled }: BackgroundShapeSelectorProps) {
+  const shapeOrder: LocationMarker['background_shape'][] = ['circle', 'diamond', 'square', 'triangle'];
+
+  return (
+    <div className="flex gap-1">
+      <button
+        type="button"
+        onClick={() => !disabled && onChange(null)}
+        disabled={disabled}
+        className={cn(
+          "flex items-center justify-center p-1.5 rounded-md border-2 transition-all h-10",
+          "hover:bg-accent hover:border-accent-foreground/20",
+          value === null
+            ? "border-primary bg-primary/10 shadow-sm" 
+            : "border-border bg-background",
+          disabled && "opacity-50 cursor-not-allowed"
+        )}
+        title="No Background"
+      >
+        <span className="text-xs font-medium">None</span>
+      </button>
+      {shapeOrder.map((shape) => {
+        const { icon: ShapeComponent, label } = backgroundShapes[shape!];
+        const isSelected = value === shape;
+        return (
+          <button
+            key={shape}
+            type="button"
+            onClick={() => !disabled && onChange(shape)}
+            disabled={disabled}
+            className={cn(
+              "flex items-center justify-center p-1.5 rounded-md border-2 transition-all h-10 w-10",
+              "hover:bg-accent hover:border-accent-foreground/20",
+              isSelected 
+                ? "border-primary bg-primary/10 shadow-sm" 
+                : "border-border bg-background",
+              disabled && "opacity-50 cursor-not-allowed"
+            )}
+            title={label}
+          >
+            <ShapeComponent 
+              className="h-5 w-5"
+              style={{ 
+                color: '#000000',
+                fill: '#ffffff',
+                stroke: '#000000',
+                strokeWidth: 2.5,
+                strokeLinejoin: 'round',
+                strokeLinecap: 'round'
+              }}
+            />
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 interface IconTypeSelectorProps {
   value: LocationMarker['icon_type'];
   onChange: (value: LocationMarker['icon_type']) => void;
@@ -115,10 +234,24 @@ interface IconTypeSelectorProps {
 }
 
 function IconTypeSelector({ value, onChange, disabled }: IconTypeSelectorProps) {
+  // Order icons: basic shapes first, then fantasy icons, then location icons, then legacy
+  const iconOrder: NonNullable<LocationMarker['icon_type']>[] = [
+    // Basic Shapes
+    'sphere', 'shape_square', 'shape_diamond', 'star',
+    // Fantasy Icons
+    'axe', 'potion', 'moon_star', 'sword', 'flag',
+    // Location Icons
+    'castle', 'house', 'globe',
+    // Legacy icons
+    'city', 'village', 'fort', 'tavern', 'shop', 'temple', 'dungeon', 'cave', 'landmark', 'port', 'border'
+  ];
+
   return (
-    <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
-      {(Object.entries(markerIcons) as [LocationMarker['icon_type'], typeof markerIcons[LocationMarker['icon_type']]][])
-        .map(([iconType, { icon: IconComponent, label }]) => {
+    <div className="grid grid-cols-6 sm:grid-cols-8 gap-2">
+      {iconOrder
+        .filter(iconType => markerIcons[iconType])
+        .map((iconType) => {
+          const { icon: IconComponent, label } = markerIcons[iconType];
           const isSelected = value === iconType;
           return (
             <button
@@ -127,7 +260,7 @@ function IconTypeSelector({ value, onChange, disabled }: IconTypeSelectorProps) 
               onClick={() => !disabled && onChange(iconType)}
               disabled={disabled}
               className={cn(
-                "flex flex-col items-center justify-center gap-1 p-3 rounded-lg border-2 transition-all",
+                "flex items-center justify-center p-2 rounded-lg border-2 transition-all aspect-square",
                 "hover:bg-accent hover:border-accent-foreground/20",
                 isSelected 
                   ? "border-primary bg-primary/10 shadow-sm" 
@@ -137,20 +270,95 @@ function IconTypeSelector({ value, onChange, disabled }: IconTypeSelectorProps) 
               title={label}
             >
               <IconComponent 
-                className={cn(
-                  "h-6 w-6 transition-colors",
-                  isSelected ? "text-primary" : "text-muted-foreground"
-                )} 
+                className="h-6 w-6"
+                style={{ 
+                  color: '#000000', // Black outline/stroke
+                  fill: '#ffffff', // White fill
+                  stroke: '#000000', // Ensure black stroke
+                  strokeWidth: 2.5,
+                  strokeLinejoin: 'round',
+                  strokeLinecap: 'round'
+                }}
               />
-              <span className={cn(
-                "text-xs text-center leading-tight",
-                isSelected ? "text-primary font-medium" : "text-muted-foreground"
-              )}>
-                {label}
-              </span>
             </button>
           );
         })}
+    </div>
+  );
+}
+
+interface MarkerPreviewProps {
+  backgroundShape: LocationMarker['background_shape'];
+  iconType: LocationMarker['icon_type'];
+  color: string;
+  outlineColor: string;
+  iconColor: string;
+  size: LocationMarker['size'];
+}
+
+function MarkerPreview({ backgroundShape, iconType, color, outlineColor, iconColor, size }: MarkerPreviewProps) {
+  const sizePixels = {
+    small: 48,
+    medium: 64,
+    large: 80,
+  };
+
+  const iconSizePixels = {
+    small: 24,
+    medium: 32,
+    large: 40,
+  };
+
+  const containerSize = sizePixels[size];
+  const iconSize = iconSizePixels[size];
+  // Make background shape bigger to avoid collision with icons (1.3x multiplier)
+  const backgroundSize = Math.round(containerSize * 1.3);
+
+  const BackgroundComponent = backgroundShape ? backgroundShapes[backgroundShape].icon : null;
+  const IconComponent = iconType ? markerIcons[iconType].icon : null;
+
+  return (
+    <div className="flex items-center justify-center p-4 bg-muted rounded-lg border min-h-[120px]">
+      <div className="relative flex items-center justify-center" style={{ width: containerSize, height: containerSize }}>
+        {/* Background shape */}
+        {BackgroundComponent && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <BackgroundComponent
+              style={{
+                width: backgroundSize,
+                height: backgroundSize,
+                fill: color,
+                stroke: outlineColor,
+                strokeWidth: 2.5,
+                strokeLinejoin: 'round',
+                strokeLinecap: 'round',
+                color: color,
+              }}
+            />
+          </div>
+        )}
+        {/* Icon */}
+        {IconComponent ? (
+          <div className="relative z-10 flex items-center justify-center">
+            <IconComponent
+              style={{
+                width: iconSize,
+                height: iconSize,
+                fill: iconColor,
+                stroke: outlineColor,
+                strokeWidth: 2.5,
+                strokeLinejoin: 'round',
+                strokeLinecap: 'round',
+                color: iconColor,
+              }}
+            />
+          </div>
+        ) : (
+          <div className="relative z-10 flex items-center justify-center text-muted-foreground text-xs">
+            No icon
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -165,6 +373,7 @@ export function MarkerFormDialog({
   onDelete,
   isDm = false,
 }: MarkerFormDialogProps) {
+  const [backgroundShape, setBackgroundShape] = useState<LocationMarker['background_shape']>(marker?.background_shape || null);
   const [iconType, setIconType] = useState<LocationMarker['icon_type']>(marker?.icon_type || 'landmark');
   const [statusIcon, setStatusIcon] = useState<string>(marker?.status_icon || 'normal');
   const [isCustomStatus, setIsCustomStatus] = useState(false);
@@ -172,6 +381,8 @@ export function MarkerFormDialog({
   const [name, setName] = useState(marker?.name || '');
   const [description, setDescription] = useState(marker?.description || '');
   const [color, setColor] = useState(marker?.color || '#c9b882');
+  const [outlineColor, setOutlineColor] = useState('#000000');
+  const [iconColor, setIconColor] = useState(marker?.color || '#c9b882');
   const [size, setSize] = useState<LocationMarker['size']>(marker?.size || 'medium');
   const [locationId, setLocationId] = useState<string | null>(marker?.location_id || null);
   const [locationSearch, setLocationSearch] = useState("");
@@ -217,6 +428,7 @@ export function MarkerFormDialog({
 
   useEffect(() => {
     if (marker) {
+      setBackgroundShape(marker.background_shape || null);
       setIconType(marker.icon_type || 'landmark');
       
       // If marker is linked to a location, use location's status, otherwise use marker's status
@@ -229,10 +441,29 @@ export function MarkerFormDialog({
       setCustomStatusText(predefinedStatuses.includes(statusToUse) ? '' : statusToUse);
       setName(marker.name || '');
       setDescription(marker.description || '');
-      setColor(marker.color || '#c9b882');
+      
+      // Parse color - support both JSON format and plain string (backward compatibility)
+      let parsedColor: { fill: string; outline: string; icon: string } | null = null;
+      try {
+        parsedColor = JSON.parse(marker.color || '{}');
+      } catch {
+        // If not JSON, treat as plain color string (backward compatibility)
+        const defaultColor = marker.color || '#c9b882';
+        setColor(defaultColor);
+        setOutlineColor('#000000');
+        setIconColor(defaultColor);
+      }
+      
+      if (parsedColor && parsedColor.fill) {
+        setColor(parsedColor.fill);
+        setOutlineColor(parsedColor.outline || '#000000');
+        setIconColor(parsedColor.icon || parsedColor.fill);
+      }
+      
       setSize(marker.size || 'medium');
       setLocationId(marker.location_id || null);
     } else {
+      setBackgroundShape(null);
       setIconType('landmark');
       setStatusIcon('normal');
       setIsCustomStatus(false);
@@ -240,6 +471,8 @@ export function MarkerFormDialog({
       setName('');
       setDescription('');
       setColor('#c9b882');
+      setOutlineColor('#000000');
+      setIconColor('#c9b882');
       setSize('medium');
       setLocationId(null);
     }
@@ -250,15 +483,25 @@ export function MarkerFormDialog({
     if (!name.trim()) {
       return; // Name is required
     }
+    if (!iconType) {
+      return; // Icon is required
+    }
 
     const finalStatus = isCustomStatus ? customStatusText : statusIcon;
+    // Store colors as JSON to support fill, outline, and icon colors
+    const colorData = {
+      fill: color,
+      outline: outlineColor,
+      icon: iconColor,
+    };
     onSave({
       location_id: locationId,
+      background_shape: backgroundShape,
       icon_type: iconType,
       status_icon: finalStatus || null,
       name: name.trim(),
       description: description.trim() || null,
-      color,
+      color: JSON.stringify(colorData),
       size,
     });
   };
@@ -437,13 +680,76 @@ export function MarkerFormDialog({
                 </div>
               </div>
 
+              {/* Marker Preview */}
               <div className="space-y-2">
-                <Label>Icon Type</Label>
+                <Label>Preview</Label>
+                <MarkerPreview
+                  backgroundShape={backgroundShape}
+                  iconType={iconType}
+                  color={color}
+                  outlineColor={outlineColor}
+                  iconColor={iconColor}
+                  size={size}
+                />
+              </div>
+
+              {/* Background Shape */}
+              <div className="space-y-2">
+                <Label>Background Shape (Optional)</Label>
+                <BackgroundShapeSelector
+                  value={backgroundShape}
+                  onChange={(value) => setBackgroundShape(value)}
+                  disabled={!isDm && !!marker}
+                />
+              </div>
+
+              {/* Icon Type */}
+              <div className="space-y-2">
+                <Label>Icon <span className="text-destructive">*</span></Label>
                 <IconTypeSelector
                   value={iconType || 'landmark'}
                   onChange={(value) => setIconType(value as LocationMarker['icon_type'])}
                   disabled={!isDm && !!marker}
                 />
+              </div>
+
+              {/* Color, Outline Color, and Icon Color */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-4">
+                  <div className="flex-1 space-y-2">
+                    <Label htmlFor="color">Color</Label>
+                    <Input
+                      id="color"
+                      type="color"
+                      value={color}
+                      onChange={(e) => setColor(e.target.value)}
+                      className="h-10 w-full cursor-pointer"
+                      disabled={!isDm && !!marker}
+                    />
+                  </div>
+                  <div className="flex-1 space-y-2">
+                    <Label htmlFor="outline-color">Outline Color</Label>
+                    <Input
+                      id="outline-color"
+                      type="color"
+                      value={outlineColor}
+                      onChange={(e) => setOutlineColor(e.target.value)}
+                      className="h-10 w-full cursor-pointer"
+                      disabled={!isDm && !!marker}
+                    />
+                  </div>
+                  <div className="flex-1 space-y-2">
+                    <Label htmlFor="icon-color">Icon Color</Label>
+                    <Input
+                      id="icon-color"
+                      type="color"
+                      value={iconColor}
+                      onChange={(e) => setIconColor(e.target.value)}
+                      className="h-10 w-full cursor-pointer"
+                      disabled={!isDm && !!marker}
+                    />
+                  </div>
+                </div>
               </div>
 
               <div className="space-y-2">
@@ -508,26 +814,6 @@ export function MarkerFormDialog({
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="color">Color</Label>
-                <div className="flex items-center gap-2">
-                  <Input
-                    id="color"
-                    type="color"
-                    value={color}
-                    onChange={(e) => setColor(e.target.value)}
-                    className="w-20 h-10"
-                    disabled={!isDm && !!marker}
-                  />
-                  <Input
-                    type="text"
-                    value={color}
-                    onChange={(e) => setColor(e.target.value)}
-                    placeholder="#c9b882"
-                    disabled={!isDm && !!marker}
-                  />
-                </div>
-              </div>
             </div>
           ) : (
             /* Read-only view for non-DMs */

@@ -3,8 +3,48 @@
 import { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { LocationMarker } from "@/hooks/useForgeContent";
-import { MapPin, X, Edit2, ZoomIn, ZoomOut, RotateCcw, Move } from "lucide-react";
+import { 
+  MapPin, 
+  X, 
+  Edit2, 
+  ZoomIn, 
+  ZoomOut, 
+  RotateCcw, 
+  Move,
+  Building2,
+  Home,
+  Castle,
+  UtensilsCrossed,
+  ShoppingBag,
+  Church,
+  DoorOpen,
+  TreePine,
+  Landmark,
+  Anchor,
+  Shield
+} from "lucide-react";
+import {
+  CircleIcon,
+  DiamondIcon,
+  SquareIcon,
+  TriangleIcon,
+  AxeIcon,
+  PotionIcon,
+  MoonStarIcon,
+  StarIcon,
+  SwordIcon,
+  FlagIcon,
+  CastleIcon,
+  HouseIcon,
+  GlobeIcon
+  } from "./marker-icons";
+
+// Re-export shape icons for use as marker icons
+const SphereIcon = CircleIcon;
+const ShapeSquareIcon = SquareIcon;
+const ShapeDiamondIcon = DiamondIcon;
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 
 interface AtlasMapProps {
   imageUrl: string | null;
@@ -14,6 +54,7 @@ interface AtlasMapProps {
   onMarkerDelete?: (markerId: string) => void;
   isDm: boolean;
   editingMarkerId?: string | null;
+  fullscreen?: boolean;
 }
 
 export function AtlasMap({
@@ -24,6 +65,7 @@ export function AtlasMap({
   onMarkerDelete,
   isDm,
   editingMarkerId,
+  fullscreen = false,
 }: AtlasMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
@@ -55,8 +97,9 @@ export function AtlasMap({
       const img = new Image();
       
       img.onload = () => {
-        const containerWidth = containerRect.width - 32; // padding
-        const containerHeight = containerRect.height - 32;
+        const padding = fullscreen ? 0 : 32;
+        const containerWidth = containerRect.width - padding;
+        const containerHeight = containerRect.height - padding;
         
         // Calculate aspect ratio and scale
         const imgAspect = img.width / img.height;
@@ -96,7 +139,7 @@ export function AtlasMap({
       clearTimeout(timeoutId);
       window.removeEventListener('resize', updateSizes);
     };
-  }, [imageUrl]);
+  }, [imageUrl, fullscreen]);
 
   // Handle zoom with mouse wheel
   useEffect(() => {
@@ -300,8 +343,9 @@ export function AtlasMap({
     if (!container || !imageRef.current) return;
 
     const rect = container.getBoundingClientRect();
-    const clickX = e.clientX - rect.left - 16; // Account for padding
-    const clickY = e.clientY - rect.top - 16;
+    const padding = fullscreen ? 0 : 16;
+    const clickX = e.clientX - rect.left - padding;
+    const clickY = e.clientY - rect.top - padding;
 
     // Adjust for zoom and pan
     const adjustedX = (clickX - pan.x) / zoom;
@@ -342,9 +386,64 @@ export function AtlasMap({
     };
   };
 
-  const getMarkerIcon = (iconType: LocationMarker['icon_type'], markerColor?: string) => {
-    // Return appropriate icon/color based on type, using marker color if provided
+  // Background shapes
+  const backgroundShapes: Record<NonNullable<LocationMarker['background_shape']>, React.ComponentType<{ className?: string }>> = {
+    circle: CircleIcon,
+    diamond: DiamondIcon,
+    square: SquareIcon,
+    triangle: TriangleIcon,
+  };
+
+  // Icon type definitions matching marker-form-dialog.tsx
+  const markerIcons: Record<NonNullable<LocationMarker['icon_type']>, React.ComponentType<{ className?: string }>> = {
+    // Basic Shapes
+    sphere: SphereIcon,
+    shape_square: ShapeSquareIcon,
+    shape_diamond: ShapeDiamondIcon,
+    // Fantasy Icons
+    axe: AxeIcon,
+    potion: PotionIcon,
+    moon_star: MoonStarIcon,
+    star: StarIcon,
+    sword: SwordIcon,
+    flag: FlagIcon,
+    // Location Icons
+    castle: CastleIcon,
+    house: HouseIcon,
+    globe: GlobeIcon,
+    // Legacy icons (keeping for backward compatibility)
+    city: Building2,
+    village: Home,
+    fort: Castle,
+    tavern: UtensilsCrossed,
+    shop: ShoppingBag,
+    temple: Church,
+    dungeon: DoorOpen,
+    cave: TreePine,
+    landmark: Landmark,
+    port: Anchor,
+    border: Shield,
+  };
+
+  const getMarkerComponents = (
+    backgroundShape: LocationMarker['background_shape'],
+    iconType: LocationMarker['icon_type'],
+    markerColor?: string
+  ) => {
+    // Default colors for icon types
     const defaultColors: Record<string, string> = {
+      // Fantasy Icons
+      'axe': '#ffffff', // White
+      'potion': '#ffffff', // White
+      'moon_star': '#8b5cf6', // Purple
+      'star': '#fbbf24', // Gold
+      'sword': '#ffffff', // White
+      'flag': '#ffffff', // White
+      // Location Icons
+      'castle': '#92400e', // Brown
+      'house': '#92400e', // Brown
+      'globe': '#8b5cf6', // Purple
+      // Legacy icons
       'city': '#3b82f6',
       'village': '#10b981',
       'fort': '#ef4444',
@@ -358,25 +457,34 @@ export function AtlasMap({
       'border': '#dc2626',
     };
     
-    const icons: Record<string, string> = {
-      'city': '🏛️',
-      'village': '🏘️',
-      'fort': '🏰',
-      'tavern': '🍺',
-      'shop': '🏪',
-      'temple': '⛪',
-      'dungeon': '⚫',
-      'cave': '🕳️',
-      'landmark': '🗿',
-      'port': '⚓',
-      'border': '🚩',
-    };
+    // Parse color - support both JSON format and plain string (backward compatibility)
+    let color = defaultColors[iconType || 'landmark'] || '#c9b882';
+    let outlineColor = '#000000';
+    let iconColor = color;
     
-    // Use marker's custom color if provided, otherwise use default for icon type
-    const color = markerColor || defaultColors[iconType || 'landmark'] || '#c9b882';
-    const icon = icons[iconType || 'landmark'] || '📍';
+    if (markerColor) {
+      try {
+        const parsedColor = JSON.parse(markerColor);
+        if (parsedColor.fill) {
+          color = parsedColor.fill;
+          outlineColor = parsedColor.outline || '#000000';
+          iconColor = parsedColor.icon || parsedColor.fill;
+        } else {
+          // If JSON but no fill, treat as plain string
+          color = markerColor;
+          iconColor = markerColor;
+        }
+      } catch {
+        // If not JSON, treat as plain color string (backward compatibility)
+        color = markerColor;
+        iconColor = markerColor;
+      }
+    }
     
-    return { icon, color };
+    const BackgroundComponent = backgroundShape ? backgroundShapes[backgroundShape] : null;
+    const IconComponent = iconType ? markerIcons[iconType] : Landmark;
+    
+    return { BackgroundComponent, IconComponent, color, iconColor, outlineColor };
   };
 
   const getStatusOverlay = (status: LocationMarker['status_icon']) => {
@@ -409,14 +517,19 @@ export function AtlasMap({
     <div
       ref={containerRef}
       className={cn(
-        "relative w-full bg-muted rounded-lg overflow-hidden",
-        "border-2 border-border",
+        "relative w-full bg-muted overflow-hidden",
+        !fullscreen && "rounded-lg border-2 border-border",
+        fullscreen && "h-full",
         isDm && onMarkerAdd && !isDragging && zoom === 1 && "cursor-crosshair",
         isDm && isDragging && "cursor-grabbing",
         isDm && !isDragging && (zoom > 1 || zoom < 1) && "cursor-grab",
         isDm && !isDragging && zoom === 1 && "cursor-default"
       )}
-      style={{ minHeight: '400px', padding: '16px' }}
+      style={{ 
+        minHeight: fullscreen ? '100%' : '400px', 
+        padding: fullscreen ? '0' : '16px',
+        height: fullscreen ? '100%' : 'auto'
+      }}
       onClick={handleMapClick}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
@@ -449,8 +562,9 @@ export function AtlasMap({
               const container = containerRef.current;
               const containerRect = container.getBoundingClientRect();
               
-              const containerWidth = containerRect.width - 32;
-              const containerHeight = containerRect.height - 32;
+      const padding = fullscreen ? 0 : 32;
+      const containerWidth = containerRect.width - padding;
+      const containerHeight = containerRect.height - padding;
               
               const imgAspect = img.naturalWidth / img.naturalHeight;
               const containerAspect = containerWidth / containerHeight;
@@ -484,45 +598,101 @@ export function AtlasMap({
             {markers
               .filter((m) => m.visible)
               .map((marker) => {
-                const { icon, color } = getMarkerIcon(marker.icon_type, marker.color);
-                const statusOverlay = getStatusOverlay(marker.status_icon);
+                const { BackgroundComponent, IconComponent, color, iconColor, outlineColor } = getMarkerComponents(
+                  marker.background_shape,
+                  marker.icon_type,
+                  marker.color
+                );
                 const isEditing = editingMarkerId === marker.id;
+                const tooltipText = marker.name;
+                const tooltipDescription = marker.description;
+
+                const sizePixels = {
+                  small: { container: 24, icon: 14, background: 31 }, // Smaller icon only
+                  medium: { container: 32, icon: 20, background: 42 }, // Smaller icon only
+                  large: { container: 40, icon: 26, background: 52 }, // Smaller icon only
+                };
+                const sizes = sizePixels[marker.size];
+                const sizeClasses = {
+                  small: { container: 'h-6 w-6', icon: 'h-2.5 w-2.5' },
+                  medium: { container: 'h-8 w-8', icon: 'h-4 w-4' },
+                  large: { container: 'h-10 w-10', icon: 'h-5.5 w-5.5' },
+                };
+                const sizeClassNames = sizeClasses[marker.size];
 
                 return (
-                  <div
-                    key={marker.id}
-                    className={cn(
-                      "absolute z-10 cursor-pointer",
-                      !isDragging && "transition-all hover:scale-125 hover:z-20",
-                      isEditing && "ring-2 ring-primary ring-offset-2"
-                    )}
-                    style={getMarkerStyle(marker)}
-                    data-marker={marker.id}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onMarkerClick?.(marker);
-                    }}
-                    onMouseDown={(e) => {
-                      e.stopPropagation();
-                    }}
-                  >
-                    <div className="relative">
-                      <MapPin
+                  <Tooltip key={marker.id} delayDuration={300}>
+                    <TooltipTrigger asChild>
+                      <div
                         className={cn(
-                          "drop-shadow-lg",
-                          marker.size === 'small' && "h-6 w-6",
-                          marker.size === 'medium' && "h-8 w-8",
-                          marker.size === 'large' && "h-10 w-10"
+                          "absolute z-10 cursor-pointer",
+                          !isDragging && "transition-all hover:scale-125 hover:z-20",
+                          isEditing && "ring-2 ring-primary ring-offset-2"
                         )}
-                        style={{ color, fill: color }}
-                      />
-                      {statusOverlay && (
-                        <div className="absolute -top-2 -right-2 text-xs bg-background rounded-full p-0.5">
-                          {statusOverlay}
+                        style={getMarkerStyle(marker)}
+                        data-marker={marker.id}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onMarkerClick?.(marker);
+                        }}
+                        onMouseDown={(e) => {
+                          e.stopPropagation();
+                        }}
+                      >
+                        <div className="relative flex items-center justify-center" style={{ width: sizes.container, height: sizes.container }}>
+                          {/* Background shape - made bigger to avoid collision with icons */}
+                          {BackgroundComponent && (
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <BackgroundComponent
+                                style={{
+                                  width: sizes.background,
+                                  height: sizes.background,
+                                  fill: color,
+                                  stroke: outlineColor,
+                                  strokeWidth: 2.5,
+                                  strokeLinejoin: 'round',
+                                  strokeLinecap: 'round',
+                                  color: color,
+                                }}
+                              />
+                            </div>
+                          )}
+                          {/* Icon */}
+                          <div className="relative z-10 flex items-center justify-center">
+                            <IconComponent
+                              className={cn("drop-shadow-lg", sizeClassNames.icon)}
+                              style={{ 
+                                color: iconColor, // Icon color
+                                fill: iconColor, // Icon color fill
+                                stroke: outlineColor, // Outline color
+                                strokeWidth: 2.5,
+                                strokeLinejoin: 'round',
+                                strokeLinecap: 'round'
+                              }}
+                            />
+                          </div>
                         </div>
+                      </div>
+                    </TooltipTrigger>
+                    {(tooltipText || tooltipDescription) && (
+                      <TooltipContent
+                        side="top"
+                        sideOffset={8}
+                        className="max-w-xs"
+                      >
+                        <div className="space-y-1">
+                          {tooltipText && (
+                            <p className="font-semibold">{tooltipText}</p>
+                          )}
+                          {tooltipDescription && (
+                            <p className="text-xs opacity-90 whitespace-normal">
+                              {tooltipDescription}
+                            </p>
                       )}
                     </div>
-                  </div>
+                      </TooltipContent>
+                    )}
+                  </Tooltip>
                 );
               })}
           </>

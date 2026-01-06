@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import {
   Dialog,
   DialogContent,
@@ -10,7 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Edit, Trash2, MapPin, Globe, Mountain, Flag, Building2, Home, Store } from "lucide-react";
+import { Edit, Trash2, MapPin, Globe, Mountain, Flag, Building2, Home, Store, Landmark, Castle, TreePine, Waves, Map as MapIcon } from "lucide-react";
 import { WorldLocation } from "@/hooks/useForgeContent";
 
 interface LocationDetailDialogProps {
@@ -24,7 +25,7 @@ interface LocationDetailDialogProps {
   onDelete: () => void;
 }
 
-const typeIcons: Record<WorldLocation['type'], any> = {
+const typeIcons: Partial<Record<WorldLocation['type'], React.ComponentType<{ className?: string }>>> = {
   world: Globe,
   continent: Mountain,
   region: Flag,
@@ -33,6 +34,13 @@ const typeIcons: Record<WorldLocation['type'], any> = {
   village: Home,
   settlement: Home,
   poi: Store,
+  dungeon: Castle,
+  landmark: Landmark,
+  structure: Building2,
+  lair: Castle,
+  biome: TreePine,
+  island: Waves,
+  archipelago: MapIcon,
 };
 
 const typeLabels: Partial<Record<WorldLocation['type'], string>> = {
@@ -151,14 +159,16 @@ export function LocationDetailDialog({
                 Sub-locations ({childLocations.length})
               </h3>
               <div className="space-y-2">
-                {childLocations.map((child) => (
+                {childLocations.map((child) => {
+                  const IconComponent = typeIcons[child.type];
+                  return (
                   <div
                     key={child.id}
                     className="flex items-center gap-2 p-2 rounded-lg bg-muted/50"
                   >
-                    {typeIcons[child.type] && (
+                      {IconComponent && (
                       <div className="h-4 w-4 text-muted-foreground shrink-0">
-                        {typeIcons[child.type]({ className: "h-4 w-4" })}
+                          <IconComponent className="h-4 w-4" />
                       </div>
                     )}
                     <span className="text-sm font-medium">{child.name}</span>
@@ -166,7 +176,8 @@ export function LocationDetailDialog({
                       {getTypeLabel(child.type)}
                     </Badge>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}

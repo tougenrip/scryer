@@ -39,14 +39,26 @@ export interface LocationRelationship {
   created_at: string | null;
 }
 
+export interface Scene {
+  id: string;
+  campaign_id: string;
+  name: string;
+  description: string | null;
+  image_url: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
 export interface LocationMarker {
   id: string;
   campaign_id: string;
   location_id: string | null;
   map_id: string | null;
+  scene_id: string | null;
   x: number;
   y: number;
-  icon_type: 'city' | 'village' | 'fort' | 'tavern' | 'shop' | 'temple' | 'dungeon' | 'cave' | 'landmark' | 'port' | 'border' | null;
+  background_shape: 'circle' | 'diamond' | 'square' | 'triangle' | null; // Optional background
+  icon_type: 'city' | 'village' | 'fort' | 'tavern' | 'shop' | 'temple' | 'dungeon' | 'cave' | 'landmark' | 'port' | 'border' | 'axe' | 'potion' | 'moon_star' | 'star' | 'sword' | 'flag' | 'castle' | 'house' | 'globe' | 'sphere' | 'shape_square' | 'shape_diamond' | null; // Mandatory icon
   status_icon: string | null; // Can be predefined or custom text
   name: string | null;
   description: string | null;
@@ -341,7 +353,7 @@ export function useDeleteWorldLocation() {
 // LOCATION MARKERS HOOKS
 // ============================================
 
-export function useLocationMarkers(campaignId: string | null, mapId?: string | null) {
+export function useLocationMarkers(campaignId: string | null, sceneId?: string | null, mapId?: string | null) {
   const [markers, setMarkers] = useState<LocationMarker[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -361,6 +373,14 @@ export function useLocationMarkers(campaignId: string | null, mapId?: string | n
         .select('*')
         .eq('campaign_id', campaignId);
 
+      if (sceneId !== undefined) {
+        if (sceneId === null) {
+          query = query.is('scene_id', null);
+        } else {
+          query = query.eq('scene_id', sceneId);
+        }
+      }
+
       if (mapId !== undefined) {
         if (mapId === null) {
           query = query.is('map_id', null);
@@ -379,7 +399,7 @@ export function useLocationMarkers(campaignId: string | null, mapId?: string | n
     } finally {
       setLoading(false);
     }
-  }, [campaignId, mapId]);
+  }, [campaignId, sceneId, mapId]);
 
   useEffect(() => {
     fetchMarkers();
@@ -396,8 +416,10 @@ export function useCreateLocationMarker() {
     campaign_id: string;
     location_id?: string | null;
     map_id?: string | null;
+    scene_id?: string | null;
     x: number;
     y: number;
+    background_shape?: LocationMarker['background_shape'];
     icon_type?: LocationMarker['icon_type'];
     status_icon?: LocationMarker['status_icon'];
     name?: string | null;
@@ -497,6 +519,191 @@ export function useDeleteLocationMarker() {
   };
 
   return { deleteMarker, loading, error };
+}
+
+// ============================================
+// SCENES HOOKS
+// ============================================
+
+export function useScenes(campaignId: string | null) {
+  const [scenes, setScenes] = useState<Scene[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  const fetchScenes = useCallback(async () => {
+    if (!campaignId) {
+      setLoading(false);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const supabase = createClient();
+
+      const { data, error: fetchError } = await supabase
+        .from('scenes')
+        .select('*')
+        .eq('campaign_id', campaignId)
+        .order('created_at', { ascending: true });
+
+      if (fetchError) throw fetchError;
+      setScenes(data || []);
+      setError(null);
+    } catch (err) {
+      setError(err as Error);
+    } finally {
+      setLoading(false);
+    }
+  }, [campaignId]);
+
+  useEffect(() => {
+    fetchScenes();
+  }, [fetchScenes]);
+
+  return { scenes, loading, error, refetch: fetchScenes };
+}
+
+export function useScene(sceneId: string | null) {
+  const [scene, setScene] = useState<Scene | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  const fetchScene = useCallback(async () => {
+    if (!sceneId) {
+      setLoading(false);
+      setScene(null);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const supabase = createClient();
+
+      const { data, error: fetchError } = await supabase
+        .from('scenes')
+        .select('*')
+        .eq('id', sceneId)
+        .single();
+
+      if (fetchError) throw fetchError;
+      setScene(data);
+      setError(null);
+    } catch (err) {
+      setError(err as Error);
+      setScene(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [sceneId]);
+
+  useEffect(() => {
+    fetchScene();
+  }, [fetchScene]);
+
+  return { scene, loading, error, refetch: fetchScene };
+}
+
+export function useCreateScene() {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+
+  const createScene = async (sceneData: {
+    campaign_id: string;
+    name: string;
+    description?: string | null;
+    image_url?: string | null;
+  }) => {
+    try {
+      setLoading(true);
+      const supabase = createClient();
+
+      const { data, error: insertError } = await supabase
+        .from('scenes')
+        .insert({
+          campaign_id: sceneData.campaign_id,
+          name: sceneData.name,
+          description: sceneData.description || null,
+          image_url: sceneData.image_url || null,
+        })
+        .select()
+        .single();
+
+      if (insertError) throw insertError;
+
+      setError(null);
+      return { success: true, data };
+    } catch (err) {
+      setError(err as Error);
+      return { success: false, error: err as Error };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return { createScene, loading, error };
+}
+
+export function useUpdateScene() {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+
+  const updateScene = async (
+    sceneId: string,
+    updates: Partial<Omit<Scene, 'id' | 'campaign_id' | 'created_at' | 'updated_at'>>
+  ) => {
+    try {
+      setLoading(true);
+      const supabase = createClient();
+
+      const { data, error: updateError } = await supabase
+        .from('scenes')
+        .update(updates)
+        .eq('id', sceneId)
+        .select()
+        .single();
+
+      if (updateError) throw updateError;
+
+      setError(null);
+      return { success: true, data };
+    } catch (err) {
+      setError(err as Error);
+      return { success: false, error: err as Error };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return { updateScene, loading, error };
+}
+
+export function useDeleteScene() {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+
+  const deleteScene = async (sceneId: string) => {
+    try {
+      setLoading(true);
+      const supabase = createClient();
+
+      const { error: deleteError } = await supabase
+        .from('scenes')
+        .delete()
+        .eq('id', sceneId);
+
+      if (deleteError) throw deleteError;
+
+      setError(null);
+      return { success: true };
+    } catch (err) {
+      setError(err as Error);
+      return { success: false, error: err as Error };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return { deleteScene, loading, error };
 }
 
 // ============================================

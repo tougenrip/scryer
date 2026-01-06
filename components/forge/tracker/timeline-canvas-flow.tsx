@@ -14,6 +14,7 @@ import ReactFlow, {
   ReactFlowProvider,
   useReactFlow,
   NodeMouseHandler,
+  NodeDragHandler,
   Handle,
   Position,
   ConnectionMode,
@@ -22,22 +23,13 @@ import "reactflow/dist/style.css";
 import { cn } from "@/lib/utils";
 import { CampaignTimeline } from "@/hooks/useForgeContent";
 import { Button } from "@/components/ui/button";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { Plus, ArrowRight, ArrowDown, ArrowUp, Edit, Trash2 } from "lucide-react";
+import { Plus, ArrowRight, ArrowDown, Edit, Trash2 } from "lucide-react";
 
 interface TimelineCanvasProps {
   width?: number;
   height?: number;
   entries: CampaignTimeline[];
+  mainTimelineBranches?: Map<string, string>; // Track main timeline branches: entryId -> sourceId
   onEntrySelect?: (entryId: string | null) => void;
   onEntryCreate?: (x: number, y: number, parentId?: string, branchType?: 'next' | 'side' | 'main') => void;
   onEntryConnect?: (fromId: string, toId: string) => void;
@@ -98,7 +90,6 @@ function TimelineEntryNode({ data }: { data: any }) {
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
   const [imageSrc, setImageSrc] = useState<string | null>(null);
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   const markerColor = statusMarkerColors[entry.status];
   const iconText = getSessionIconText(entry.session_type);
@@ -249,7 +240,7 @@ function TimelineEntryNode({ data }: { data: any }) {
   return (
     <div
       className={cn(
-        "relative w-[200px] h-[120px] rounded-none overflow-visible",
+        "relative w-[200px] h-[120px] rounded-none overflow-visible cursor-pointer",
         "border-2 transition-all",
         isSelected 
           ? "border-[rgb(201,184,130)] shadow-[0_0_12px_rgba(201,184,130,0.6)]" 
@@ -378,50 +369,57 @@ function TimelineEntryNode({ data }: { data: any }) {
         }}
       />
 
-      {/* Action buttons - shown only on select */}
-      {isDm && isSelected && (
-        <>
-          {/* Next button (right) - Only for main timeline and if no next node exists */}
-          {!isSideQuest && onCreateNext && !hasNextNode && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                e.preventDefault();
-                onCreateNext(entry.id);
-              }}
-              onMouseDown={(e) => {
-                e.stopPropagation();
-                e.preventDefault();
-              }}
-              className="absolute right-[-40px] top-[36px] z-50 w-7 h-7 rounded-full bg-[rgb(201,184,130)] flex items-center justify-center shadow-md hover:shadow-lg transition-shadow pointer-events-auto"
-              style={{
-                boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
-              }}
-            >
-              <ArrowRight className="w-4 h-4 text-[rgb(23,19,17)]" />
-            </button>
-          )}
+       {/* Action buttons - shown only on select */}
+       {isDm && isSelected && (
+         <>
+           {/* Next/Branch button (right) - Only for main timeline */}
+           {/* If no next node exists, create next sequential node. Otherwise, create a branch */}
+           {!isSideQuest && (onCreateNext || onCreateMainBranch) && (
+             <button
+               onClick={(e) => {
+                 e.stopPropagation();
+                 e.preventDefault();
+                 if (!hasNextNode && onCreateNext) {
+                   // No next node - create next sequential node
+                   onCreateNext(entry.id);
+                 } else if (hasNextNode && onCreateMainBranch) {
+                   // Next node exists - create a branch
+                   onCreateMainBranch(entry.id);
+                 }
+               }}
+               onMouseDown={(e) => {
+                 e.stopPropagation();
+                 e.preventDefault();
+               }}
+               className="absolute right-[-40px] top-[36px] z-50 w-7 h-7 rounded-full bg-[rgb(201,184,130)] flex items-center justify-center shadow-md hover:shadow-lg transition-shadow pointer-events-auto cursor-pointer"
+               style={{
+                 boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+               }}
+             >
+               <ArrowRight className="w-4 h-4 text-[rgb(23,19,17)]" />
+             </button>
+           )}
 
-          {/* Side quest button (down) - Only for main timeline */}
-          {!isSideQuest && onCreateSideQuest && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                e.preventDefault();
-                onCreateSideQuest(entry.id);
-              }}
-              onMouseDown={(e) => {
-                e.stopPropagation();
-                e.preventDefault();
-              }}
-              className="absolute right-[-40px] top-[72px] z-50 w-7 h-7 rounded-full bg-[rgb(133,173,133)] flex items-center justify-center shadow-md hover:shadow-lg transition-shadow pointer-events-auto"
-              style={{
-                boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
-              }}
-            >
-              <ArrowDown className="w-4 h-4 text-[rgb(23,19,17)]" />
-            </button>
-          )}
+           {/* Side quest button (down) - Only for main timeline */}
+           {!isSideQuest && onCreateSideQuest && (
+             <button
+               onClick={(e) => {
+                 e.stopPropagation();
+                 e.preventDefault();
+                 onCreateSideQuest(entry.id);
+               }}
+               onMouseDown={(e) => {
+                 e.stopPropagation();
+                 e.preventDefault();
+               }}
+               className="absolute right-[-40px] top-[72px] z-50 w-7 h-7 rounded-full bg-[rgb(133,173,133)] flex items-center justify-center shadow-md hover:shadow-lg transition-shadow pointer-events-auto cursor-pointer"
+               style={{
+                 boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+               }}
+             >
+               <ArrowDown className="w-4 h-4 text-[rgb(23,19,17)]" />
+             </button>
+           )}
 
           {/* Edit and Delete buttons - on card bottom */}
           <div className="absolute bottom-[-24px] left-0 right-0 flex gap-1 z-20">
@@ -430,7 +428,7 @@ function TimelineEntryNode({ data }: { data: any }) {
                 e.stopPropagation();
                 if (onEdit) onEdit(entry.id);
               }}
-              className="flex-1 h-[18px] bg-[rgb(201,184,130)] text-[rgb(23,19,17)] text-[10px] font-semibold rounded-md flex items-center justify-center shadow-sm hover:shadow-md transition-shadow"
+              className="flex-1 h-[18px] bg-[rgb(201,184,130)] text-[rgb(23,19,17)] text-[10px] font-semibold rounded-md flex items-center justify-center shadow-sm hover:shadow-md transition-shadow cursor-pointer"
             >
               Edit
             </button>
@@ -438,43 +436,17 @@ function TimelineEntryNode({ data }: { data: any }) {
               onClick={(e) => {
                 e.stopPropagation();
                 e.preventDefault();
-                setShowDeleteDialog(true);
+                if (onDelete) {
+                  onDelete(entry.id);
+                }
               }}
-              className="flex-1 h-[18px] bg-[rgb(228,124,103)] text-[rgb(23,19,17)] text-[10px] font-semibold rounded-md flex items-center justify-center shadow-sm hover:shadow-md transition-shadow"
+              className="flex-1 h-[18px] bg-[rgb(228,124,103)] text-[rgb(23,19,17)] text-[10px] font-semibold rounded-md flex items-center justify-center shadow-sm hover:shadow-md transition-shadow cursor-pointer"
             >
               Delete
             </button>
           </div>
         </>
       )}
-
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Timeline Entry</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete "{entry.title}"? This action cannot be undone.
-              {entry.parent_entry_id === null && " This will also delete any branches from this entry."}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={(e) => e.stopPropagation()}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={(e) => {
-                e.stopPropagation();
-                if (onDelete) {
-                  onDelete(entry.id);
-                }
-                setShowDeleteDialog(false);
-              }}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }
@@ -489,6 +461,7 @@ function TimelineCanvasInner({
   width = 1200,
   height = 800,
   entries,
+  mainTimelineBranches = new Map(),
   onEntrySelect,
   onEntryCreate,
   onEntryConnect,
@@ -500,10 +473,11 @@ function TimelineCanvasInner({
   className,
 }: TimelineCanvasProps) {
   const reactFlowInstance = useReactFlow();
-  const [hoveredEntryId, setHoveredEntryId] = useState<string | null>(null);
   const clickTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastClickTimeRef = useRef<number>(0);
   const lastClickPositionRef = useRef<{ x: number; y: number } | null>(null);
+  // Store manually positioned nodes to prevent jitter during drag
+  const manuallyPositionedNodes = useRef<Map<string, { x: number; y: number }>>(new Map());
 
   // Calculate positions and create nodes
   const { nodes, edges } = useMemo(() => {
@@ -513,6 +487,11 @@ function TimelineCanvasInner({
     
     // Check for pending positions
     const pendingPositions = (window as any).__pendingTimelinePositions || {};
+    
+    // Use manually positioned nodes first (prevents recalculation after drag)
+    manuallyPositionedNodes.current.forEach((pos, nodeId) => {
+      positions.set(nodeId, pos);
+    });
     
     // Separate main path and branches
     const mainPath = entries
@@ -535,11 +514,20 @@ function TimelineCanvasInner({
     const horizontalSpacing = 450;
     const startX = 200;
 
-    mainPath.forEach((entry, index) => {
-      positions.set(entry.id, {
-        x: startX + index * horizontalSpacing,
-        y: mainTimelineY,
-      });
+    // Separate main timeline branches from regular main timeline entries
+    const mainTimelineBranchesList = Array.from(mainTimelineBranches.keys());
+    const regularMainPath = mainPath.filter(e => !mainTimelineBranchesList.includes(e.id));
+    const branchEntries = mainPath.filter(e => mainTimelineBranchesList.includes(e.id));
+
+    // Layout regular main timeline entries
+    regularMainPath.forEach((entry, index) => {
+      // Skip if already manually positioned
+      if (!manuallyPositionedNodes.current.has(entry.id)) {
+        positions.set(entry.id, {
+          x: startX + index * horizontalSpacing,
+          y: mainTimelineY,
+        });
+      }
 
       // Separate top branches and side quests
       const allBranches = branchesByParent.get(entry.id) || [];
@@ -563,31 +551,76 @@ function TimelineCanvasInner({
       
       // Layout top branches
       topBranches.sort((a, b) => a.branch_path_index - b.branch_path_index).forEach((branch, branchIndex) => {
-        const existingPos = positions.get(branch.id);
-        const topY = existingPos && existingPos.y < 250 ? existingPos.y : 150 + branchIndex * 200;
-        positions.set(branch.id, {
-          x: startX + index * horizontalSpacing,
-          y: topY,
-        });
+        // Skip if already manually positioned
+        if (!manuallyPositionedNodes.current.has(branch.id)) {
+          const existingPos = positions.get(branch.id);
+          const topY = existingPos && existingPos.y < 250 ? existingPos.y : 150 + branchIndex * 200;
+          positions.set(branch.id, {
+            x: startX + index * horizontalSpacing,
+            y: topY,
+          });
+        }
       });
       
       // Layout side quests
       sideQuests.sort((a, b) => a.branch_path_index - b.branch_path_index).forEach((branch, branchIndex) => {
-        const existingPos = positions.get(branch.id);
-        if (existingPos && existingPos.y >= 250) {
-          positions.set(branch.id, existingPos);
-        } else {
-          positions.set(branch.id, {
-            x: startX + index * horizontalSpacing + 280,
-            y: mainTimelineY + 180 + branchIndex * 200,
-          });
+        // Skip if already manually positioned
+        if (!manuallyPositionedNodes.current.has(branch.id)) {
+          const existingPos = positions.get(branch.id);
+          if (existingPos && existingPos.y >= 250) {
+            positions.set(branch.id, existingPos);
+          } else {
+            positions.set(branch.id, {
+              x: startX + index * horizontalSpacing + 280,
+              y: mainTimelineY + 180 + branchIndex * 200,
+            });
+          }
         }
       });
     });
 
+    // Layout main timeline branches (positioned at the top of their source)
+    branchEntries.forEach((branchEntry) => {
+      // Skip if already manually positioned
+      if (!manuallyPositionedNodes.current.has(branchEntry.id)) {
+        const sourceId = mainTimelineBranches.get(branchEntry.id);
+        if (sourceId) {
+          const sourcePos = positions.get(sourceId);
+          if (sourcePos) {
+            // Position branch at the top, aligned with source horizontally
+            const branchesFromSource = branchEntries.filter(e => mainTimelineBranches.get(e.id) === sourceId);
+            const branchIndex = branchesFromSource.indexOf(branchEntry);
+            const topY = 50; // Much higher at the top
+            const stackedY = topY + branchIndex * 200; // Stack multiple branches
+            positions.set(branchEntry.id, {
+              x: sourcePos.x, // Aligned horizontally with source
+              y: stackedY,
+            });
+          } else {
+            // Fallback: position in main timeline if source not found
+            const index = mainPath.indexOf(branchEntry);
+            positions.set(branchEntry.id, {
+              x: startX + index * horizontalSpacing,
+              y: mainTimelineY,
+            });
+          }
+        } else {
+          // Fallback: position in main timeline
+          const index = mainPath.indexOf(branchEntry);
+          positions.set(branchEntry.id, {
+            x: startX + index * horizontalSpacing,
+            y: mainTimelineY,
+          });
+        }
+      }
+    });
+
     // Create nodes
     entries.forEach(entry => {
-      const pos = positions.get(entry.id) || { x: 0, y: 0 };
+      // Prioritize manually positioned nodes, then calculated positions
+      const manualPos = manuallyPositionedNodes.current.get(entry.id);
+      const calculatedPos = positions.get(entry.id);
+      const pos = manualPos || calculatedPos || { x: 0, y: 0 };
       const parentEntry = entry.parent_entry_id ? entries.find(e => e.id === entry.parent_entry_id) : null;
       const isSideQuest = entry.parent_entry_id && parentEntry && !parentEntry.parent_entry_id;
       
@@ -606,7 +639,7 @@ function TimelineCanvasInner({
         data: {
           entry,
           isSelected: selectedEntryId === entry.id,
-          isHovered: hoveredEntryId === entry.id,
+          isHovered: false, // Hover state updated directly on nodes, not via useMemo
           isDm,
           isSideQuest,
           hasNextNode, // Pass this to the node component
@@ -631,15 +664,19 @@ function TimelineCanvasInner({
             const entry = entries.find(e => e.id === entryId);
             const pos = positions.get(entryId);
             if (entry && pos && onEntryCreate) {
-              const existingTopBranches = entries.filter(
-                e => e.parent_entry_id === entryId && positions.get(e.id)?.y < 250
+              // Create a new main timeline entry at the top of the source node
+              const topY = 50; // Much higher at the top
+              // Count existing main timeline branches from this source to stack them
+              const existingBranches = entries.filter(
+                e => mainTimelineBranches.get(e.id) === entryId
               );
-              const stackedY = 150 + existingTopBranches.length * 200;
+              const stackedY = topY + existingBranches.length * 200;
+              // Aligned horizontally with source
               onEntryCreate(pos.x, stackedY, entryId, 'main');
             }
           },
         },
-        draggable: false,
+        draggable: isDm, // Allow dragging only for DMs
         // Configure connection handles
         sourcePosition: 'right',
         targetPosition: 'left',
@@ -711,10 +748,10 @@ function TimelineCanvasInner({
         edgeList.push(edge);
       });
 
-    // Connect main timeline nodes sequentially
-    mainPath.forEach((entry, index) => {
-      if (index < mainPath.length - 1) {
-        const nextEntry = mainPath[index + 1];
+    // Connect main timeline nodes sequentially (excluding branches)
+    regularMainPath.forEach((entry, index) => {
+      if (index < regularMainPath.length - 1) {
+        const nextEntry = regularMainPath[index + 1];
         const fromPos = positions.get(entry.id);
         const toPos = positions.get(nextEntry.id);
         
@@ -745,6 +782,90 @@ function TimelineCanvasInner({
       }
     });
 
+    // Create edges for main timeline branches (branches that are main timeline entries)
+    // Group branches by source to connect them sequentially
+    const branchesBySource = new Map<string, string[]>();
+    mainTimelineBranches.forEach((sourceId, branchId) => {
+      if (!branchesBySource.has(sourceId)) {
+        branchesBySource.set(sourceId, []);
+      }
+      branchesBySource.get(sourceId)!.push(branchId);
+    });
+
+    branchesBySource.forEach((branchIds, sourceId) => {
+      // Sort branches by order_index to connect them in sequence
+      const sortedBranches = branchIds
+        .map(id => entries.find(e => e.id === id))
+        .filter((e): e is CampaignTimeline => e !== undefined)
+        .sort((a, b) => a.order_index - b.order_index);
+
+      // Create edge from source to first branch (from top handle)
+      if (sortedBranches.length > 0) {
+        const firstBranch = sortedBranches[0];
+        const fromPos = positions.get(sourceId);
+        const toPos = positions.get(firstBranch.id);
+        
+        if (fromPos && toPos) {
+          const edge: Edge = {
+            id: `edge-branch-${sourceId}-${firstBranch.id}`,
+            source: sourceId,
+            target: firstBranch.id,
+            type: 'smoothstep',
+            style: {
+              stroke: 'rgb(236, 217, 198)', // chart-5 (orange/tan) for branches
+              strokeWidth: 2,
+              strokeDasharray: '5,5',
+            },
+            animated: true,
+            sourceHandle: 'top', // Line comes out from top
+            targetHandle: 'bottom-target', // Connects to bottom of branch
+            markerEnd: {
+              type: 'arrowclosed',
+              color: 'rgb(236, 217, 198)',
+              width: 20,
+              height: 20,
+            },
+          };
+          
+          edgeList.push(edge);
+        }
+      }
+
+      // Connect branches sequentially (vertical stacking)
+      sortedBranches.forEach((branch, index) => {
+        if (index < sortedBranches.length - 1) {
+          const nextBranch = sortedBranches[index + 1];
+          const fromPos = positions.get(branch.id);
+          const toPos = positions.get(nextBranch.id);
+          
+          if (fromPos && toPos) {
+            const edge: Edge = {
+              id: `edge-branch-seq-${branch.id}-${nextBranch.id}`,
+              source: branch.id,
+              target: nextBranch.id,
+              type: 'default',
+              style: {
+                stroke: 'rgb(236, 217, 198)', // chart-5 (orange/tan) for branches
+                strokeWidth: 2,
+                strokeDasharray: '5,5',
+              },
+              animated: true,
+              sourceHandle: 'bottom', // From bottom of upper branch
+              targetHandle: 'top', // To top of lower branch
+              markerEnd: {
+                type: 'arrowclosed',
+                color: 'rgb(236, 217, 198)',
+                width: 20,
+                height: 20,
+              },
+            };
+            
+            edgeList.push(edge);
+          }
+        }
+      });
+    });
+
     // Clean up pending positions
     if (Object.keys(pendingPositions).length === 0) {
       delete (window as any).__pendingTimelinePositions;
@@ -756,15 +877,80 @@ function TimelineCanvasInner({
       nodes: Array.from(nodeMap.values()),
       edges: edgeList,
     };
-  }, [entries, height, selectedEntryId, hoveredEntryId, isDm, onEntryCreate, onEntryEdit, onEntryDelete]);
+  }, [entries, height, selectedEntryId, isDm, onEntryCreate, onEntryEdit, onEntryDelete, mainTimelineBranches]);
 
   const [reactFlowNodes, setNodes, onNodesChange] = useNodesState(nodes);
   const [reactFlowEdges, setEdges, onEdgesChange] = useEdgesState(edges);
 
   // Update nodes and edges when they change
+  // But preserve positions of nodes that are being dragged and avoid unnecessary updates
   useEffect(() => {
-    setNodes(nodes);
-    setEdges(edges);
+    setNodes((currentNodes) => {
+      // Quick check: if lengths match and all IDs match, do a deeper comparison
+      if (currentNodes.length === nodes.length) {
+        const idsMatch = currentNodes.every((cn, i) => cn.id === nodes[i]?.id);
+        if (idsMatch) {
+          // Check if any significant changes occurred (excluding hover and drag state)
+          const hasSignificantChanges = currentNodes.some((currentNode, index) => {
+            const newNode = nodes[index];
+            if (!newNode) return true;
+            
+            // Skip if dragging (preserve current state)
+            if (currentNode.dragging) return false;
+            
+            // Check if selection changed
+            if (currentNode.data?.isSelected !== newNode.data?.isSelected) return true;
+            
+            // Check if entry data changed (by comparing entry ID)
+            if (currentNode.data?.entry?.id !== newNode.data?.entry?.id) return true;
+            
+            // Check if position changed significantly (more than 1px)
+            const posChanged = 
+              Math.abs((currentNode.position?.x || 0) - (newNode.position?.x || 0)) > 1 ||
+              Math.abs((currentNode.position?.y || 0) - (newNode.position?.y || 0)) > 1;
+            
+            return posChanged;
+          });
+          
+          // No significant changes, preserve current nodes (including hover state)
+          if (!hasSignificantChanges) {
+            return currentNodes;
+          }
+        }
+      }
+      
+      // Update needed - preserve dragging nodes and hover state
+      return nodes.map((node) => {
+        const currentNode = currentNodes.find(n => n.id === node.id);
+        // If node is currently being dragged, keep its current position and state
+        if (currentNode && currentNode.dragging) {
+          return currentNode;
+        }
+        // Preserve hover state if it exists
+        if (currentNode?.data?.isHovered) {
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              isHovered: true,
+            }
+          };
+        }
+        // Otherwise use the calculated position
+        return node;
+      });
+    });
+    
+    // Only update edges if they actually changed (compare by ID)
+    setEdges((currentEdges) => {
+      if (currentEdges.length === edges.length) {
+        const edgesMatch = currentEdges.every((ce, i) => ce.id === edges[i]?.id);
+        if (edgesMatch) {
+          return currentEdges; // No change
+        }
+      }
+      return edges;
+    });
   }, [nodes, edges, setNodes, setEdges]);
 
   // Track last clicked node for double-click detection
@@ -792,22 +978,28 @@ function TimelineCanvasInner({
         clearTimeout(clickTimeoutRef.current);
         clickTimeoutRef.current = null;
       }
+      // Clear selection first, then open edit
+      onEntrySelect?.(null);
       onEntryEdit?.(node.id);
       lastClickTimeRef.current = 0;
       lastClickPositionRef.current = null;
       lastClickedNodeRef.current = null;
     } else {
-      // Single click - select after delay
+      // Single click - select immediately (buttons show right away)
+      onEntrySelect?.(node.id);
+      
+      // Store click info for potential double-click detection
       lastClickTimeRef.current = now;
       lastClickPositionRef.current = clickPos;
       lastClickedNodeRef.current = node.id;
       
+      // Clear any existing timeout
       if (clickTimeoutRef.current) {
         clearTimeout(clickTimeoutRef.current);
       }
       
+      // Set timeout to clear double-click tracking (no action needed, just cleanup)
       clickTimeoutRef.current = setTimeout(() => {
-        onEntrySelect?.(node.id);
         clickTimeoutRef.current = null;
         lastClickTimeRef.current = 0;
         lastClickPositionRef.current = null;
@@ -861,14 +1053,66 @@ function TimelineCanvasInner({
     }
   }, [onEntrySelect, isDm, onEntryCreate, reactFlowInstance]);
 
-  // Handle node mouse enter/leave
+  // Handle node mouse enter/leave - update hover state directly on nodes
   const onNodeMouseEnter: NodeMouseHandler = useCallback((event, node) => {
-    setHoveredEntryId(node.id);
-  }, []);
+    // Update hover state directly without triggering full recalculation
+    setNodes((currentNodes) => {
+      return currentNodes.map(n => {
+        if (n.id === node.id && n.data) {
+          return {
+            ...n,
+            data: {
+              ...n.data,
+              isHovered: true,
+            }
+          };
+        }
+        return n;
+      });
+    });
+  }, [setNodes]);
 
   const onNodeMouseLeave: NodeMouseHandler = useCallback(() => {
-    setHoveredEntryId(null);
+    // Clear hover state
+    setNodes((currentNodes) => {
+      return currentNodes.map(n => {
+        if (n.data?.isHovered) {
+          return {
+            ...n,
+            data: {
+              ...n.data,
+              isHovered: false,
+            }
+          };
+        }
+        return n;
+      });
+    });
+  }, [setNodes]);
+
+  // Handle node drag - store position to prevent jitter
+  const onNodeDrag: NodeDragHandler = useCallback((event, node) => {
+    if (node.position) {
+      // Store the dragged position immediately to prevent jitter
+      manuallyPositionedNodes.current.set(node.id, {
+        x: node.position.x,
+        y: node.position.y,
+      });
+    }
   }, []);
+
+  // Handle node drag stop - save the new position
+  const onNodeDragStop: NodeDragHandler = useCallback((event, node) => {
+    if (onEntryMove && node.position) {
+      // Store the final position
+      manuallyPositionedNodes.current.set(node.id, {
+        x: node.position.x,
+        y: node.position.y,
+      });
+      // Save to backend
+      onEntryMove(node.id, node.position.x, node.position.y);
+    }
+  }, [onEntryMove]);
 
   // Handle canvas right-click for creating entries
   const onPaneContextMenu = useCallback((event: React.MouseEvent) => {
@@ -960,6 +1204,8 @@ function TimelineCanvasInner({
         onPaneClick={handlePaneClick}
         onNodeMouseEnter={onNodeMouseEnter}
         onNodeMouseLeave={onNodeMouseLeave}
+        onNodeDrag={onNodeDrag}
+        onNodeDragStop={onNodeDragStop}
         onPaneContextMenu={onPaneContextMenu}
         nodeTypes={nodeTypes}
         fitView={false}
@@ -969,7 +1215,7 @@ function TimelineCanvasInner({
         style={{
           background: 'rgb(35, 29, 26)', // Use theme background color
         }}
-        nodesDraggable={false}
+        nodesDraggable={isDm}
         nodesConnectable={true}
         edgesFocusable={false}
         edgesUpdatable={false}
@@ -1045,6 +1291,7 @@ export function TimelineCanvas({
   width = 1200,
   height = 800,
   entries,
+  mainTimelineBranches = new Map(),
   onEntrySelect,
   onEntryCreate,
   onEntryConnect,
@@ -1068,6 +1315,7 @@ export function TimelineCanvas({
           width={width}
           height={height}
           entries={entries}
+          mainTimelineBranches={mainTimelineBranches}
           onEntrySelect={onEntrySelect}
           onEntryCreate={onEntryCreate}
           onEntryConnect={onEntryConnect}

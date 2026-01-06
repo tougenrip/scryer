@@ -143,23 +143,59 @@ export function MapImageUpload({
 
   return (
     <div className="space-y-4">
-      {/* Image Preview */}
-      {imageUrl && (
-        <div className="relative rounded-lg overflow-hidden border-2 border-border bg-muted">
+      {imageUrl ? (
+        /* Image Preview with Hover Overlay */
+        <div
+          className="relative rounded-lg overflow-hidden border-2 border-border bg-muted group"
+          onDragEnter={handleDrag}
+          onDragLeave={handleDrag}
+          onDragOver={handleDrag}
+          onDrop={handleDrop}
+        >
           <img
             src={imageUrl}
             alt="Image preview"
             className="w-full h-48 object-contain"
           />
           {uploading && (
-            <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-10">
+            <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-20">
               <Loader2 className="h-6 w-6 animate-spin text-white" />
             </div>
           )}
+          {/* Hover Overlay */}
+          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 z-10">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleFileInputChange}
+              className="hidden"
+              disabled={disabled || uploading}
+            />
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => !disabled && !uploading && fileInputRef.current?.click()}
+              disabled={disabled || uploading}
+            >
+              <Upload className="h-4 w-4 mr-2" />
+              Change Image
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              size="sm"
+              onClick={handleRemoveImage}
+              disabled={disabled || uploading}
+            >
+              <X className="h-4 w-4 mr-2" />
+              Remove
+            </Button>
+          </div>
         </div>
-      )}
-
-      {/* Drop Zone */}
+      ) : (
+        /* Drop Zone (only shown when no image) */
       <div
         ref={dropZoneRef}
         onDragEnter={handleDrag}
@@ -185,7 +221,7 @@ export function MapImageUpload({
           <Upload className="h-8 w-8 text-muted-foreground" />
           <div className="space-y-1">
             <p className="text-sm font-medium">
-              {imageUrl ? "Click to change image" : "Click or drag image here"}
+                Click or drag image here
             </p>
             <p className="text-xs text-muted-foreground">
               PNG, JPG, WEBP up to 10MB
@@ -193,19 +229,6 @@ export function MapImageUpload({
           </div>
         </div>
       </div>
-
-      {imageUrl && (
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={handleRemoveImage}
-          disabled={disabled || uploading}
-          className="w-full"
-        >
-          <X className="h-4 w-4 mr-2" />
-          Remove Image
-        </Button>
       )}
     </div>
   );

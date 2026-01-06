@@ -45,6 +45,7 @@ interface TimelineEntryFormDialogProps {
     image_url?: string | null;
   }) => void;
   loading?: boolean;
+  isSideQuest?: boolean; // Flag to indicate if this is a side quest
 }
 
 const sessionTypeOptions = [
@@ -70,6 +71,7 @@ export function TimelineEntryFormDialog({
   campaignId,
   onSave,
   loading = false,
+  isSideQuest = false,
 }: TimelineEntryFormDialogProps) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -143,6 +145,11 @@ export function TimelineEntryFormDialog({
 
     const orderIndex = entry ? entry.order_index : getNextOrderIndex();
 
+    // For side quests, preserve the existing parent_entry_id
+    const finalParentEntryId = isSideQuest && entry 
+      ? entry.parent_entry_id 
+      : (parentEntryId || null);
+
     onSave({
       title: title.trim(),
       description: description.trim() || null,
@@ -151,8 +158,8 @@ export function TimelineEntryFormDialog({
       actual_date: actualDate ? new Date(actualDate).toISOString() : null,
       order_index: orderIndex,
       status: status,
-      parent_entry_id: parentEntryId || null,
-      branch_path_index: parentEntryId ? branchPathIndex : 0,
+      parent_entry_id: finalParentEntryId,
+      branch_path_index: finalParentEntryId ? branchPathIndex : 0,
       associated_location_ids: [],
       associated_quest_ids: [],
       notes: notes.trim() || null,
@@ -241,30 +248,33 @@ export function TimelineEntryFormDialog({
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="parent-entry">Branch From (Optional)</Label>
-            <Select
-              value={parentEntryId || "none"}
-              onValueChange={(v) => setParentEntryId(v === "none" ? null : v)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select parent entry for branching" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Main Timeline</SelectItem>
-                {getAvailableParents().map((parent) => (
-                  <SelectItem key={parent.id} value={parent.id}>
-                    {parent.title}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {parentEntryId && (
-              <p className="text-xs text-muted-foreground">
-                This entry will branch from the selected parent, creating an alternative timeline path.
-              </p>
-            )}
-          </div>
+          {/* Only show Branch From for main timeline entries, not side quests */}
+          {!isSideQuest && (
+            <div className="space-y-2">
+              <Label htmlFor="parent-entry">Branch From (Optional)</Label>
+              <Select
+                value={parentEntryId || "none"}
+                onValueChange={(v) => setParentEntryId(v === "none" ? null : v)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select parent entry for branching" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Main Timeline</SelectItem>
+                  {getAvailableParents().map((parent) => (
+                    <SelectItem key={parent.id} value={parent.id}>
+                      {parent.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {parentEntryId && (
+                <p className="text-xs text-muted-foreground">
+                  This entry will branch from the selected parent, creating an alternative timeline path.
+                </p>
+              )}
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">

@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 
 // Import tab components (to be created)
-import { AtlasTab } from "@/components/forge/atlas/atlas-tab";
+import { ScenesTab } from "@/components/forge/scenes/scenes-tab";
 import { LocationsTab } from "@/components/forge/locations/locations-tab";
 import { PantheonTab } from "@/components/forge/pantheon/pantheon-tab";
 import { CampaignTrackerTab } from "@/components/forge/tracker/tracker-tab";
@@ -40,8 +40,8 @@ export default function ForgePage() {
   const [userId, setUserId] = useState<string | null>(null);
   const [isDm, setIsDm] = useState(false);
   
-  // Get initial tab from URL params or default to 'atlas'
-  const defaultTab = searchParams.get('tab') || 'atlas';
+  // Get initial tab from URL params or default to 'scenes'
+  const defaultTab = searchParams.get('tab') || 'scenes';
   const [activeTab, setActiveTab] = useState(defaultTab);
 
   const handleTabChange = (value: string) => {
@@ -114,9 +114,9 @@ export default function ForgePage() {
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
         <TabsList className="grid w-full grid-cols-10 max-w-full overflow-x-auto">
-          <TabsTrigger value="atlas" className="flex items-center gap-2">
+          <TabsTrigger value="scenes" className="flex items-center gap-2">
             <Map className="h-4 w-4" />
-            <span className="hidden sm:inline">Atlas</span>
+            <span className="hidden sm:inline">Scenes</span>
           </TabsTrigger>
           <TabsTrigger value="locations" className="flex items-center gap-2">
             <MapPin className="h-4 w-4" />
@@ -158,8 +158,8 @@ export default function ForgePage() {
 
         {/* Tab Contents */}
         <div className="mt-6">
-          <TabsContent value="atlas" className="mt-0">
-            <AtlasTab campaignId={campaignId} isDm={isDm} />
+          <TabsContent value="scenes" className="mt-0">
+            <ScenesTab campaignId={campaignId} isDm={isDm} />
           </TabsContent>
 
           <TabsContent value="locations" className="mt-0">
