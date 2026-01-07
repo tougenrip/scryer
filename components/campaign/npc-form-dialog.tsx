@@ -13,7 +13,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { NPC } from "@/hooks/useCampaignContent";
+import { useClasses, useRaces } from "@/hooks/useDndContent";
 import { MapImageUpload } from "./map-image-upload";
 
 interface NPCFormDialogProps {
@@ -32,6 +40,12 @@ interface NPCFormDialogProps {
     location?: string | null;
     notes?: string | null;
     image_url?: string | null;
+    class_source?: string | null;
+    class_index?: string | null;
+    species_source?: string | null;
+    species_index?: string | null;
+    custom_class?: string | null;
+    custom_species?: string | null;
     created_by: string;
   }) => Promise<{ success: boolean; error?: Error }>;
   onUpdate: (
@@ -45,6 +59,12 @@ interface NPCFormDialogProps {
       location?: string | null;
       notes?: string | null;
       image_url?: string | null;
+      class_source?: string | null;
+      class_index?: string | null;
+      species_source?: string | null;
+      species_index?: string | null;
+      custom_class?: string | null;
+      custom_species?: string | null;
     }
   ) => Promise<{ success: boolean; error?: Error }>;
 }
@@ -67,6 +87,22 @@ export function NPCFormDialog({
   const [notes, setNotes] = useState("");
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  
+  // Class fields
+  const [classSource, setClassSource] = useState<string | null>(null);
+  const [classIndex, setClassIndex] = useState<string | null>(null);
+  const [isCustomClass, setIsCustomClass] = useState(false);
+  const [customClass, setCustomClass] = useState("");
+  
+  // Species fields
+  const [speciesSource, setSpeciesSource] = useState<string | null>(null);
+  const [speciesIndex, setSpeciesIndex] = useState<string | null>(null);
+  const [isCustomSpecies, setIsCustomSpecies] = useState(false);
+  const [customSpecies, setCustomSpecies] = useState("");
+  
+  // Fetch classes and races
+  const { classes, loading: classesLoading } = useClasses(campaignId, null);
+  const { races, loading: racesLoading } = useRaces(campaignId, null);
 
   useEffect(() => {
     if (npc) {
@@ -78,6 +114,32 @@ export function NPCFormDialog({
       setLocation(npc.location || "");
       setNotes(npc.notes || "");
       setImageUrl(npc.image_url || null);
+      
+      // Initialize class fields
+      if (npc.custom_class) {
+        setIsCustomClass(true);
+        setCustomClass(npc.custom_class);
+        setClassSource(null);
+        setClassIndex(null);
+      } else {
+        setIsCustomClass(false);
+        setCustomClass("");
+        setClassSource(npc.class_source || null);
+        setClassIndex(npc.class_index || null);
+      }
+      
+      // Initialize species fields
+      if (npc.custom_species) {
+        setIsCustomSpecies(true);
+        setCustomSpecies(npc.custom_species);
+        setSpeciesSource(null);
+        setSpeciesIndex(null);
+      } else {
+        setIsCustomSpecies(false);
+        setCustomSpecies("");
+        setSpeciesSource(npc.species_source || null);
+        setSpeciesIndex(npc.species_index || null);
+      }
     } else {
       setName("");
       setDescription("");
@@ -87,6 +149,14 @@ export function NPCFormDialog({
       setLocation("");
       setNotes("");
       setImageUrl(null);
+      setClassSource(null);
+      setClassIndex(null);
+      setIsCustomClass(false);
+      setCustomClass("");
+      setSpeciesSource(null);
+      setSpeciesIndex(null);
+      setIsCustomSpecies(false);
+      setCustomSpecies("");
     }
   }, [npc, open]);
 
@@ -108,6 +178,12 @@ export function NPCFormDialog({
         location: location.trim() || null,
         notes: notes.trim() || null,
         image_url: imageUrl || null,
+        class_source: isCustomClass ? null : classSource || null,
+        class_index: isCustomClass ? null : classIndex || null,
+        custom_class: isCustomClass ? customClass.trim() || null : null,
+        species_source: isCustomSpecies ? null : speciesSource || null,
+        species_index: isCustomSpecies ? null : speciesIndex || null,
+        custom_species: isCustomSpecies ? customSpecies.trim() || null : null,
       };
 
       let result;
@@ -166,6 +242,122 @@ export function NPCFormDialog({
                 placeholder="Where can this NPC be found?"
                 disabled={loading}
               />
+            </div>
+            
+            {/* Class Dropdown */}
+            <div className="grid gap-2">
+              <Label htmlFor="class">Class</Label>
+              <div className="space-y-2">
+                <Select
+                  value={isCustomClass ? 'custom' : (classSource && classIndex ? `${classSource}:${classIndex}` : 'none')}
+                  onValueChange={(value) => {
+                    if (value === 'custom') {
+                      setIsCustomClass(true);
+                      setClassSource(null);
+                      setClassIndex(null);
+                    } else if (value === 'none') {
+                      setIsCustomClass(false);
+                      setClassSource(null);
+                      setClassIndex(null);
+                    } else {
+                      setIsCustomClass(false);
+                      const [source, index] = value.split(':');
+                      setClassSource(source);
+                      setClassIndex(index);
+                      setCustomClass("");
+                    }
+                  }}
+                  disabled={loading || classesLoading}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select a class" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    {classes.length > 0 && (
+                      <>
+                        <SelectItem value="custom">Custom Class...</SelectItem>
+                        {classes.map((cls) => (
+                          <SelectItem
+                            key={`${cls.source}-${cls.index}`}
+                            value={`${cls.source}:${cls.index}`}
+                          >
+                            {cls.name}
+                          </SelectItem>
+                        ))}
+                      </>
+                    )}
+                  </SelectContent>
+                </Select>
+                {isCustomClass && (
+                  <Input
+                    id="custom-class"
+                    type="text"
+                    value={customClass}
+                    onChange={(e) => setCustomClass(e.target.value)}
+                    placeholder="Enter custom class"
+                    disabled={loading}
+                  />
+                )}
+              </div>
+            </div>
+            
+            {/* Species Dropdown */}
+            <div className="grid gap-2">
+              <Label htmlFor="species">Species</Label>
+              <div className="space-y-2">
+                <Select
+                  value={isCustomSpecies ? 'custom' : (speciesSource && speciesIndex ? `${speciesSource}:${speciesIndex}` : 'none')}
+                  onValueChange={(value) => {
+                    if (value === 'custom') {
+                      setIsCustomSpecies(true);
+                      setSpeciesSource(null);
+                      setSpeciesIndex(null);
+                    } else if (value === 'none') {
+                      setIsCustomSpecies(false);
+                      setSpeciesSource(null);
+                      setSpeciesIndex(null);
+                    } else {
+                      setIsCustomSpecies(false);
+                      const [source, index] = value.split(':');
+                      setSpeciesSource(source);
+                      setSpeciesIndex(index);
+                      setCustomSpecies("");
+                    }
+                  }}
+                  disabled={loading || racesLoading}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select a species" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    {races.length > 0 && (
+                      <>
+                        <SelectItem value="custom">Custom Species...</SelectItem>
+                        {races.map((race) => (
+                          <SelectItem
+                            key={`${race.source}-${race.index}`}
+                            value={`${race.source}:${race.index}`}
+                          >
+                            {race.name}
+                          </SelectItem>
+                        ))}
+                      </>
+                    )}
+                  </SelectContent>
+                </Select>
+                {isCustomSpecies && (
+                  <Input
+                    id="custom-species"
+                    type="text"
+                    value={customSpecies}
+                    onChange={(e) => setCustomSpecies(e.target.value)}
+                    placeholder="Enter custom species"
+                    disabled={loading}
+                  />
+                )}
+              </div>
             </div>
             <div className="grid gap-2">
               <Label>Image</Label>

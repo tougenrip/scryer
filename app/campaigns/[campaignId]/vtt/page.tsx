@@ -28,6 +28,7 @@ import { MusicPlayer } from "@/components/tools/MusicPlayer";
 import { ObjectiveTracker } from "@/components/tools/ObjectiveTracker";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { RollHistory } from "@/components/dice/roll-history";
 
 export default function VttPage() {
   const params = useParams();
@@ -258,6 +259,7 @@ export default function VttPage() {
           </div>
         )}
       </div>
+      <RollHistory />
     </div>
   );
 }

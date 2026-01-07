@@ -45,6 +45,19 @@ export interface Scene {
   name: string;
   description: string | null;
   image_url: string | null;
+  conditions: string[] | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface Floor {
+  id: string;
+  scene_id: string;
+  name: string;
+  description: string | null;
+  image_url: string | null;
+  floor_order: number;
+  conditions: string[] | null;
   created_at: string | null;
   updated_at: string | null;
 }
@@ -55,6 +68,7 @@ export interface LocationMarker {
   location_id: string | null;
   map_id: string | null;
   scene_id: string | null;
+  floor_id: string | null;
   x: number;
   y: number;
   background_shape: 'circle' | 'diamond' | 'square' | 'triangle' | null; // Optional background
@@ -353,7 +367,7 @@ export function useDeleteWorldLocation() {
 // LOCATION MARKERS HOOKS
 // ============================================
 
-export function useLocationMarkers(campaignId: string | null, sceneId?: string | null, mapId?: string | null) {
+export function useLocationMarkers(campaignId: string | null, sceneId?: string | null, mapId?: string | null, floorId?: string | null) {
   const [markers, setMarkers] = useState<LocationMarker[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -389,6 +403,14 @@ export function useLocationMarkers(campaignId: string | null, sceneId?: string |
         }
       }
 
+      if (floorId !== undefined) {
+        if (floorId === null) {
+          query = query.is('floor_id', null);
+        } else {
+          query = query.eq('floor_id', floorId);
+        }
+      }
+
       const { data, error: fetchError } = await query.order('created_at', { ascending: true });
 
       if (fetchError) throw fetchError;
@@ -399,7 +421,7 @@ export function useLocationMarkers(campaignId: string | null, sceneId?: string |
     } finally {
       setLoading(false);
     }
-  }, [campaignId, sceneId, mapId]);
+  }, [campaignId, sceneId, mapId, floorId]);
 
   useEffect(() => {
     fetchMarkers();
@@ -417,6 +439,7 @@ export function useCreateLocationMarker() {
     location_id?: string | null;
     map_id?: string | null;
     scene_id?: string | null;
+    floor_id?: string | null;
     x: number;
     y: number;
     background_shape?: LocationMarker['background_shape'];
@@ -704,6 +727,194 @@ export function useDeleteScene() {
   };
 
   return { deleteScene, loading, error };
+}
+
+// ============================================
+// FLOORS HOOKS
+// ============================================
+
+export function useFloors(sceneId: string | null) {
+  const [floors, setFloors] = useState<Floor[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  const fetchFloors = useCallback(async () => {
+    if (!sceneId) {
+      setLoading(false);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const supabase = createClient();
+
+      const { data, error: fetchError } = await supabase
+        .from('floors')
+        .select('*')
+        .eq('scene_id', sceneId)
+        .order('floor_order', { ascending: true });
+
+      if (fetchError) throw fetchError;
+      setFloors(data || []);
+      setError(null);
+    } catch (err) {
+      setError(err as Error);
+    } finally {
+      setLoading(false);
+    }
+  }, [sceneId]);
+
+  useEffect(() => {
+    fetchFloors();
+  }, [fetchFloors]);
+
+  return { floors, loading, error, refetch: fetchFloors };
+}
+
+export function useFloor(floorId: string | null) {
+  const [floor, setFloor] = useState<Floor | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  const fetchFloor = useCallback(async () => {
+    if (!floorId) {
+      setLoading(false);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const supabase = createClient();
+
+      const { data, error: fetchError } = await supabase
+        .from('floors')
+        .select('*')
+        .eq('id', floorId)
+        .single();
+
+      if (fetchError) throw fetchError;
+      setFloor(data);
+      setError(null);
+    } catch (err) {
+      setError(err as Error);
+      setFloor(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [floorId]);
+
+  useEffect(() => {
+    fetchFloor();
+  }, [fetchFloor]);
+
+  return { floor, loading, error, refetch: fetchFloor };
+}
+
+export function useCreateFloor() {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+
+  const createFloor = async (floorData: {
+    scene_id: string;
+    name: string;
+    description?: string | null;
+    image_url?: string | null;
+    floor_order?: number;
+    conditions?: string[] | null;
+  }) => {
+    try {
+      setLoading(true);
+      const supabase = createClient();
+
+      const { data, error: insertError } = await supabase
+        .from('floors')
+        .insert({
+          scene_id: floorData.scene_id,
+          name: floorData.name,
+          description: floorData.description || null,
+          image_url: floorData.image_url || null,
+          floor_order: floorData.floor_order ?? 0,
+          conditions: floorData.conditions || [],
+        })
+        .select()
+        .single();
+
+      if (insertError) throw insertError;
+
+      setError(null);
+      return { success: true, data };
+    } catch (err) {
+      setError(err as Error);
+      return { success: false, error: err as Error };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return { createFloor, loading, error };
+}
+
+export function useUpdateFloor() {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+
+  const updateFloor = async (
+    floorId: string,
+    updates: Partial<Omit<Floor, 'id' | 'scene_id' | 'created_at'>>
+  ) => {
+    try {
+      setLoading(true);
+      const supabase = createClient();
+
+      const { data, error: updateError } = await supabase
+        .from('floors')
+        .update(updates)
+        .eq('id', floorId)
+        .select()
+        .single();
+
+      if (updateError) throw updateError;
+
+      setError(null);
+      return { success: true, data };
+    } catch (err) {
+      setError(err as Error);
+      return { success: false, error: err as Error };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return { updateFloor, loading, error };
+}
+
+export function useDeleteFloor() {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+
+  const deleteFloor = async (floorId: string) => {
+    try {
+      setLoading(true);
+      const supabase = createClient();
+
+      const { error: deleteError } = await supabase
+        .from('floors')
+        .delete()
+        .eq('id', floorId);
+
+      if (deleteError) throw deleteError;
+
+      setError(null);
+      return { success: true };
+    } catch (err) {
+      setError(err as Error);
+      return { success: false, error: err as Error };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return { deleteFloor, loading, error };
 }
 
 // ============================================

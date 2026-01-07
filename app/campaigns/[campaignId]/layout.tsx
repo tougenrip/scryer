@@ -45,7 +45,7 @@ export default function CampaignLayout({
 
   return (
     <div className="flex h-screen flex-col">
-      <Navbar user={user} />
+      {!isSceneEditorPage && <Navbar user={user} />}
 
       {/* Mobile sidebar trigger - Hide on character sheet pages and scene editor */}
       {!isCharacterSheetPage && !isSceneEditorPage && (

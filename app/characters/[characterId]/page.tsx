@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { Navbar } from "@/components/shared/navbar";
+import { RollHistory } from "@/components/dice/roll-history";
 import Link from "next/link";
 
 export default function CharacterPage() {
@@ -110,6 +111,7 @@ export default function CharacterPage() {
           />
         </div>
       </main>
+      <RollHistory />
     </div>
   );
 }

@@ -13,7 +13,36 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
-import { X, ArrowLeft, HelpCircle, Info, MapPin } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { MapImageUpload } from "@/components/campaign/map-image-upload";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { X, ArrowLeft, HelpCircle, Info, MapPin, Layers, Plus, Edit, Trash2, BookOpen, ChevronLeft, ChevronRight } from "lucide-react";
 import {
   useScene,
   useLocationMarkers,
@@ -22,7 +51,15 @@ import {
   useDeleteLocationMarker,
   useWorldLocations,
   useUpdateWorldLocation,
+  useFloors,
+  useCreateFloor,
+  useUpdateFloor,
+  useDeleteFloor,
+  useScenes,
+  useUpdateScene,
   type LocationMarker,
+  type Floor,
+  type Scene,
 } from "@/hooks/useForgeContent";
 import { AtlasMap } from "@/components/forge/atlas/atlas-map";
 import { MarkerFormDialog } from "@/components/forge/atlas/marker-form-dialog";
@@ -40,21 +77,49 @@ export default function SceneEditorPage() {
   const [editingMarker, setEditingMarker] = useState<LocationMarker | null>(null);
   const [clickedPosition, setClickedPosition] = useState<{ x: number; y: number } | null>(null);
   const [showInstructions, setShowInstructions] = useState(false);
+  const [selectedFloorId, setSelectedFloorId] = useState<string | null>(null);
+  const [floorDialogOpen, setFloorDialogOpen] = useState(false);
+  const [editingFloor, setEditingFloor] = useState<Floor | null>(null);
+  const [deleteFloorConfirmOpen, setDeleteFloorConfirmOpen] = useState(false);
+  const [floorToDelete, setFloorToDelete] = useState<Floor | null>(null);
+  const [scenesLibraryOpen, setScenesLibraryOpen] = useState(false);
+  const [sceneEditDialogOpen, setSceneEditDialogOpen] = useState(false);
 
   const { scene, loading: sceneLoading, refetch: refetchScene } = useScene(sceneId);
   const { campaign, loading: campaignLoading } = useCampaign(campaignId);
   const { locations, loading: locationsLoading, refetch: refetchLocations } = useWorldLocations(campaignId);
+  const { floors, loading: floorsLoading, refetch: refetchFloors } = useFloors(sceneId);
+  const { scenes, loading: scenesLoading } = useScenes(campaignId);
   const { markers, loading: markersLoading, refetch: refetchMarkers } = useLocationMarkers(
     campaignId,
     sceneId,
-    undefined
+    undefined,
+    selectedFloorId
   );
+  const { createFloor, loading: creatingFloor } = useCreateFloor();
+  const { updateFloor, loading: updatingFloor } = useUpdateFloor();
+  const { deleteFloor, loading: deletingFloor } = useDeleteFloor();
   const { createMarker, loading: creatingMarker } = useCreateLocationMarker();
   const { updateMarker } = useUpdateLocationMarker();
   const { deleteMarker, loading: deletingMarker } = useDeleteLocationMarker();
   const { updateLocation } = useUpdateWorldLocation();
+  const { updateScene, loading: updatingScene } = useUpdateScene();
 
-  const loading = sceneLoading || campaignLoading || markersLoading || locationsLoading;
+  const loading = sceneLoading || campaignLoading || markersLoading || locationsLoading || floorsLoading || scenesLoading;
+
+  // Always default to "No Floor (Scene)" - don't auto-select first floor
+  const [hasAutoSelected, setHasAutoSelected] = useState(false);
+  useEffect(() => {
+    if (!floorsLoading && !hasAutoSelected) {
+      // Always set to null (No Floor/Scene) on initial load
+      setSelectedFloorId(null);
+      setHasAutoSelected(true);
+    }
+  }, [floorsLoading, hasAutoSelected]);
+
+  // Get selected floor and determine which image to use
+  const selectedFloor = floors.find((f) => f.id === selectedFloorId) || null;
+  const mapImageUrl = selectedFloor?.image_url || scene?.image_url || null;
 
   useEffect(() => {
     async function getUser() {
@@ -136,6 +201,7 @@ export default function SceneEditorPage() {
         location_id: data.location_id || null,
         map_id: null,
         scene_id: sceneId,
+        floor_id: selectedFloorId,
         x: Math.round(clickedPosition.x),
         y: Math.round(clickedPosition.y),
         icon_type: data.icon_type || 'landmark',
@@ -202,7 +268,7 @@ export default function SceneEditorPage() {
     );
   }
 
-  if (!scene.image_url) {
+  if (!mapImageUrl) {
     return (
       <div className="fixed inset-0 bg-background flex items-center justify-center">
         <div className="text-center space-y-4">
@@ -217,10 +283,82 @@ export default function SceneEditorPage() {
     );
   }
 
+  const handleSceneSelect = (newSceneId: string) => {
+    if (newSceneId !== sceneId) {
+      router.push(`/campaigns/${campaignId}/scenes/${newSceneId}/edit`);
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-background flex flex-col">
+      {/* Scenes Library Sidebar */}
+      <div
+        className={`absolute left-0 top-0 bottom-0 z-40 bg-background/95 backdrop-blur-sm border-r border-border transition-transform duration-300 ${
+          scenesLibraryOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
+        style={{ width: "280px" }}
+      >
+        <div className="h-full flex flex-col">
+          <div className="p-4 border-b border-border flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <BookOpen className="h-5 w-5" />
+              <h2 className="font-serif text-lg font-semibold">Scenes Library</h2>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setScenesLibraryOpen(false)}
+              className="h-8 w-8 p-0"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+          </div>
+          <div className="flex-1 overflow-y-auto p-2">
+            {scenes.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground text-sm">
+                No scenes available
+              </div>
+            ) : (
+              <div className="space-y-1">
+                {scenes.map((s) => (
+                  <button
+                    key={s.id}
+                    onClick={() => handleSceneSelect(s.id)}
+                    className={`w-full text-left px-3 py-2 rounded-md transition-colors ${
+                      s.id === sceneId
+                        ? "bg-primary text-primary-foreground"
+                        : "hover:bg-muted"
+                    }`}
+                  >
+                    <div className="font-medium">{s.name}</div>
+                    {s.description && (
+                      <div className="text-xs opacity-80 mt-1 line-clamp-2">
+                        {s.description}
+                      </div>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Toggle Button for Scenes Library */}
+      {!scenesLibraryOpen && (
+        <button
+          onClick={() => setScenesLibraryOpen(true)}
+          className="absolute left-4 top-20 z-40 bg-background/95 backdrop-blur-sm border border-border rounded-r-md p-2 hover:bg-muted transition-colors"
+          title="Open Scenes Library"
+        >
+          <ChevronRight className="h-5 w-5" />
+        </button>
+      )}
+
       {/* Top Bar */}
-      <div className="absolute top-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-sm border-b border-border px-4 py-3 flex items-center justify-between">
+      <div className={`absolute top-0 right-0 z-50 bg-background/95 backdrop-blur-sm border-b border-border px-4 py-3 flex items-center justify-between transition-all duration-300 ${
+        scenesLibraryOpen ? "left-[280px]" : "left-0"
+      }`}>
         <div className="flex items-center gap-4">
           <Button
             variant="default"
@@ -239,6 +377,43 @@ export default function SceneEditorPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {/* Floor Selector */}
+          <div className="flex items-center gap-2">
+            <Layers className="h-4 w-4 text-muted-foreground" />
+            <Select
+              value={selectedFloorId || "none"}
+              onValueChange={(value) => {
+                setSelectedFloorId(value === "none" ? null : value);
+                setHasAutoSelected(true); // Mark as manually selected
+              }}
+            >
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Select floor" />
+              </SelectTrigger>
+              <SelectContent side="bottom" align="start">
+                <SelectItem value="none">No Floor (Scene)</SelectItem>
+                {floors.map((floor) => (
+                  <SelectItem key={floor.id} value={floor.id}>
+                    {floor.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {isDm && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setEditingFloor(null);
+                  setFloorDialogOpen(true);
+                }}
+                className="gap-2"
+              >
+                <Plus className="h-4 w-4" />
+                Add Floor
+              </Button>
+            )}
+          </div>
           {isDm && (
             <Sheet open={showInstructions} onOpenChange={setShowInstructions}>
               <SheetTrigger asChild>
@@ -339,10 +514,12 @@ export default function SceneEditorPage() {
       </div>
 
       {/* Fullscreen Map */}
-      <div className="flex-1 pt-16 overflow-hidden relative">
+      <div className={`flex-1 pt-16 overflow-hidden relative transition-all duration-300 ${
+        scenesLibraryOpen ? "ml-[280px]" : "ml-0"
+      }`}>
         <div className="h-full w-full">
           <AtlasMap
-            imageUrl={scene.image_url}
+            imageUrl={mapImageUrl}
             markers={markers}
             onMarkerClick={handleMarkerClick}
             onMarkerAdd={isDm ? handleMarkerAdd : undefined}
@@ -354,7 +531,9 @@ export default function SceneEditorPage() {
         </div>
 
         {/* Floating Back Button - Always visible */}
-        <div className="absolute bottom-4 left-4 z-40">
+        <div className={`absolute bottom-4 z-40 transition-all duration-300 ${
+          scenesLibraryOpen ? "left-[296px]" : "left-4"
+        }`}>
           <Button
             onClick={handleBack}
             size="lg"
@@ -383,7 +562,483 @@ export default function SceneEditorPage() {
         onDelete={isDm ? handleMarkerDelete : undefined}
         isDm={isDm}
       />
+
+      {/* Floor Form Dialog */}
+      <Dialog open={floorDialogOpen} onOpenChange={setFloorDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingFloor ? "Edit Floor" : "Create Floor"}</DialogTitle>
+            <DialogDescription>
+              {editingFloor
+                ? "Update the floor details below."
+                : "Add a new floor to this scene. Each floor can have its own map image and markers."}
+            </DialogDescription>
+          </DialogHeader>
+           <FloorForm
+             floor={editingFloor}
+             sceneId={sceneId}
+             campaignId={campaignId}
+             floors={floors}
+             onCancel={() => {
+               setFloorDialogOpen(false);
+               setEditingFloor(null);
+             }}
+             onSave={async (data) => {
+              if (editingFloor) {
+                const result = await updateFloor(editingFloor.id, data);
+                if (result.success) {
+                  toast.success("Floor updated");
+                  setFloorDialogOpen(false);
+                  setEditingFloor(null);
+                  refetchFloors();
+                } else {
+                  toast.error("Failed to update floor");
+                }
+              } else {
+                const result = await createFloor({
+                  scene_id: sceneId,
+                  ...data,
+                });
+                if (result.success && result.data) {
+                  toast.success("Floor created");
+                  setFloorDialogOpen(false);
+                  refetchFloors();
+                  setSelectedFloorId(result.data.id);
+                } else {
+                  toast.error("Failed to create floor");
+                }
+              }
+            }}
+            loading={creatingFloor || updatingFloor}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* Scene Edit Dialog */}
+      <Dialog open={sceneEditDialogOpen} onOpenChange={setSceneEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Scene</DialogTitle>
+            <DialogDescription>
+              Update the scene details, map image, and environmental conditions.
+            </DialogDescription>
+          </DialogHeader>
+          {scene && (
+            <SceneEditForm
+              scene={scene}
+              campaignId={campaignId}
+              onCancel={() => {
+                setSceneEditDialogOpen(false);
+              }}
+              onSave={async (data) => {
+                const result = await updateScene(sceneId, data);
+                if (result.success) {
+                  toast.success("Scene updated");
+                  setSceneEditDialogOpen(false);
+                  refetchScene();
+                } else {
+                  toast.error("Failed to update scene");
+                }
+              }}
+              loading={updatingScene}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Floor Management - Show floor list in a sheet or dropdown */}
+      {isDm && (
+        <div className={`absolute top-20 z-50 bg-card border border-border rounded-lg p-2 max-h-64 overflow-y-auto transition-all duration-300 pointer-events-auto shadow-lg ${
+          scenesLibraryOpen ? "left-[296px]" : "left-4"
+        }`}>
+          <div className="text-xs font-semibold mb-2 px-2">Floors</div>
+          <div className="space-y-1">
+            {/* Initial floor option (Scene level) */}
+            <div
+              className={`flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted cursor-pointer transition-colors ${
+                selectedFloorId === null ? "bg-primary/20 border border-primary/40" : ""
+              }`}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setSelectedFloorId(null);
+                setHasAutoSelected(true); // Mark as manually selected
+              }}
+            >
+              <Layers className={`h-3 w-3 ${selectedFloorId === null ? "text-primary" : "text-muted-foreground"}`} />
+              <div className="flex-1 min-w-0">
+                <span className={`text-sm block ${selectedFloorId === null ? "text-primary font-medium" : ""}`}>No Floor (Scene)</span>
+                {scene?.conditions && scene.conditions.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {scene.conditions.slice(0, 2).map((condition) => (
+                      <Badge key={condition} variant="outline" className="text-xs px-1 py-0">
+                        {condition}
+                      </Badge>
+                    ))}
+                    {scene.conditions.length > 2 && (
+                      <Badge variant="outline" className="text-xs px-1 py-0">
+                        +{scene.conditions.length - 2}
+                      </Badge>
+                    )}
+                  </div>
+                )}
+              </div>
+              <div className="flex gap-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 w-6 p-0"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSceneEditDialogOpen(true);
+                  }}
+                >
+                  <Edit className="h-3 w-3" />
+                </Button>
+              </div>
+            </div>
+            {/* Actual floors */}
+            {floors.map((floor) => (
+              <div
+                key={floor.id}
+                className={`flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted cursor-pointer transition-colors ${
+                  selectedFloorId === floor.id ? "bg-primary/20 border border-primary/40" : ""
+                }`}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setSelectedFloorId(floor.id);
+                  setHasAutoSelected(true); // Mark as manually selected
+                }}
+              >
+                <Layers className={`h-3 w-3 ${selectedFloorId === floor.id ? "text-primary" : "text-muted-foreground"}`} />
+                <div className="flex-1 min-w-0">
+                  <span className={`text-sm block ${selectedFloorId === floor.id ? "text-primary font-medium" : ""}`}>{floor.name}</span>
+                  {floor.conditions && floor.conditions.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {floor.conditions.slice(0, 2).map((condition) => (
+                        <Badge key={condition} variant="outline" className="text-xs px-1 py-0">
+                          {condition}
+                        </Badge>
+                      ))}
+                      {floor.conditions.length > 2 && (
+                        <Badge variant="outline" className="text-xs px-1 py-0">
+                          +{floor.conditions.length - 2}
+                        </Badge>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <div className="flex gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 w-6 p-0"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setEditingFloor(floor);
+                      setFloorDialogOpen(true);
+                    }}
+                  >
+                    <Edit className="h-3 w-3" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 w-6 p-0 text-destructive"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setFloorToDelete(floor);
+                      setDeleteFloorConfirmOpen(true);
+                    }}
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Delete Floor Confirmation */}
+      <AlertDialog open={deleteFloorConfirmOpen} onOpenChange={setDeleteFloorConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Floor</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{floorToDelete?.name}"? This will also delete all markers on this floor. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async () => {
+                if (floorToDelete) {
+                  const result = await deleteFloor(floorToDelete.id);
+                  if (result.success) {
+                    toast.success("Floor deleted");
+                    if (selectedFloorId === floorToDelete.id) {
+                      const remainingFloors = floors.filter((f) => f.id !== floorToDelete.id);
+                      setSelectedFloorId(remainingFloors.length > 0 ? remainingFloors[0].id : null);
+                    }
+                    refetchFloors();
+                    refetchMarkers();
+                  } else {
+                    toast.error("Failed to delete floor");
+                  }
+                }
+                setDeleteFloorConfirmOpen(false);
+                setFloorToDelete(null);
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
+  );
+}
+
+// Floor Form Component
+function FloorForm({
+  floor,
+  sceneId,
+  campaignId,
+  floors,
+  onSave,
+  onCancel,
+  loading,
+}: {
+  floor: Floor | null;
+  sceneId: string;
+  campaignId: string;
+  floors: Floor[];
+  onSave: (data: {
+    name: string;
+    description?: string | null;
+    image_url?: string | null;
+    floor_order?: number;
+    conditions?: string[] | null;
+  }) => Promise<void>;
+  onCancel: () => void;
+  loading: boolean;
+}) {
+  const [name, setName] = useState(floor?.name || "");
+  const [description, setDescription] = useState(floor?.description || "");
+  const [imageUrl, setImageUrl] = useState(floor?.image_url || null);
+  const [conditionsText, setConditionsText] = useState("");
+
+  useEffect(() => {
+    if (floor) {
+      setName(floor.name);
+      setDescription(floor.description || "");
+      setImageUrl(floor.image_url);
+      setConditionsText(floor.conditions?.join("\n") || "");
+    } else {
+      setName("");
+      setDescription("");
+      setImageUrl(null);
+      setConditionsText("");
+    }
+  }, [floor]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) {
+      toast.error("Floor name is required");
+      return;
+    }
+    // Parse conditions from textarea (split by newline, filter empty lines)
+    const conditions = conditionsText
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
+    
+    await onSave({
+      name: name.trim(),
+      description: description.trim() || null,
+      image_url: imageUrl,
+      floor_order: floor?.floor_order ?? floors.length,
+      conditions: conditions.length > 0 ? conditions : null,
+    });
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <Label htmlFor="floor-name">Floor Name *</Label>
+        <Input
+          id="floor-name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="e.g., Ground Floor, First Floor, Basement"
+          required
+        />
+      </div>
+      <div>
+        <Label htmlFor="floor-description">Description</Label>
+        <Textarea
+          id="floor-description"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder="Optional description of this floor"
+          rows={3}
+        />
+      </div>
+      <div>
+        <Label>Map Image (Optional)</Label>
+        <MapImageUpload
+          imageUrl={imageUrl}
+          onImageChange={setImageUrl}
+          campaignId={campaignId}
+          disabled={loading}
+        />
+        <p className="text-xs text-muted-foreground mt-1">
+          If empty, the scene's map image will be used for this floor
+        </p>
+      </div>
+      <div>
+        <Label htmlFor="floor-conditions">Environmental Conditions (Optional)</Label>
+        <Textarea
+          id="floor-conditions"
+          value={conditionsText}
+          onChange={(e) => setConditionsText(e.target.value)}
+          placeholder="Enter conditions, one per line:&#10;dim light&#10;cold temperature&#10;damp air&#10;windy"
+          rows={4}
+        />
+        <p className="text-xs text-muted-foreground mt-1">
+          Add environmental conditions for this floor, one per line (e.g., lighting, temperature, weather)
+        </p>
+      </div>
+      <DialogFooter>
+        <Button type="button" variant="outline" onClick={onCancel} disabled={loading}>
+          Cancel
+        </Button>
+        <Button type="submit" disabled={loading}>
+          {loading ? "Saving..." : floor ? "Update Floor" : "Create Floor"}
+        </Button>
+      </DialogFooter>
+    </form>
+  );
+}
+
+// Scene Edit Form Component
+function SceneEditForm({
+  scene,
+  campaignId,
+  onSave,
+  onCancel,
+  loading,
+}: {
+  scene: Scene;
+  campaignId: string;
+  onSave: (data: {
+    name: string;
+    description?: string | null;
+    image_url?: string | null;
+    conditions?: string[] | null;
+  }) => Promise<void>;
+  onCancel: () => void;
+  loading: boolean;
+}) {
+  const [name, setName] = useState(scene?.name || "");
+  const [description, setDescription] = useState(scene?.description || "");
+  const [imageUrl, setImageUrl] = useState(scene?.image_url || null);
+  const [conditionsText, setConditionsText] = useState("");
+
+  useEffect(() => {
+    if (scene) {
+      setName(scene.name);
+      setDescription(scene.description || "");
+      setImageUrl(scene.image_url);
+      setConditionsText(scene.conditions?.join("\n") || "");
+    } else {
+      setName("");
+      setDescription("");
+      setImageUrl(null);
+      setConditionsText("");
+    }
+  }, [scene]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) {
+      toast.error("Scene name is required");
+      return;
+    }
+    // Parse conditions from textarea (split by newline, filter empty lines)
+    const conditions = conditionsText
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
+    
+    await onSave({
+      name: name.trim(),
+      description: description.trim() || null,
+      image_url: imageUrl,
+      conditions: conditions.length > 0 ? conditions : null,
+    });
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <Label htmlFor="scene-name">Scene Name *</Label>
+        <Input
+          id="scene-name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Enter scene name"
+          required
+        />
+      </div>
+      <div>
+        <Label htmlFor="scene-description">Description</Label>
+        <Textarea
+          id="scene-description"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder="Optional description of this scene"
+          rows={3}
+        />
+      </div>
+      <div>
+        <Label>Map Image (Optional)</Label>
+        <MapImageUpload
+          imageUrl={imageUrl}
+          onImageChange={setImageUrl}
+          campaignId={campaignId}
+          disabled={loading}
+        />
+        <p className="text-xs text-muted-foreground mt-1">
+          Upload a map image for this scene
+        </p>
+      </div>
+      <div>
+        <Label htmlFor="scene-conditions">Environmental Conditions (Optional)</Label>
+        <Textarea
+          id="scene-conditions"
+          value={conditionsText}
+          onChange={(e) => setConditionsText(e.target.value)}
+          placeholder="Enter conditions, one per line:&#10;dim light&#10;cold temperature&#10;damp air&#10;windy"
+          rows={4}
+        />
+        <p className="text-xs text-muted-foreground mt-1">
+          Add environmental conditions for this scene, one per line (e.g., lighting, temperature, weather)
+        </p>
+      </div>
+      <DialogFooter>
+        <Button type="button" variant="outline" onClick={onCancel} disabled={loading}>
+          Cancel
+        </Button>
+        <Button type="submit" disabled={loading}>
+          {loading ? "Saving..." : "Update Scene"}
+        </Button>
+      </DialogFooter>
+    </form>
   );
 }
 

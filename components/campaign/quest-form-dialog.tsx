@@ -14,13 +14,22 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Quest } from "@/hooks/useCampaignContent";
+import { Quest, QuestStep, QuestObjective } from "@/hooks/useCampaignContent";
+import { Plus, Trash2, GripVertical, CheckCircle2, XCircle, Circle } from "lucide-react";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import { cn } from "@/lib/utils";
 
 interface QuestFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   campaignId: string;
   userId: string;
+  isDm?: boolean;
   quest?: Quest | null;
   onCreate: (data: {
     campaign_id: string;
@@ -30,6 +39,18 @@ interface QuestFormDialogProps {
     location?: string | null;
     verified?: boolean;
     created_by: string;
+    steps?: Array<{
+      step_order: number;
+      name?: string | null;
+      description?: string | null;
+      objectives?: Array<{
+        objective_order: number;
+        name?: string | null;
+        goal: string;
+        status?: 'pending' | 'success' | 'failure';
+        is_hidden?: boolean;
+      }>;
+    }>;
   }) => Promise<{ success: boolean; error?: Error }>;
   onUpdate: (
     questId: string,
@@ -39,8 +60,38 @@ interface QuestFormDialogProps {
       source?: string | null;
       location?: string | null;
       verified?: boolean;
+      steps?: Array<{
+        id?: string;
+        step_order: number;
+        name?: string | null;
+        description?: string | null;
+        objectives?: Array<{
+          id?: string;
+          objective_order: number;
+          name?: string | null;
+          goal: string;
+          status?: 'pending' | 'success' | 'failure';
+          is_hidden?: boolean;
+        }>;
+      }>;
     }
   ) => Promise<{ success: boolean; error?: Error }>;
+}
+
+interface StepData {
+  id?: string;
+  step_order: number;
+  name: string;
+  description: string;
+  objectives: ObjectiveData[];
+}
+
+interface ObjectiveData {
+  id?: string;
+  objective_order: number;
+  name: string;
+  goal: string;
+  status: 'pending' | 'success' | 'failure';
 }
 
 export function QuestFormDialog({
@@ -48,6 +99,7 @@ export function QuestFormDialog({
   onOpenChange,
   campaignId,
   userId,
+  isDm = false,
   quest,
   onCreate,
   onUpdate,
@@ -57,6 +109,7 @@ export function QuestFormDialog({
   const [source, setSource] = useState("");
   const [location, setLocation] = useState("");
   const [verified, setVerified] = useState(false);
+  const [steps, setSteps] = useState<StepData[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -66,14 +119,135 @@ export function QuestFormDialog({
       setSource(quest.source || "");
       setLocation(quest.location || "");
       setVerified(quest.verified);
+      
+      // Load steps and objectives
+      if (quest.steps && quest.steps.length > 0) {
+        const loadedSteps = quest.steps.map(step => ({
+          id: step.id,
+          step_order: step.step_order,
+          name: step.name || "",
+          description: step.description || "",
+          objectives: (step.objectives || []).map(obj => ({
+            id: obj.id,
+            objective_order: obj.objective_order,
+            name: obj.name || "",
+            goal: obj.goal,
+            status: obj.status,
+            is_hidden: obj.is_hidden || false,
+          })),
+        }));
+        setSteps(loadedSteps);
+      } else {
+        setSteps([]);
+      }
     } else {
       setTitle("");
       setContent("");
       setSource("");
       setLocation("");
       setVerified(false);
+      setSteps([]);
     }
   }, [quest, open]);
+
+  const addStep = () => {
+    const newStepOrder = steps.length > 0 ? Math.max(...steps.map(s => s.step_order)) + 1 : 1;
+    setSteps([
+      ...steps,
+      {
+        step_order: newStepOrder,
+        name: "",
+        description: "",
+        objectives: [],
+      },
+    ]);
+  };
+
+  const removeStep = (stepIndex: number) => {
+    const newSteps = steps.filter((_, idx) => idx !== stepIndex);
+    // Reorder remaining steps
+    const reorderedSteps = newSteps.map((step, idx) => ({
+      ...step,
+      step_order: idx + 1,
+    }));
+    setSteps(reorderedSteps);
+  };
+
+  const updateStepName = (stepIndex: number, name: string) => {
+    const newSteps = [...steps];
+    newSteps[stepIndex].name = name;
+    setSteps(newSteps);
+  };
+
+  const updateStepDescription = (stepIndex: number, description: string) => {
+    const newSteps = [...steps];
+    newSteps[stepIndex].description = description;
+    setSteps(newSteps);
+  };
+
+  const addObjective = (stepIndex: number) => {
+    const newSteps = [...steps];
+    const step = newSteps[stepIndex];
+    const newObjectiveOrder = step.objectives.length > 0
+      ? Math.max(...step.objectives.map(o => o.objective_order)) + 1
+      : 1;
+    
+    step.objectives.push({
+      objective_order: newObjectiveOrder,
+      name: "",
+      goal: "",
+      status: 'pending',
+      is_hidden: false,
+    });
+    setSteps(newSteps);
+  };
+
+  const removeObjective = (stepIndex: number, objectiveIndex: number) => {
+    const newSteps = [...steps];
+    const step = newSteps[stepIndex];
+    step.objectives = step.objectives.filter((_, idx) => idx !== objectiveIndex);
+    // Reorder remaining objectives
+    step.objectives = step.objectives.map((obj, idx) => ({
+      ...obj,
+      objective_order: idx + 1,
+    }));
+    setSteps(newSteps);
+  };
+
+  const updateObjectiveName = (stepIndex: number, objectiveIndex: number, name: string) => {
+    const newSteps = [...steps];
+    newSteps[stepIndex].objectives[objectiveIndex].name = name;
+    setSteps(newSteps);
+  };
+
+  const updateObjectiveGoal = (stepIndex: number, objectiveIndex: number, goal: string) => {
+    const newSteps = [...steps];
+    newSteps[stepIndex].objectives[objectiveIndex].goal = goal;
+    setSteps(newSteps);
+  };
+
+  const toggleObjectiveStatus = (stepIndex: number, objectiveIndex: number) => {
+    const newSteps = [...steps];
+    const objective = newSteps[stepIndex].objectives[objectiveIndex];
+    
+    // Cycle through: pending -> success -> failure -> pending
+    if (objective.status === 'pending') {
+      objective.status = 'success';
+    } else if (objective.status === 'success') {
+      objective.status = 'failure';
+    } else {
+      objective.status = 'pending';
+    }
+    
+    setSteps(newSteps);
+  };
+
+  const toggleObjectiveHidden = (stepIndex: number, objectiveIndex: number) => {
+    const newSteps = [...steps];
+    const objective = newSteps[stepIndex].objectives[objectiveIndex];
+    objective.is_hidden = !objective.is_hidden;
+    setSteps(newSteps);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -94,12 +268,54 @@ export function QuestFormDialog({
 
       let result;
       if (quest) {
-        result = await onUpdate(quest.id, data);
+        // Prepare steps data for update
+        const stepsData = steps
+          .filter(step => step.name.trim() || step.description.trim() || step.objectives.length > 0)
+          .map(step => ({
+            id: step.id,
+            step_order: step.step_order,
+            name: step.name.trim() || null,
+            description: step.description.trim() || null,
+            objectives: step.objectives
+              .filter(obj => obj.name.trim() || obj.goal.trim())
+              .map(obj => ({
+                id: obj.id,
+                objective_order: obj.objective_order,
+                name: obj.name.trim() || null,
+                goal: obj.goal.trim(),
+                status: obj.status,
+                is_hidden: obj.is_hidden || false,
+              })),
+          }));
+
+        result = await onUpdate(quest.id, {
+          ...data,
+          steps: stepsData.length > 0 ? stepsData : [],
+        });
       } else {
+        // Prepare steps data for creation
+        const stepsData = steps
+          .filter(step => step.name.trim() || step.description.trim() || step.objectives.length > 0)
+          .map(step => ({
+            step_order: step.step_order,
+            name: step.name.trim() || null,
+            description: step.description.trim() || null,
+            objectives: step.objectives
+              .filter(obj => obj.name.trim() || obj.goal.trim())
+              .map(obj => ({
+                objective_order: obj.objective_order,
+                name: obj.name.trim() || null,
+                goal: obj.goal.trim(),
+                status: obj.status,
+                is_hidden: obj.is_hidden || false,
+              })),
+          }));
+
         result = await onCreate({
           campaign_id: campaignId,
           created_by: userId,
           ...data,
+          steps: stepsData.length > 0 ? stepsData : undefined,
         });
       }
 
@@ -113,7 +329,7 @@ export function QuestFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle className="font-serif">
@@ -148,7 +364,7 @@ export function QuestFormDialog({
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
                 placeholder="The full quest or side quest details..."
-                rows={6}
+                rows={4}
                 required
                 disabled={loading}
               />
@@ -189,6 +405,194 @@ export function QuestFormDialog({
                 Verified (this quest has been confirmed as true)
               </Label>
             </div>
+
+            {/* Steps Section */}
+            <div className="space-y-4 border-t pt-4">
+              <div className="flex items-center justify-between">
+                <Label className="text-base font-semibold">Quest Steps</Label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={addStep}
+                  disabled={loading}
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Step
+                </Button>
+              </div>
+
+              {steps.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  No steps yet. Add your first step to organize quest objectives.
+                </p>
+              ) : (
+                <Accordion type="multiple" className="w-full">
+                  {steps.map((step, stepIndex) => (
+                    <AccordionItem key={stepIndex} value={`step-${stepIndex}`}>
+                      <AccordionTrigger className="hover:no-underline">
+                        <div className="flex items-center gap-2 flex-1">
+                          <GripVertical className="h-4 w-4 text-muted-foreground" />
+                          <span className="font-medium">
+                            Step {step.step_order}
+                            {step.name.trim() && (
+                              <span className="text-muted-foreground font-normal ml-2">
+                                - {step.name.trim()}
+                              </span>
+                            )}
+                            {!step.name.trim() && step.description.trim() && (
+                              <span className="text-muted-foreground font-normal ml-2">
+                                - {step.description.trim().substring(0, 40)}
+                                {step.description.trim().length > 40 ? "..." : ""}
+                              </span>
+                            )}
+                          </span>
+                          {step.objectives.length > 0 && (
+                            <span className="text-xs text-muted-foreground ml-auto">
+                              {step.objectives.filter(o => o.status !== 'pending').length} / {step.objectives.length} complete
+                            </span>
+                          )}
+                        </div>
+                      </AccordionTrigger>
+                      <AccordionContent>
+                        <div className="space-y-4 pl-6">
+                          <div className="grid gap-2">
+                            <Label htmlFor={`step-${stepIndex}-name`}>
+                              Step Name
+                            </Label>
+                            <Input
+                              id={`step-${stepIndex}-name`}
+                              value={step.name}
+                              onChange={(e) => updateStepName(stepIndex, e.target.value)}
+                              placeholder="e.g., Investigate the Tavern"
+                              disabled={loading}
+                            />
+                          </div>
+                          <div className="grid gap-2">
+                            <Label htmlFor={`step-${stepIndex}-description`}>
+                              Step Description
+                            </Label>
+                            <Textarea
+                              id={`step-${stepIndex}-description`}
+                              value={step.description}
+                              onChange={(e) => updateStepDescription(stepIndex, e.target.value)}
+                              placeholder="Describe what happens in this step..."
+                              rows={3}
+                              disabled={loading}
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                              <div className="flex items-center justify-between">
+                              <Label className="text-sm font-semibold">Objectives</Label>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => addObjective(stepIndex)}
+                                disabled={loading}
+                              >
+                                <Plus className="h-4 w-4 mr-1" />
+                                Add Objective
+                              </Button>
+                            </div>
+
+                            {step.objectives.length === 0 ? (
+                              <p className="text-sm text-muted-foreground text-center py-2">
+                                No objectives yet. Add objectives to track quest goals.
+                              </p>
+                            ) : (
+                              <div className="space-y-2">
+                                {step.objectives.map((objective, objIndex) => (
+                                  <div
+                                    key={objIndex}
+                                    className="space-y-2 p-2 rounded-md border bg-card"
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => toggleObjectiveStatus(stepIndex, objIndex)}
+                                        disabled={loading}
+                                        className={cn(
+                                          "flex-shrink-0",
+                                          "hover:opacity-80 transition-opacity",
+                                          loading && "cursor-not-allowed opacity-50"
+                                        )}
+                                      >
+                                        {objective.status === 'success' && (
+                                          <CheckCircle2 className="h-5 w-5 text-green-600" />
+                                        )}
+                                        {objective.status === 'failure' && (
+                                          <XCircle className="h-5 w-5 text-red-600" />
+                                        )}
+                                        {objective.status === 'pending' && (
+                                          <Circle className="h-5 w-5 text-muted-foreground" />
+                                        )}
+                                      </button>
+                                      <Input
+                                        value={objective.name}
+                                        onChange={(e) => updateObjectiveName(stepIndex, objIndex, e.target.value)}
+                                        placeholder="Objective name..."
+                                        disabled={loading}
+                                        className="flex-1"
+                                      />
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => removeObjective(stepIndex, objIndex)}
+                                        disabled={loading}
+                                        className="h-8 w-8 text-destructive hover:text-destructive"
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
+                                    </div>
+                                    <Input
+                                      value={objective.goal}
+                                      onChange={(e) => updateObjectiveGoal(stepIndex, objIndex, e.target.value)}
+                                      placeholder="Objective goal/description..."
+                                      disabled={loading}
+                                      className="w-full"
+                                    />
+                                    {isDm && (
+                                      <div className="flex items-center gap-2">
+                                        <Checkbox
+                                          id={`hidden-${stepIndex}-${objIndex}`}
+                                          checked={objective.is_hidden || false}
+                                          onCheckedChange={() => toggleObjectiveHidden(stepIndex, objIndex)}
+                                          disabled={loading}
+                                        />
+                                        <Label
+                                          htmlFor={`hidden-${stepIndex}-${objIndex}`}
+                                          className="text-xs text-muted-foreground cursor-pointer"
+                                        >
+                                          Hidden (DM only)
+                                        </Label>
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => removeStep(stepIndex)}
+                            disabled={loading}
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Remove Step
+                          </Button>
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                  ))}
+                </Accordion>
+              )}
+            </div>
           </div>
           <DialogFooter>
             <Button
@@ -208,4 +612,3 @@ export function QuestFormDialog({
     </Dialog>
   );
 }
-

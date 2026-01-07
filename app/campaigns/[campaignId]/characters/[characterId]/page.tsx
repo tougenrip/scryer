@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import Link from "next/link";
+import { RollHistory } from "@/components/dice/roll-history";
 
 export default function CharacterPage() {
   const params = useParams();
@@ -63,11 +64,14 @@ export default function CharacterPage() {
   }
 
   return (
+    <>
     <CharacterSheet
       character={character}
       onUpdate={handleUpdate}
       editable={isOwner}
     />
+      <RollHistory />
+    </>
   );
 }
 

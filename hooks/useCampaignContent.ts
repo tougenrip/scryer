@@ -28,6 +28,12 @@ export interface NPC {
   location: string | null;
   notes: string | null;
   image_url: string | null;
+  class_source: string | null;
+  class_index: string | null;
+  species_source: string | null;
+  species_index: string | null;
+  custom_class: string | null;
+  custom_species: string | null;
   created_by: string;
   created_at: string | null;
   updated_at: string | null;
@@ -49,6 +55,29 @@ export interface Encounter {
   created_at: string | null;
 }
 
+export interface QuestObjective {
+  id: string;
+  step_id: string;
+  objective_order: number;
+  name: string | null;
+  goal: string;
+  status: 'pending' | 'success' | 'failure';
+  is_hidden: boolean;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface QuestStep {
+  id: string;
+  quest_id: string;
+  step_order: number;
+  name: string | null;
+  description: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+  objectives?: QuestObjective[];
+}
+
 export interface Quest {
   id: string;
   campaign_id: string;
@@ -60,6 +89,7 @@ export interface Quest {
   created_by: string;
   created_at: string | null;
   updated_at: string | null;
+  steps?: QuestStep[];
 }
 
 // ============================================
@@ -326,6 +356,12 @@ export function useCreateNPC() {
     location?: string | null;
     notes?: string | null;
     image_url?: string | null;
+    class_source?: string | null;
+    class_index?: string | null;
+    species_source?: string | null;
+    species_index?: string | null;
+    custom_class?: string | null;
+    custom_species?: string | null;
     created_by: string;
   }) => {
     try {
@@ -368,6 +404,12 @@ export function useUpdateNPC() {
       location?: string | null;
       notes?: string | null;
       image_url?: string | null;
+      class_source?: string | null;
+      class_index?: string | null;
+      species_source?: string | null;
+      species_index?: string | null;
+      custom_class?: string | null;
+      custom_species?: string | null;
     }
   ) => {
     try {
@@ -607,14 +649,60 @@ export function useCampaignQuests(campaignId: string | null) {
       setLoading(true);
       const supabase = createClient();
 
-      const { data, error: fetchError } = await supabase
+      // Fetch quests
+      const { data: questsData, error: fetchError } = await supabase
         .from('quests')
         .select('*')
         .eq('campaign_id', campaignId)
         .order('created_at', { ascending: false });
 
       if (fetchError) throw fetchError;
-      setQuests(data || []);
+
+      // Fetch steps for all quests
+      const questIds = (questsData || []).map(q => q.id);
+      let stepsData: QuestStep[] = [];
+      if (questIds.length > 0) {
+        const { data: steps, error: stepsError } = await supabase
+          .from('quest_steps')
+          .select('*')
+          .in('quest_id', questIds)
+          .order('step_order', { ascending: true });
+
+        if (stepsError) throw stepsError;
+        stepsData = steps || [];
+      }
+
+      // Fetch objectives for all steps
+      const stepIds = stepsData.map(s => s.id);
+      let objectivesData: QuestObjective[] = [];
+      if (stepIds.length > 0) {
+        const { data: objectives, error: objectivesError } = await supabase
+          .from('quest_objectives')
+          .select('*')
+          .in('step_id', stepIds)
+          .order('objective_order', { ascending: true });
+
+        if (objectivesError) throw objectivesError;
+        objectivesData = objectives || [];
+      }
+
+      // Combine data
+      const questsWithSteps = (questsData || []).map(quest => {
+        const steps = stepsData
+          .filter(s => s.quest_id === quest.id)
+          .map(step => ({
+            ...step,
+            objectives: objectivesData.filter(o => o.step_id === step.id)
+          }))
+          .sort((a, b) => a.step_order - b.step_order);
+        
+        return {
+          ...quest,
+          steps: steps.length > 0 ? steps : undefined
+        };
+      });
+
+      setQuests(questsWithSteps);
       setError(null);
     } catch (err) {
       setError(err as Error);
@@ -642,24 +730,77 @@ export function useCreateQuest() {
     location?: string | null;
     verified?: boolean;
     created_by: string;
+    steps?: Array<{
+      step_order: number;
+      name?: string | null;
+      description?: string | null;
+      objectives?: Array<{
+        objective_order: number;
+        name?: string | null;
+        goal: string;
+        status?: 'pending' | 'success' | 'failure';
+      }>;
+    }>;
   }) => {
     try {
       setLoading(true);
       const supabase = createClient();
 
-      const { data, error: insertError } = await supabase
+      // Create quest
+      const { data: quest, error: insertError } = await supabase
         .from('quests')
         .insert({
-          ...questData,
+          campaign_id: questData.campaign_id,
+          title: questData.title,
+          content: questData.content,
+          source: questData.source || null,
+          location: questData.location || null,
           verified: questData.verified ?? false,
+          created_by: questData.created_by,
         })
         .select()
         .single();
 
       if (insertError) throw insertError;
 
+      // Create steps and objectives if provided
+      if (questData.steps && questData.steps.length > 0) {
+        for (const stepData of questData.steps) {
+          const { data: step, error: stepError } = await supabase
+            .from('quest_steps')
+            .insert({
+              quest_id: quest.id,
+              step_order: stepData.step_order,
+              name: stepData.name || null,
+              description: stepData.description || null,
+            })
+            .select()
+            .single();
+
+          if (stepError) throw stepError;
+
+          // Create objectives for this step
+          if (stepData.objectives && stepData.objectives.length > 0) {
+            const objectivesToInsert = stepData.objectives.map(obj => ({
+              step_id: step.id,
+              objective_order: obj.objective_order,
+              name: obj.name || null,
+              goal: obj.goal,
+              status: obj.status || 'pending',
+              is_hidden: obj.is_hidden || false,
+            }));
+
+            const { error: objectivesError } = await supabase
+              .from('quest_objectives')
+              .insert(objectivesToInsert);
+
+            if (objectivesError) throw objectivesError;
+          }
+        }
+      }
+
       setError(null);
-      return { success: true, data };
+      return { success: true, data: quest };
     } catch (err) {
       setError(err as Error);
       return { success: false, error: err as Error };
@@ -683,23 +824,182 @@ export function useUpdateQuest() {
       source?: string | null;
       location?: string | null;
       verified?: boolean;
+      steps?: Array<{
+        id?: string;
+        step_order: number;
+        name?: string | null;
+        description?: string | null;
+        objectives?: Array<{
+          id?: string;
+          objective_order: number;
+          name?: string | null;
+          goal: string;
+          status?: 'pending' | 'success' | 'failure';
+        }>;
+      }>;
     }
   ) => {
     try {
       setLoading(true);
       const supabase = createClient();
 
-      const { data, error: updateError } = await supabase
-        .from('quests')
-        .update(updates)
-        .eq('id', questId)
-        .select()
-        .single();
+      // Update quest basic fields
+      const questUpdates: any = {};
+      if (updates.title !== undefined) questUpdates.title = updates.title;
+      if (updates.content !== undefined) questUpdates.content = updates.content;
+      if (updates.source !== undefined) questUpdates.source = updates.source;
+      if (updates.location !== undefined) questUpdates.location = updates.location;
+      if (updates.verified !== undefined) questUpdates.verified = updates.verified;
 
-      if (updateError) throw updateError;
+      if (Object.keys(questUpdates).length > 0) {
+        const { data, error: updateError } = await supabase
+          .from('quests')
+          .update(questUpdates)
+          .eq('id', questId)
+          .select()
+          .single();
+
+        if (updateError) throw updateError;
+      }
+
+      // Handle steps if provided
+      if (updates.steps !== undefined) {
+        // Get existing steps
+        const { data: existingSteps } = await supabase
+          .from('quest_steps')
+          .select('id')
+          .eq('quest_id', questId);
+
+        const existingStepIds = new Set((existingSteps || []).map(s => s.id));
+
+        // Process each step
+        for (const stepData of updates.steps) {
+          if (stepData.id && existingStepIds.has(stepData.id)) {
+            // Update existing step
+            const { error: stepError } = await supabase
+              .from('quest_steps')
+              .update({
+                step_order: stepData.step_order,
+                name: stepData.name || null,
+                description: stepData.description || null,
+              })
+              .eq('id', stepData.id);
+
+            if (stepError) throw stepError;
+
+            // Get existing objectives for this step
+            const { data: existingObjectives } = await supabase
+              .from('quest_objectives')
+              .select('id')
+              .eq('step_id', stepData.id);
+
+            const existingObjectiveIds = new Set((existingObjectives || []).map(o => o.id));
+
+            // Update/delete/create objectives
+            if (stepData.objectives) {
+              for (const objData of stepData.objectives) {
+                if (objData.id && existingObjectiveIds.has(objData.id)) {
+                  // Update existing objective
+                  const { error: objError } = await supabase
+                    .from('quest_objectives')
+                    .update({
+                      objective_order: objData.objective_order,
+                      name: objData.name || null,
+                      goal: objData.goal,
+                      status: objData.status || 'pending',
+                      is_hidden: objData.is_hidden || false,
+                    })
+                    .eq('id', objData.id);
+
+                  if (objError) throw objError;
+                } else {
+                  // Create new objective
+                  const { error: objError } = await supabase
+                    .from('quest_objectives')
+                    .insert({
+                      step_id: stepData.id,
+                      objective_order: objData.objective_order,
+                      name: objData.name || null,
+                      goal: objData.goal,
+                      status: objData.status || 'pending',
+                    });
+
+                  if (objError) throw objError;
+                }
+              }
+
+              // Delete objectives that are no longer in the list
+              const providedObjectiveIds = new Set(
+                stepData.objectives.filter(o => o.id).map(o => o.id!)
+              );
+              const toDelete = Array.from(existingObjectiveIds).filter(
+                id => !providedObjectiveIds.has(id)
+              );
+              
+              if (toDelete.length > 0) {
+                const { error: deleteError } = await supabase
+                  .from('quest_objectives')
+                  .delete()
+                  .in('id', toDelete);
+
+                if (deleteError) throw deleteError;
+              }
+            }
+          } else {
+            // Create new step
+            const { data: newStep, error: stepError } = await supabase
+              .from('quest_steps')
+              .insert({
+                quest_id: questId,
+                step_order: stepData.step_order,
+                name: stepData.name || null,
+                description: stepData.description || null,
+              })
+              .select()
+              .single();
+
+            if (stepError) throw stepError;
+
+            // Create objectives for new step
+            if (stepData.objectives && stepData.objectives.length > 0) {
+              const objectivesToInsert = stepData.objectives.map(obj => ({
+                step_id: newStep.id,
+                objective_order: obj.objective_order,
+                name: obj.name || null,
+                goal: obj.goal,
+                status: obj.status || 'pending',
+                is_hidden: obj.is_hidden || false,
+              }));
+
+              const { error: objectivesError } = await supabase
+                .from('quest_objectives')
+                .insert(objectivesToInsert);
+
+              if (objectivesError) throw objectivesError;
+            }
+          }
+        }
+
+        // Delete steps that are no longer in the list
+        const providedStepIds = new Set(
+          updates.steps.filter(s => s.id).map(s => s.id!)
+        );
+        const toDelete = Array.from(existingStepIds).filter(
+          id => !providedStepIds.has(id)
+        );
+        
+        if (toDelete.length > 0) {
+          const { error: deleteError } = await supabase
+            .from('quest_steps')
+            .delete()
+            .in('id', toDelete);
+
+          if (deleteError) throw deleteError;
+        }
+      }
 
       setError(null);
-      return { success: true, data };
+      return { success: true };
     } catch (err) {
       setError(err as Error);
       return { success: false, error: err as Error };
@@ -738,5 +1038,247 @@ export function useDeleteQuest() {
   };
 
   return { deleteQuest, loading, error };
+}
+
+// ============================================
+// QUEST STEPS HOOKS
+// ============================================
+
+export function useCreateQuestStep() {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+
+  const createStep = async (stepData: {
+    quest_id: string;
+    step_order: number;
+    description?: string | null;
+    objectives?: Array<{
+      objective_order: number;
+      goal: string;
+      status?: 'pending' | 'success' | 'failure';
+    }>;
+  }) => {
+    try {
+      setLoading(true);
+      const supabase = createClient();
+
+      const { data: step, error: insertError } = await supabase
+        .from('quest_steps')
+        .insert({
+          quest_id: stepData.quest_id,
+          step_order: stepData.step_order,
+          description: stepData.description || null,
+        })
+        .select()
+        .single();
+
+      if (insertError) throw insertError;
+
+      // Create objectives if provided
+      if (stepData.objectives && stepData.objectives.length > 0) {
+        const objectivesToInsert = stepData.objectives.map(obj => ({
+          step_id: step.id,
+          objective_order: obj.objective_order,
+          goal: obj.goal,
+          status: obj.status || 'pending',
+          is_hidden: obj.is_hidden || false,
+        }));
+
+        const { error: objectivesError } = await supabase
+          .from('quest_objectives')
+          .insert(objectivesToInsert);
+
+        if (objectivesError) throw objectivesError;
+      }
+
+      setError(null);
+      return { success: true, data: step };
+    } catch (err) {
+      setError(err as Error);
+      return { success: false, error: err as Error };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return { createStep, loading, error };
+}
+
+export function useUpdateQuestStep() {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+
+  const updateStep = async (
+    stepId: string,
+    updates: {
+      step_order?: number;
+      description?: string | null;
+    }
+  ) => {
+    try {
+      setLoading(true);
+      const supabase = createClient();
+
+      const { data, error: updateError } = await supabase
+        .from('quest_steps')
+        .update(updates)
+        .eq('id', stepId)
+        .select()
+        .single();
+
+      if (updateError) throw updateError;
+
+      setError(null);
+      return { success: true, data };
+    } catch (err) {
+      setError(err as Error);
+      return { success: false, error: err as Error };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return { updateStep, loading, error };
+}
+
+export function useDeleteQuestStep() {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+
+  const deleteStep = async (stepId: string) => {
+    try {
+      setLoading(true);
+      const supabase = createClient();
+
+      const { error: deleteError } = await supabase
+        .from('quest_steps')
+        .delete()
+        .eq('id', stepId);
+
+      if (deleteError) throw deleteError;
+
+      setError(null);
+      return { success: true };
+    } catch (err) {
+      setError(err as Error);
+      return { success: false, error: err as Error };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return { deleteStep, loading, error };
+}
+
+// ============================================
+// QUEST OBJECTIVES HOOKS
+// ============================================
+
+export function useCreateQuestObjective() {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+
+  const createObjective = async (objectiveData: {
+    step_id: string;
+    objective_order: number;
+    goal: string;
+    status?: 'pending' | 'success' | 'failure';
+  }) => {
+    try {
+      setLoading(true);
+      const supabase = createClient();
+
+      const { data, error: insertError } = await supabase
+        .from('quest_objectives')
+        .insert({
+          step_id: objectiveData.step_id,
+          objective_order: objectiveData.objective_order,
+          goal: objectiveData.goal,
+          status: objectiveData.status || 'pending',
+          is_hidden: objectiveData.is_hidden || false,
+        })
+        .select()
+        .single();
+
+      if (insertError) throw insertError;
+
+      setError(null);
+      return { success: true, data };
+    } catch (err) {
+      setError(err as Error);
+      return { success: false, error: err as Error };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return { createObjective, loading, error };
+}
+
+export function useUpdateQuestObjective() {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+
+  const updateObjective = async (
+    objectiveId: string,
+    updates: {
+      objective_order?: number;
+      goal?: string;
+      status?: 'pending' | 'success' | 'failure';
+    }
+  ) => {
+    try {
+      setLoading(true);
+      const supabase = createClient();
+
+      const { data, error: updateError } = await supabase
+        .from('quest_objectives')
+        .update(updates)
+        .eq('id', objectiveId)
+        .select()
+        .single();
+
+      if (updateError) throw updateError;
+
+      setError(null);
+      return { success: true, data };
+    } catch (err) {
+      setError(err as Error);
+      return { success: false, error: err as Error };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return { updateObjective, loading, error };
+}
+
+export function useDeleteQuestObjective() {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+
+  const deleteObjective = async (objectiveId: string) => {
+    try {
+      setLoading(true);
+      const supabase = createClient();
+
+      const { error: deleteError } = await supabase
+        .from('quest_objectives')
+        .delete()
+        .eq('id', objectiveId);
+
+      if (deleteError) throw deleteError;
+
+      setError(null);
+      return { success: true };
+    } catch (err) {
+      setError(err as Error);
+      return { success: false, error: err as Error };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return { deleteObjective, loading, error };
 }
 

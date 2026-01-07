@@ -11,6 +11,7 @@ import {
   useDeleteNPC,
   type NPC,
 } from "@/hooks/useCampaignContent";
+import { useClasses, useRaces } from "@/hooks/useDndContent";
 import { NPCFormDialog } from "@/components/campaign/npc-form-dialog";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
@@ -38,9 +39,35 @@ export function NPCsTab({ campaignId, isDm }: NPCsTabProps) {
   const [deletingNPCId, setDeletingNPCId] = useState<string | null>(null);
 
   const { npcs, loading, refetch } = useCampaignNPCs(campaignId);
+  const { classes } = useClasses(campaignId, null);
+  const { races } = useRaces(campaignId, null);
   const { createNPC } = useCreateNPC();
   const { updateNPC } = useUpdateNPC();
   const { deleteNPC, deleting } = useDeleteNPC();
+
+  // Helper function to get class name from NPC
+  const getNPCClassName = (npc: NPC): string | null => {
+    if (npc.custom_class) return npc.custom_class;
+    if (npc.class_source && npc.class_index) {
+      const classData = classes.find(
+        (c) => c.source === npc.class_source && c.index === npc.class_index
+      );
+      return classData?.name || null;
+    }
+    return null;
+  };
+
+  // Helper function to get species name from NPC
+  const getNPCSpeciesName = (npc: NPC): string | null => {
+    if (npc.custom_species) return npc.custom_species;
+    if (npc.species_source && npc.species_index) {
+      const raceData = races.find(
+        (r) => r.source === npc.species_source && r.index === npc.species_index
+      );
+      return raceData?.name || null;
+    }
+    return null;
+  };
 
   useEffect(() => {
     async function getUser() {
@@ -114,9 +141,9 @@ export function NPCsTab({ campaignId, isDm }: NPCsTabProps) {
 
   if (loading) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {[1, 2, 3].map((i) => (
-          <Card key={i} className="h-64">
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+        {[1, 2, 3, 4, 5, 6].map((i) => (
+          <Card key={i} className="h-48">
             <CardContent className="p-0">
               <Skeleton className="h-full w-full" />
             </CardContent>
@@ -153,7 +180,7 @@ export function NPCsTab({ campaignId, isDm }: NPCsTabProps) {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
           {npcs.map((npc) => (
             <Card key={npc.id} className="overflow-hidden flex flex-col h-full">
               <CardContent className="p-0 flex flex-col h-full">
@@ -166,44 +193,49 @@ export function NPCsTab({ campaignId, isDm }: NPCsTabProps) {
                     />
                   ) : (
                     <div className="w-full h-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
-                      <User className="h-16 w-16 text-primary/40" />
+                      <User className="h-8 w-8 text-primary/40" />
                     </div>
                   )}
                 </div>
-                <div className="p-6 flex flex-col flex-1 min-h-0">
-                  <div className="space-y-3 flex-1">
+                <div className="p-3 flex flex-col flex-1 min-h-0">
+                  <div className="space-y-2 flex-1">
                     <div>
-                      <h3 className="font-semibold text-lg">{npc.name}</h3>
-                      {npc.location && (
-                        <p className="text-sm text-muted-foreground mt-1">
-                          Location: {npc.location}
-                        </p>
-                      )}
+                      <h3 className="font-semibold text-sm leading-tight">{npc.name}</h3>
                     </div>
                     {npc.description && (
-                      <p className="text-sm text-muted-foreground line-clamp-3">
+                      <p className="text-xs text-muted-foreground line-clamp-2">
                         {npc.description}
+                      </p>
+                    )}
+                    {getNPCClassName(npc) && (
+                      <p className="text-xs text-muted-foreground">
+                        <span className="font-medium">Class:</span> {getNPCClassName(npc)}
+                      </p>
+                    )}
+                    {getNPCSpeciesName(npc) && (
+                      <p className="text-xs text-muted-foreground">
+                        <span className="font-medium">Species:</span> {getNPCSpeciesName(npc)}
                       </p>
                     )}
                   </div>
                   {isDm && (
-                    <div className="flex items-center gap-2 pt-4 mt-auto">
+                    <div className="flex items-center gap-1.5 pt-2 mt-auto">
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => setEditingNPC(npc)}
-                        className="flex-1"
+                        className="flex-1 h-7 text-xs px-2"
                       >
-                        <Edit className="h-4 w-4 mr-2" />
+                        <Edit className="h-3 w-3 mr-1" />
                         Edit
                       </Button>
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => setDeletingNPCId(npc.id)}
-                        className="text-destructive hover:text-destructive"
+                        className="text-destructive hover:text-destructive h-7 w-7 p-0"
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Trash2 className="h-3 w-3" />
                       </Button>
                     </div>
                   )}

@@ -141,6 +141,32 @@ export function AtlasMap({
     };
   }, [imageUrl, fullscreen]);
 
+  // Reset pan when image URL changes
+  useEffect(() => {
+    setPan({ x: 0, y: 0 });
+    setZoom(1);
+  }, [imageUrl]);
+
+  // Center image when it first loads (only if pan is at origin and zoom is 1)
+  useEffect(() => {
+    if (!containerRef.current || !containerSize || !imageUrl) return;
+    if (pan.x !== 0 || pan.y !== 0 || zoom !== 1) return; // Only center if at initial state
+    
+    const container = containerRef.current;
+    const containerRect = container.getBoundingClientRect();
+    const padding = fullscreen ? 0 : 16;
+    
+    // Calculate center position
+    const containerWidth = containerRect.width - (padding * 2);
+    const containerHeight = containerRect.height - (padding * 2);
+    
+    // Center the image horizontally and vertically
+    const centerX = (containerWidth - containerSize.width) / 2;
+    const centerY = (containerHeight - containerSize.height) / 2;
+    
+    setPan({ x: centerX, y: centerY });
+  }, [containerSize, imageUrl, fullscreen, pan.x, pan.y, zoom]);
+
   // Handle zoom with mouse wheel
   useEffect(() => {
     if (!containerRef.current || !isDm || !imageUrl) return;
@@ -186,12 +212,31 @@ export function AtlasMap({
     return () => container.removeEventListener('wheel', handleWheel);
   }, [zoom, pan, isDm, imageUrl, containerSize]);
 
-  // Reset zoom and pan
+  // Reset zoom and pan (center image)
   const handleResetZoom = (e?: React.MouseEvent) => {
     e?.stopPropagation();
     e?.preventDefault();
+    
+    if (!containerRef.current || !containerSize) {
+      setZoom(1);
+      setPan({ x: 0, y: 0 });
+      return;
+    }
+    
+    const container = containerRef.current;
+    const containerRect = container.getBoundingClientRect();
+    const padding = fullscreen ? 0 : 16;
+    
+    // Calculate center position
+    const containerWidth = containerRect.width - (padding * 2);
+    const containerHeight = containerRect.height - (padding * 2);
+    
+    // Center the image horizontally and vertically
+    const centerX = (containerWidth - containerSize.width) / 2;
+    const centerY = (containerHeight - containerSize.height) / 2;
+    
     setZoom(1);
-    setPan({ x: 0, y: 0 });
+    setPan({ x: centerX, y: centerY });
   };
 
   // Zoom in/out - zoom towards center
@@ -585,8 +630,11 @@ export function AtlasMap({
             }
           }}
           onError={(e) => {
-            console.error('Failed to load atlas image:', imageUrl);
-            console.error('Image error:', e);
+            // Silently handle image loading errors to prevent console noise
+            // The error state is already handled by the component
+            e.preventDefault();
+            setImageSize(null);
+            setContainerSize(null);
           }}
         />
         

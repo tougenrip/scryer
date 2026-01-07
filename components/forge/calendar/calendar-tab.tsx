@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Calendar, ChevronRight, Clock, Cloud } from "lucide-react";
+import { Calendar, ChevronRight, ChevronLeft, Clock, Cloud } from "lucide-react";
 import {
   useCampaignCalendar,
   useCreateCampaignCalendar,
@@ -51,6 +51,8 @@ export function CalendarTab({ campaignId, isDm }: CalendarTabProps) {
   const { updateCalendar, loading: updating } = useUpdateCampaignCalendar();
   const [viewingMonth, setViewingMonth] = useState<number | undefined>(undefined);
   const [viewingYear, setViewingYear] = useState<number | undefined>(undefined);
+  const [localCalendar, setLocalCalendar] = useState<CampaignCalendar | null>(null);
+  const isUpdatingRef = useRef(false);
   
   // Calendar events
   const { events, refetch: refetchEvents } = useCalendarEvents(campaignId);
@@ -80,6 +82,21 @@ export function CalendarTab({ campaignId, isDm }: CalendarTabProps) {
     }
     getUser();
   }, []);
+
+  // Sync local calendar with prop, but skip if we're doing an optimistic update
+  useEffect(() => {
+    if (calendar && !isUpdatingRef.current) {
+      setLocalCalendar(calendar);
+      // Also sync viewing month/year if not set
+      if (viewingMonth === undefined) {
+        setViewingMonth(calendar.current_month);
+      }
+      if (viewingYear === undefined) {
+        setViewingYear(calendar.current_year);
+      }
+    }
+    isUpdatingRef.current = false;
+  }, [calendar, viewingMonth, viewingYear]);
 
   const DEFAULT_MONTH_NAMES = [
     "January", "February", "March", "April", "May", "June",
@@ -123,23 +140,39 @@ export function CalendarTab({ campaignId, isDm }: CalendarTabProps) {
   };
 
   const handleGoToCurrentDate = () => {
-    if (!calendar) return;
-    setViewingMonth(calendar.current_month);
-    setViewingYear(calendar.current_year);
+    const currentCalendar = localCalendar || calendar;
+    if (!currentCalendar) return;
+    setViewingMonth(currentCalendar.current_month);
+    setViewingYear(currentCalendar.current_year);
   };
 
   const handleYearChange = async (year: number) => {
     if (!calendar || !isDm) return;
+    
+    const currentCalendar = localCalendar || calendar;
+    
+    // Optimistically update viewing year and local calendar immediately
+    isUpdatingRef.current = true;
+    setViewingYear(year);
+    setLocalCalendar({
+      ...currentCalendar,
+      current_year: year,
+    });
+    
     const result = await updateCalendar(calendar.id, {
       current_year: year,
     });
     if (result.success) {
       toast.success(`Year updated to ${year}`);
-      refetch();
-      // Also update viewing year
-      setViewingYear(year);
+      // Reset flag - useEffect will sync when calendar prop updates
+      isUpdatingRef.current = false;
+      // Don't refetch - we've already updated optimistically
     } else {
       toast.error("Failed to update year");
+      // Revert on error
+      isUpdatingRef.current = false;
+      setViewingYear(currentCalendar.current_year);
+      setLocalCalendar(calendar);
     }
   };
 
@@ -152,8 +185,9 @@ export function CalendarTab({ campaignId, isDm }: CalendarTabProps) {
   };
 
   const handleDayClick = (day: number) => {
-    const month = viewingMonth ?? calendar?.current_month ?? 1;
-    const year = viewingYear ?? calendar?.current_year ?? 1;
+    const currentCalendar = localCalendar || calendar;
+    const month = viewingMonth ?? currentCalendar?.current_month ?? 1;
+    const year = viewingYear ?? currentCalendar?.current_year ?? 1;
     setSelectedDay({ year, month, day });
     
     // Get events for this day (matching logic from calendar-display)
@@ -260,12 +294,13 @@ export function CalendarTab({ campaignId, isDm }: CalendarTabProps) {
   const advanceTime = async (days: number) => {
     if (!calendar || !isDm) return;
 
-    let newDay = calendar.current_day + days;
-    let newMonth = calendar.current_month;
-    let newYear = calendar.current_year;
-    let newDayOfWeek = calendar.day_of_week;
+    const baseCalendar = localCalendar || calendar;
+    let newDay = baseCalendar.current_day + days;
+    let newMonth = baseCalendar.current_month;
+    let newYear = baseCalendar.current_year;
+    let newDayOfWeek = baseCalendar.day_of_week;
 
-    // Handle day overflow
+    // Handle day overflow/underflow
     while (newDay > DAYS_PER_MONTH) {
       newDay -= DAYS_PER_MONTH;
       newMonth++;
@@ -274,16 +309,25 @@ export function CalendarTab({ campaignId, isDm }: CalendarTabProps) {
         newYear++;
       }
     }
+    while (newDay < 1) {
+      newDay += DAYS_PER_MONTH;
+      newMonth--;
+      if (newMonth < 1) {
+        newMonth = 12;
+        newYear--;
+      }
+      if (newYear < 1) newYear = 1; // Prevent negative years
+    }
 
-    // Update day of week (1-7)
-    newDayOfWeek = ((newDayOfWeek - 1 + days) % DAYS_PER_WEEK) + 1;
+    // Update day of week (1-7) - handle negative days
+    newDayOfWeek = ((newDayOfWeek - 1 + days) % DAYS_PER_WEEK + DAYS_PER_WEEK) % DAYS_PER_WEEK + 1;
 
     // Calculate moon phase - advance by the number of days
-    let newMoonPhaseDay = calendar.moon_phase_day;
+    let newMoonPhaseDay = baseCalendar.moon_phase_day;
     if (newMoonPhaseDay === null) {
       newMoonPhaseDay = 1;
     }
-    newMoonPhaseDay = ((newMoonPhaseDay - 1 + days) % MOON_CYCLE_DAYS) + 1;
+    newMoonPhaseDay = ((newMoonPhaseDay - 1 + days) % MOON_CYCLE_DAYS + MOON_CYCLE_DAYS) % MOON_CYCLE_DAYS + 1;
     
     // Calculate the moon phase for the new day
     let phaseIndex: number;
@@ -300,8 +344,8 @@ export function CalendarTab({ campaignId, isDm }: CalendarTabProps) {
 
     // Calculate season based on month using custom season months if available
     let newSeason: CampaignCalendar['season'] = null;
-    if (calendar.custom_season_months) {
-      for (const [season, months] of Object.entries(calendar.custom_season_months)) {
+    if (baseCalendar.custom_season_months) {
+      for (const [season, months] of Object.entries(baseCalendar.custom_season_months)) {
         if (months.includes(newMonth)) {
           newSeason = season as CampaignCalendar['season'];
           break;
@@ -315,6 +359,26 @@ export function CalendarTab({ campaignId, isDm }: CalendarTabProps) {
       else newSeason = 'autumn';
     }
 
+    // Optimistically update local calendar immediately
+    isUpdatingRef.current = true;
+    setLocalCalendar({
+      ...baseCalendar,
+      current_day: newDay,
+      current_month: newMonth,
+      current_year: newYear,
+      day_of_week: newDayOfWeek,
+      moon_phase: newMoonPhase,
+      moon_phase_day: newMoonPhaseDay,
+      season: newSeason,
+    });
+
+    // Update viewing month/year if needed
+    if (viewingMonth !== newMonth || viewingYear !== newYear) {
+      setViewingMonth(newMonth);
+      setViewingYear(newYear);
+    }
+
+    // Update in database
     const result = await updateCalendar(calendar.id, {
       current_day: newDay,
       current_month: newMonth,
@@ -326,16 +390,26 @@ export function CalendarTab({ campaignId, isDm }: CalendarTabProps) {
     });
 
     if (result.success) {
-      toast.success(`Advanced ${days} day${days > 1 ? 's' : ''}`);
-      refetch();
+      const direction = days > 0 ? 'Advanced' : 'Rewound';
+      const absDays = Math.abs(days);
+      toast.success(`${direction} ${absDays} day${absDays > 1 ? 's' : ''}`);
+      // Reset flag - useEffect will sync when calendar prop updates
+      isUpdatingRef.current = false;
+      // Don't refetch - we've already updated optimistically
     } else {
       toast.error("Failed to advance time");
+      // Revert on error
+      isUpdatingRef.current = false;
+      setLocalCalendar(calendar);
     }
   };
 
   const handleAdvanceDay = () => advanceTime(1);
   const handleAdvanceWeek = () => advanceTime(DAYS_PER_WEEK);
   const handleAdvanceMonth = () => advanceTime(DAYS_PER_MONTH);
+  const handleRewindDay = () => advanceTime(-1);
+  const handleRewindWeek = () => advanceTime(-DAYS_PER_WEEK);
+  const handleRewindMonth = () => advanceTime(-DAYS_PER_MONTH);
 
   if (loading) {
     return (
@@ -392,10 +466,11 @@ export function CalendarTab({ campaignId, isDm }: CalendarTabProps) {
         {/* Quick Actions */}
         <div className="flex items-center gap-2">
           {/* Go to Current Date Button - Show when not viewing current month/year */}
-          {calendar && (() => {
-            const displayMonth = viewingMonth ?? calendar.current_month;
-            const displayYear = viewingYear ?? calendar.current_year;
-            const isViewingCurrent = displayMonth === calendar.current_month && displayYear === calendar.current_year;
+          {(localCalendar || calendar) && (() => {
+            const currentCalendar = localCalendar || calendar;
+            const displayMonth = viewingMonth ?? currentCalendar.current_month;
+            const displayYear = viewingYear ?? currentCalendar.current_year;
+            const isViewingCurrent = displayMonth === currentCalendar.current_month && displayYear === currentCalendar.current_year;
             return !isViewingCurrent;
           })() && (
             <Button
@@ -420,32 +495,62 @@ export function CalendarTab({ campaignId, isDm }: CalendarTabProps) {
               <Button
                 variant="outline"
                 size="sm"
+                onClick={handleRewindMonth}
+                disabled={updating}
+                className="flex items-center gap-1 h-8 px-2 text-xs"
+              >
+                <ChevronLeft className="h-3 w-3" />
+                Month
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleRewindWeek}
+                disabled={updating}
+                className="flex items-center gap-1 h-8 px-2 text-xs"
+              >
+                <ChevronLeft className="h-3 w-3" />
+                Week
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleRewindDay}
+                disabled={updating}
+                className="flex items-center gap-1 h-8 px-2 text-xs"
+              >
+                <ChevronLeft className="h-3 w-3" />
+                Day
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={handleAdvanceDay}
                 disabled={updating}
-                className="flex items-center gap-2"
+                className="flex items-center gap-1 h-8 px-2 text-xs"
               >
-                <ChevronRight className="h-4 w-4" />
-                Advance Day
+                Day
+                <ChevronRight className="h-3 w-3" />
               </Button>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={handleAdvanceWeek}
                 disabled={updating}
-                className="flex items-center gap-2"
+                className="flex items-center gap-1 h-8 px-2 text-xs"
               >
-                <ChevronRight className="h-4 w-4" />
-                Advance Week
+                Week
+                <ChevronRight className="h-3 w-3" />
               </Button>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={handleAdvanceMonth}
                 disabled={updating}
-                className="flex items-center gap-2"
+                className="flex items-center gap-1 h-8 px-2 text-xs"
               >
-                <ChevronRight className="h-4 w-4" />
-                Advance Month
+                Month
+                <ChevronRight className="h-3 w-3" />
               </Button>
             </>
           )}
@@ -489,7 +594,7 @@ export function CalendarTab({ campaignId, isDm }: CalendarTabProps) {
 
       {/* Calendar Grid Display */}
       <CalendarDisplay
-        calendar={calendar}
+        calendar={localCalendar || calendar}
         viewingMonth={viewingMonth}
         viewingYear={viewingYear}
         onMonthChange={handleMonthChange}

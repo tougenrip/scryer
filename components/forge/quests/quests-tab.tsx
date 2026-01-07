@@ -82,6 +82,17 @@ export function QuestBoardTab({ campaignId, isDm }: QuestBoardTabProps) {
       source?: string | null;
       location?: string | null;
       verified?: boolean;
+      steps?: Array<{
+        id?: string;
+        step_order: number;
+        description?: string | null;
+        objectives?: Array<{
+          id?: string;
+          objective_order: number;
+          goal: string;
+          status?: 'pending' | 'success' | 'failure';
+        }>;
+      }>;
     }
   ) => {
     const result = await updateQuest(questId, data);
@@ -150,27 +161,21 @@ export function QuestBoardTab({ campaignId, isDm }: QuestBoardTabProps) {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {quests.map((quest) => (
-            <div
+            <QuestNote
               key={quest.id}
-              className="h-64"
-              style={{
-                color: 'rgba(245, 243, 240, 1)',
-                backgroundColor: 'rgba(253, 230, 138, 1)'
-              }}
-            >
-              <QuestNote
-                quest={quest}
-                isDm={isDm}
-                onEdit={isDm ? (q) => setEditingQuest(q) : undefined}
-                onDelete={isDm ? (id) => setDeletingQuestId(id) : undefined}
-              />
-            </div>
+              quest={quest}
+              isDm={isDm}
+              onEdit={isDm ? (q) => setEditingQuest(q) : undefined}
+              onDelete={isDm ? (id) => setDeletingQuestId(id) : undefined}
+              onUpdate={refetch}
+            />
           ))}
         </div>
       )}
 
       {userId && (
         <QuestFormDialog
+          isDm={isDm}
           open={createDialogOpen || editingQuest !== null}
           onOpenChange={(open) => {
             if (!open) {

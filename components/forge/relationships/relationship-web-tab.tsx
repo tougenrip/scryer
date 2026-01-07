@@ -18,6 +18,7 @@ import {
 } from "@/hooks/useForgeContent";
 import { createClient } from "@/lib/supabase/client";
 import { Tables } from "@/types/supabase";
+import { toast } from "sonner";
 
 interface RelationshipWebTabProps {
   campaignId: string;
@@ -313,13 +314,16 @@ export function RelationshipWebTab({ campaignId }: RelationshipWebTabProps) {
     relationship: UnifiedRelationship
   ) => {
     // Determine which table to update based on relationship ID prefix
+    // Note: The affinity-edge component already handles optimistic updates via Zustand store
+    // We only need to update the database here - no refetch needed!
     if (relationshipId.startsWith('faction-') && relationship.sourceType === 'faction' && relationship.targetType === 'faction') {
       // Explicit faction relationship - extract the actual ID
       const actualId = relationshipId.replace('faction-', '');
       const result = await updateFactionRelationship(actualId, { strength: newStrength });
-      if (result.success) {
-        refetchFactionRels();
+      if (!result.success) {
+        toast.error("Failed to update relationship strength");
       }
+      // No refetch - affinity-edge handles optimistic updates
     } else if (relationshipId.startsWith('location-') && relationship.sourceType === 'location' && relationship.targetType === 'location') {
       // Explicit location relationship - update affection_score
       const actualId = relationshipId.replace('location-', '');
@@ -331,11 +335,10 @@ export function RelationshipWebTab({ campaignId }: RelationshipWebTabProps) {
         .update({ affection_score: affectionScore })
         .eq('id', actualId);
       
-      if (!error) {
-        // Reload location relationships
-        const rels = await fetchLocationRelationships(campaignId);
-        setLocationRelationships(rels);
+      if (error) {
+        toast.error("Failed to update relationship strength");
       }
+      // No refetch - affinity-edge handles optimistic updates
     } else if (relationshipId.startsWith('location-parent-')) {
       // Location parent relationship - try to create or update explicit location_relationship
       // Use sourceId and targetId from the relationship object (these are the actual UUIDs)
@@ -359,10 +362,10 @@ export function RelationshipWebTab({ campaignId }: RelationshipWebTabProps) {
           .update({ affection_score: affectionScore })
           .eq('id', existingRel.id);
         
-        if (!error) {
-          const rels = await fetchLocationRelationships(campaignId);
-          setLocationRelationships(rels);
+        if (error) {
+          toast.error("Failed to update relationship strength");
         }
+        // No refetch - affinity-edge handles optimistic updates
       } else {
         // Create new explicit relationship
         const { error } = await supabase
@@ -376,10 +379,10 @@ export function RelationshipWebTab({ campaignId }: RelationshipWebTabProps) {
             notes: 'Parent location',
           });
         
-        if (!error) {
-          const rels = await fetchLocationRelationships(campaignId);
-          setLocationRelationships(rels);
+        if (error) {
+          toast.error("Failed to create relationship");
         }
+        // No refetch - affinity-edge handles optimistic updates
       }
     } else {
       // Other automatic relationships (faction-hq, faction-leader, pantheon-worshipers, location-control)
@@ -394,9 +397,10 @@ export function RelationshipWebTab({ campaignId }: RelationshipWebTabProps) {
         strength: newStrength,
       });
       
-      if (result.success) {
-        refetchOverrides();
+      if (!result.success) {
+        toast.error("Failed to update relationship strength");
       }
+      // No refetch - affinity-edge handles optimistic updates
     }
   }, [campaignId, updateFactionRelationship, refetchFactionRels, locationRelationships, upsertOverride, refetchOverrides]);
 

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
-import { Plus, Map, Image as ImageIcon, Edit2, Trash2, Maximize2, Search } from "lucide-react";
+import { Plus, Map, Image as ImageIcon, Edit2, Trash2, Pen, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 
@@ -166,18 +166,16 @@ export function SceneList({
 
                   {/* Actions */}
                   {isDm && (
-                    <div className="shrink-0 flex gap-1" onClick={(e) => e.stopPropagation()}>
-                      {scene.image_url && (
+                    <div className="shrink-0 flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                         <Button
-                          variant="ghost"
+                        variant="outline"
                           size="sm"
-                          className="h-8 w-8 p-0"
+                        className="h-8 px-2"
                           onClick={(e) => handleOpenEditor(scene.id, e)}
-                          title="Open in fullscreen editor"
+                        title="Editor"
                         >
-                          <Maximize2 className="h-3 w-3" />
+                        <span className="text-xs">Editor</span>
                         </Button>
-                      )}
                       <Button
                         variant="ghost"
                         size="sm"

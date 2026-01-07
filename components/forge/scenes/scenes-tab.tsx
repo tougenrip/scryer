@@ -5,7 +5,14 @@ import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { Map, Maximize2 } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Map, Pen, Layers } from "lucide-react";
 import {
   useScenes,
   useLocationMarkers,
@@ -17,6 +24,7 @@ import {
   useDeleteScene,
   useWorldLocations,
   useUpdateWorldLocation,
+  useFloors,
   type LocationMarker,
   type Scene,
 } from "@/hooks/useForgeContent";
@@ -51,13 +59,17 @@ export function ScenesTab({ campaignId, isDm }: ScenesTabProps) {
   const [markerDialogOpen, setMarkerDialogOpen] = useState(false);
   const [editingMarker, setEditingMarker] = useState<LocationMarker | null>(null);
   const [clickedPosition, setClickedPosition] = useState<{ x: number; y: number } | null>(null);
+  const [selectedFloorId, setSelectedFloorId] = useState<string | null>(null);
+  const [hasAutoSelectedFloor, setHasAutoSelectedFloor] = useState(false);
 
   const { scenes, loading: scenesLoading, refetch: refetchScenes } = useScenes(campaignId);
   const { locations, loading: locationsLoading, refetch: refetchLocations } = useWorldLocations(campaignId);
+  const { floors, loading: floorsLoading, refetch: refetchFloors } = useFloors(selectedSceneId);
   const { markers, loading: markersLoading, refetch: refetchMarkers } = useLocationMarkers(
     campaignId,
     selectedSceneId,
-    undefined
+    undefined,
+    selectedFloorId
   );
   const { createMarker, loading: creatingMarker } = useCreateLocationMarker();
   const { updateMarker } = useUpdateLocationMarker();
@@ -67,7 +79,7 @@ export function ScenesTab({ campaignId, isDm }: ScenesTabProps) {
   const { deleteScene, loading: deletingScene } = useDeleteScene();
   const { updateLocation } = useUpdateWorldLocation();
 
-  const loading = scenesLoading || markersLoading || locationsLoading;
+  const loading = scenesLoading || markersLoading || locationsLoading || floorsLoading;
 
   // Auto-select first scene when scenes load
   useEffect(() => {
@@ -76,8 +88,25 @@ export function ScenesTab({ campaignId, isDm }: ScenesTabProps) {
     }
   }, [scenes, scenesLoading, selectedSceneId]);
 
-  // Get selected scene
+  // Always default to "No Floor (Scene)" - don't auto-select first floor
+  useEffect(() => {
+    if (!floorsLoading && !hasAutoSelectedFloor) {
+      // Always set to null (No Floor/Scene) on initial load
+      setSelectedFloorId(null);
+      setHasAutoSelectedFloor(true);
+    }
+  }, [floorsLoading, hasAutoSelectedFloor]);
+
+  // Reset floor selection when scene changes
+  useEffect(() => {
+    setSelectedFloorId(null);
+    setHasAutoSelectedFloor(false);
+  }, [selectedSceneId]);
+
+  // Get selected scene and floor
   const selectedScene = scenes.find((s) => s.id === selectedSceneId) || null;
+  const selectedFloor = floors.find((f) => f.id === selectedFloorId) || null;
+  const mapImageUrl = selectedFloor?.image_url || selectedScene?.image_url || null;
 
   const handleCreateScene = () => {
     setEditingScene(null);
@@ -227,22 +256,23 @@ export function ScenesTab({ campaignId, isDm }: ScenesTabProps) {
       }
     } else if (clickedPosition) {
       // Create new marker - round coordinates to integers (0-100 scale)
-      const result = await createMarker({
-        campaign_id: campaignId,
-        location_id: data.location_id || null,
-        map_id: null,
-        scene_id: selectedSceneId,
-        x: Math.round(clickedPosition.x),
-        y: Math.round(clickedPosition.y),
-        background_shape: data.background_shape || null,
-        icon_type: data.icon_type || 'landmark',
-        status_icon: finalStatus,
-        name: data.name,
-        description: data.description || null,
-        color: data.color || '#c9b882',
-        size: data.size || 'medium',
-        visible: true,
-      });
+        const result = await createMarker({
+          campaign_id: campaignId,
+          location_id: data.location_id || null,
+          map_id: null,
+          scene_id: selectedSceneId,
+          floor_id: selectedFloorId,
+          x: Math.round(clickedPosition.x),
+          y: Math.round(clickedPosition.y),
+          background_shape: data.background_shape || null,
+          icon_type: data.icon_type || 'landmark',
+          status_icon: finalStatus,
+          name: data.name,
+          description: data.description || null,
+          color: data.color || '#c9b882',
+          size: data.size || 'medium',
+          visible: true,
+        });
 
       if (result.success) {
         // If marker is linked to a location, sync status to location
@@ -283,8 +313,6 @@ export function ScenesTab({ campaignId, isDm }: ScenesTabProps) {
     );
   }
 
-  const sceneImageUrl = selectedScene?.image_url || null;
-
   return (
     <div className="space-y-6">
       <div>
@@ -324,7 +352,7 @@ export function ScenesTab({ campaignId, isDm }: ScenesTabProps) {
                       : "Select a scene to view its map"}
                   </p>
                 </div>
-              ) : !sceneImageUrl ? (
+              ) : !mapImageUrl ? (
                 <div className="flex flex-col items-center justify-center py-24 bg-muted rounded-lg">
                   <Map className="h-24 w-24 text-muted-foreground/50 mb-4" />
                   <p className="text-muted-foreground text-center mb-2">
@@ -338,19 +366,45 @@ export function ScenesTab({ campaignId, isDm }: ScenesTabProps) {
                 </div>
               ) : (
                 <div className="relative">
-                  <div className="absolute top-2 right-2 z-30">
+                  {/* Editor Button - Top Left */}
+                  <div className="absolute top-2 left-2 z-30">
                     <Button
                       variant="secondary"
                       size="sm"
                       onClick={() => router.push(`/campaigns/${campaignId}/scenes/${selectedSceneId}/edit`)}
                       className="gap-2"
                     >
-                      <Maximize2 className="h-4 w-4" />
-                      Fullscreen Editor
+                      <Pen className="h-4 w-4" />
+                      Editor
                     </Button>
                   </div>
+                  {/* Floor Selector - Bottom Right */}
+                  <div className="absolute bottom-2 right-2 z-30 flex items-center gap-2">
+                    <div className="flex items-center gap-2 bg-background/95 backdrop-blur-sm border border-border rounded-md px-2 py-1">
+                      <Layers className="h-4 w-4 text-muted-foreground" />
+                      <Select
+                        value={selectedFloorId || "none"}
+                        onValueChange={(value) => {
+                          setSelectedFloorId(value === "none" ? null : value);
+                          setHasAutoSelectedFloor(true); // Mark as manually selected
+                        }}
+                      >
+                        <SelectTrigger className="w-[140px] h-8">
+                          <SelectValue placeholder="Select floor" />
+                        </SelectTrigger>
+                        <SelectContent side="top" align="end">
+                          <SelectItem value="none">No Floor (Scene)</SelectItem>
+                          {floors.map((floor) => (
+                            <SelectItem key={floor.id} value={floor.id}>
+                              {floor.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
                   <AtlasMap
-                    imageUrl={sceneImageUrl}
+                    imageUrl={mapImageUrl}
                     markers={markers}
                     onMarkerClick={handleMarkerClick}
                     onMarkerAdd={isDm ? handleMarkerAdd : undefined}
