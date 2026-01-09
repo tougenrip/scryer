@@ -34,6 +34,7 @@ export interface NPC {
   species_index: string | null;
   custom_class: string | null;
   custom_species: string | null;
+  hidden_from_players: boolean;
   created_by: string;
   created_at: string | null;
   updated_at: string | null;
@@ -304,7 +305,7 @@ export function useDeleteMap() {
 // NPCs HOOKS
 // ============================================
 
-export function useCampaignNPCs(campaignId: string | null) {
+export function useCampaignNPCs(campaignId: string | null, isDm: boolean = false) {
   const [npcs, setNPCs] = useState<NPC[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -326,14 +327,21 @@ export function useCampaignNPCs(campaignId: string | null) {
         .order('created_at', { ascending: false });
 
       if (fetchError) throw fetchError;
-      setNPCs(data || []);
+      
+      // Filter notes for non-DM users
+      const filteredData = (data || []).map(npc => ({
+        ...npc,
+        notes: isDm ? npc.notes : null, // Hide notes from non-DM users
+      }));
+      
+      setNPCs(filteredData);
       setError(null);
     } catch (err) {
       setError(err as Error);
     } finally {
       setLoading(false);
     }
-  }, [campaignId]);
+  }, [campaignId, isDm]);
 
   useEffect(() => {
     fetchNPCs();
@@ -362,6 +370,7 @@ export function useCreateNPC() {
     species_index?: string | null;
     custom_class?: string | null;
     custom_species?: string | null;
+    hidden_from_players?: boolean;
     created_by: string;
   }) => {
     try {
@@ -410,6 +419,7 @@ export function useUpdateNPC() {
       species_index?: string | null;
       custom_class?: string | null;
       custom_species?: string | null;
+      hidden_from_players?: boolean;
     }
   ) => {
     try {
@@ -1280,5 +1290,206 @@ export function useDeleteQuestObjective() {
   };
 
   return { deleteObjective, loading, error };
+}
+
+// ============================================
+// BOUNTY BOARD HOOKS
+// ============================================
+
+export interface Bounty {
+  id: string;
+  campaign_id: string;
+  title: string;
+  target_name: string;
+  target_type: 'npc' | 'monster' | 'other';
+  target_npc_id: string | null;
+  description: string | null;
+  reward: string | null;
+  status: 'available' | 'claimed' | 'completed';
+  location: string | null;
+  posted_by: string | null;
+  hidden_from_players: boolean;
+  dm_notes: string | null;
+  created_by: string;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export function useCampaignBounties(campaignId: string | null, isDm: boolean = false) {
+  const [bounties, setBounties] = useState<Bounty[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  const fetchBounties = useCallback(async () => {
+    if (!campaignId) {
+      setLoading(false);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const supabase = createClient();
+
+      const { data, error: fetchError } = await supabase
+        .from('bounty_board')
+        .select('*')
+        .eq('campaign_id', campaignId)
+        .order('created_at', { ascending: false });
+
+      if (fetchError) throw fetchError;
+      
+      // Filter dm_notes for non-DM users
+      const filteredData = (data || []).map(bounty => ({
+        ...bounty,
+        dm_notes: isDm ? bounty.dm_notes : null, // Hide notes from non-DM users
+      }));
+      
+      setBounties(filteredData);
+      setError(null);
+    } catch (err) {
+      setError(err as Error);
+    } finally {
+      setLoading(false);
+    }
+  }, [campaignId, isDm]);
+
+  useEffect(() => {
+    fetchBounties();
+  }, [fetchBounties]);
+
+  return { bounties, loading, error, refetch: fetchBounties };
+}
+
+export function useCreateBounty() {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+
+  const createBounty = async (bountyData: {
+    campaign_id: string;
+    title: string;
+    target_name: string;
+    target_type?: 'npc' | 'monster' | 'other';
+    target_npc_id?: string | null;
+    description?: string | null;
+    reward?: string | null;
+    status?: 'available' | 'claimed' | 'completed';
+    location?: string | null;
+    posted_by?: string | null;
+    hidden_from_players?: boolean;
+    dm_notes?: string | null;
+    created_by: string;
+  }) => {
+    try {
+      setLoading(true);
+      const supabase = createClient();
+
+      const { data, error: insertError } = await supabase
+        .from('bounty_board')
+        .insert({
+          campaign_id: bountyData.campaign_id,
+          title: bountyData.title,
+          target_name: bountyData.target_name,
+          target_type: bountyData.target_type || 'npc',
+          target_npc_id: bountyData.target_npc_id || null,
+          description: bountyData.description || null,
+          reward: bountyData.reward || null,
+          status: bountyData.status || 'available',
+          location: bountyData.location || null,
+          posted_by: bountyData.posted_by || null,
+          hidden_from_players: bountyData.hidden_from_players ?? true,
+          dm_notes: bountyData.dm_notes || null,
+          created_by: bountyData.created_by,
+        })
+        .select()
+        .single();
+
+      if (insertError) throw insertError;
+
+      setError(null);
+      return { success: true, data };
+    } catch (err) {
+      setError(err as Error);
+      return { success: false, error: err as Error };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return { createBounty, loading, error };
+}
+
+export function useUpdateBounty() {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+
+  const updateBounty = async (
+    bountyId: string,
+    updates: {
+      title?: string;
+      target_name?: string;
+      target_type?: 'npc' | 'monster' | 'other';
+      target_npc_id?: string | null;
+      description?: string | null;
+      reward?: string | null;
+      status?: 'available' | 'claimed' | 'completed';
+      location?: string | null;
+      posted_by?: string | null;
+      hidden_from_players?: boolean;
+      dm_notes?: string | null;
+    }
+  ) => {
+    try {
+      setLoading(true);
+      const supabase = createClient();
+
+      const { data, error: updateError } = await supabase
+        .from('bounty_board')
+        .update(updates)
+        .eq('id', bountyId)
+        .select()
+        .single();
+
+      if (updateError) throw updateError;
+
+      setError(null);
+      return { success: true, data };
+    } catch (err) {
+      setError(err as Error);
+      return { success: false, error: err as Error };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return { updateBounty, loading, error };
+}
+
+export function useDeleteBounty() {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+
+  const deleteBounty = async (bountyId: string) => {
+    try {
+      setLoading(true);
+      const supabase = createClient();
+
+      const { error: deleteError } = await supabase
+        .from('bounty_board')
+        .delete()
+        .eq('id', bountyId);
+
+      if (deleteError) throw deleteError;
+
+      setError(null);
+      return { success: true };
+    } catch (err) {
+      setError(err as Error);
+      return { success: false, error: err as Error };
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return { deleteBounty, loading, error };
 }
 

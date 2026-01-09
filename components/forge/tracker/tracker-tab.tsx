@@ -1,10 +1,9 @@
 "use client";
 
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
 import { Plus, Clock } from "lucide-react";
 import {
   useCampaignTimeline,
@@ -33,7 +32,7 @@ interface CampaignTrackerTabProps {
 }
 
 export function CampaignTrackerTab({ campaignId, isDm }: CampaignTrackerTabProps) {
-  const { timeline, loading, refetch } = useCampaignTimeline(campaignId);
+  const { timeline, loading, refetch, addEntry, removeEntry, updateEntry } = useCampaignTimeline(campaignId);
   const { createTimelineEntry, loading: creating } = useCreateCampaignTimeline();
   const { updateTimelineEntry, loading: updating } = useUpdateCampaignTimeline();
   const { deleteTimelineEntry, loading: deleting } = useDeleteCampaignTimeline();
@@ -117,9 +116,13 @@ export function CampaignTrackerTab({ campaignId, isDm }: CampaignTrackerTabProps
       associated_location_ids: [],
       associated_quest_ids: [],
       notes: null,
+      hidden_from_players: true,
     });
 
     if (result.success && result.data) {
+      // Optimistically add the entry to the timeline without refetching
+      addEntry(result.data);
+      
       // For main timeline branches, store the branch source for visual connection
       if (branchType === 'main' && parentId) {
         setMainTimelineBranches(prev => {
@@ -129,17 +132,18 @@ export function CampaignTrackerTab({ campaignId, isDm }: CampaignTrackerTabProps
         });
       }
       toast.success("Session created");
-      refetch();
     } else {
       toast.error(result.error?.message || "Failed to create session");
     }
   };
 
-  const handleEntryConnect = async (fromId: string, toId: string) => {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const handleEntryConnect = async (_fromId: string, _toId: string) => {
     // Not used anymore - connections are created via action buttons
   };
 
-  const handleEntryMove = async (entryId: string, x: number, y: number) => {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const handleEntryMove = async (_entryId: string, _x: number, _y: number) => {
     // Not used - dragging removed
   };
 
@@ -157,14 +161,33 @@ export function CampaignTrackerTab({ campaignId, isDm }: CampaignTrackerTabProps
   const confirmDelete = async () => {
     if (!entryToDelete) return;
 
-    const result = await deleteTimelineEntry(entryToDelete.id);
+    const entryIdToDelete = entryToDelete.id;
+    
+    // Optimistically remove the entry and any child entries from the timeline
+    // (child entries will be deleted by database cascade, so remove them optimistically too)
+    const entriesToRemove = timeline.filter(
+      e => e.id === entryIdToDelete || e.parent_entry_id === entryIdToDelete
+    );
+    entriesToRemove.forEach(entry => removeEntry(entry.id));
+    
+    // Also clean up branch tracking for deleted entries
+    entriesToRemove.forEach(entry => {
+      setMainTimelineBranches(prev => {
+        const newMap = new Map(prev);
+        newMap.delete(entry.id);
+        return newMap;
+      });
+    });
+    
+    const result = await deleteTimelineEntry(entryIdToDelete);
     if (result.success) {
       toast.success("Timeline entry deleted");
       setShowDeleteDialog(false);
       setEntryToDelete(null);
-      refetch();
     } else {
+      // If deletion failed, refetch to restore all entries
       toast.error(result.error?.message || "Failed to delete entry");
+      refetch();
     }
   };
 
@@ -182,28 +205,39 @@ export function CampaignTrackerTab({ campaignId, isDm }: CampaignTrackerTabProps
       associated_quest_ids?: string[];
       notes?: string | null;
       image_url?: string | null;
+      hidden_from_players?: boolean;
     }) => {
     if (editingEntry) {
-      const result = await updateTimelineEntry(editingEntry.id, data);
-      if (result.success) {
+      const entryId = editingEntry.id;
+      
+      // Optimistically update the entry
+      updateEntry(entryId, data as Partial<CampaignTimeline>);
+      
+      const result = await updateTimelineEntry(entryId, data);
+      if (result.success && result.data) {
+        // Update with server response data to ensure consistency
+        updateEntry(entryId, result.data);
         toast.success("Timeline entry updated");
         setIsFormOpen(false);
         setEditingEntry(null);
-        refetch();
       } else {
+        // If update failed, refetch to restore the original entry
         toast.error(result.error?.message || "Failed to update entry");
+        refetch();
       }
     } else {
       const result = await createTimelineEntry({
         campaign_id: campaignId,
         ...data,
       });
-      if (result.success) {
+      if (result.success && result.data) {
+        // Optimistically add the entry to the timeline
+        addEntry(result.data);
         toast.success("Timeline entry created");
         setIsFormOpen(false);
         // Clear pending position
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         delete (window as any).__pendingTimelinePosition;
-        refetch();
       } else {
         toast.error(result.error?.message || "Failed to create entry");
       }
@@ -243,7 +277,7 @@ export function CampaignTrackerTab({ campaignId, isDm }: CampaignTrackerTabProps
           {/* Add New Session Button - positioned like in reference */}
           {isDm && !loading && (
             <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10">
-              <Button onClick={handleCreate} disabled={creating} className="shadow-lg">
+              <Button onClick={handleCreate} disabled={creating || updating || deleting} className="shadow-lg">
                 <Plus className="h-4 w-4 mr-2" />
                 Add New Session
               </Button>
@@ -306,6 +340,7 @@ export function CampaignTrackerTab({ campaignId, isDm }: CampaignTrackerTabProps
                 }}
                 selectedEntryId={selectedEntryId}
                 isDm={isDm}
+                isProcessing={creating || updating || deleting}
               />
             )}
           </div>
@@ -318,7 +353,7 @@ export function CampaignTrackerTab({ campaignId, isDm }: CampaignTrackerTabProps
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Timeline Entry</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete "{entryToDelete?.title}"? This action cannot be undone.
+              Are you sure you want to delete &quot;{entryToDelete?.title}&quot;? This action cannot be undone.
               {entryToDelete?.parent_entry_id === null && " This will also delete any branches from this entry."}
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -349,6 +384,7 @@ export function CampaignTrackerTab({ campaignId, isDm }: CampaignTrackerTabProps
         campaignId={campaignId}
         onSave={handleSave}
         loading={creating || updating}
+        isDm={isDm}
         isSideQuest={editingEntry ? (() => {
           if (!editingEntry.parent_entry_id) return false;
           const parent = timeline.find(e => e.id === editingEntry.parent_entry_id);

@@ -33,6 +33,7 @@ import {
   TreePine,
   // Island,
   Waves,
+  EyeOff,
 } from "lucide-react";
 import {
   useWorldLocations,
@@ -94,7 +95,7 @@ const getTypeLabel = (type: LocationType): string => {
 };
 
 export function LocationsTab({ campaignId, isDm }: LocationsTabProps) {
-  const { locations, loading, refetch } = useWorldLocations(campaignId);
+  const { locations, loading, refetch } = useWorldLocations(campaignId, isDm);
   const { createLocation, loading: creating } = useCreateWorldLocation();
   const { updateLocation, loading: updating } = useUpdateWorldLocation();
   const { deleteLocation, loading: deleting } = useDeleteWorldLocation();
@@ -178,6 +179,8 @@ export function LocationsTab({ campaignId, isDm }: LocationsTabProps) {
     marker_color?: string | null;
     status?: string | null;
     metadata?: any;
+    hidden_from_players?: boolean;
+    dm_notes?: string | null;
   }) => {
     if (editingLocation) {
       const result = await updateLocation(editingLocation.id, data);
@@ -255,6 +258,9 @@ export function LocationsTab({ campaignId, isDm }: LocationsTabProps) {
           >
             <div className="flex items-center gap-2 min-w-0">
               <span className="font-medium truncate">{node.name}</span>
+              {isDm && node.hidden_from_players && (
+                <EyeOff className="h-3 w-3 text-yellow-400 shrink-0" />
+              )}
               <Badge variant="secondary" className="text-xs shrink-0">
                 {getTypeLabel(node.type)}
               </Badge>
@@ -433,6 +439,9 @@ export function LocationsTab({ campaignId, isDm }: LocationsTabProps) {
                         >
                           <div className="flex items-center gap-2 min-w-0">
                             <span className="font-medium truncate">{location.name}</span>
+                            {isDm && location.hidden_from_players && (
+                              <EyeOff className="h-3 w-3 text-yellow-400 shrink-0" />
+                            )}
                             <Badge variant="secondary" className="text-xs shrink-0">
                               {getTypeLabel(location.type)}
                             </Badge>
@@ -504,6 +513,7 @@ export function LocationsTab({ campaignId, isDm }: LocationsTabProps) {
         location={editingLocation}
         locations={locations}
         campaignId={campaignId}
+        isDm={isDm}
         onSave={handleSave}
         loading={creating || updating}
       />

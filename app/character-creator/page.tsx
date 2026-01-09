@@ -19,6 +19,7 @@ import { ChevronLeft, ChevronRight, Check, Upload, X, Loader2, Info, Star, Plus,
 import { useInfoSheet } from "@/hooks/useInfoSheet";
 import { InfoSheetDialog } from "@/components/shared/info-sheet-dialog";
 import { toast } from "sonner";
+import { NameGeneratorButton } from "@/components/shared/name-generator-button";
 import { Artificer, Barbarian, Bard, Cleric, Druid, Fighter, Monk, Paladin, Ranger, Rogue, Sorcerer, Warlock, Wizard } from "dnd-icons/class";
 import { Strength, Dexterity, Constitution, Intelligence, Wisdom, Charisma } from "dnd-icons/ability";
 import { Character as CharacterIcon, Campaign } from "dnd-icons/game";
@@ -2993,13 +2994,24 @@ function BackgroundStep({
           <CharacterIcon size={18} />
           Character Name *
         </Label>
-        <Input
-          id="name"
-          value={formData.name}
-          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-          placeholder="Enter character name"
-          className="mt-2"
-        />
+        <div className="flex gap-2 mt-2">
+          <Input
+            id="name"
+            value={formData.name}
+            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+            placeholder="Enter character name"
+            className="flex-1"
+          />
+          <NameGeneratorButton
+            category="character"
+            onGenerate={(generatedName) => setFormData({ ...formData, name: generatedName })}
+            race={
+              formData.raceSource && formData.raceIndex
+                ? races.find((r) => r.source === formData.raceSource && r.index === formData.raceIndex)?.name
+                : undefined
+            }
+          />
+        </div>
       </div>
 
       <div>
@@ -3349,9 +3361,19 @@ function CharacterImageUpload({
   };
 
   return (
-    <div className="mt-2 space-y-4">
+    <div className="mt-2 space-y-2">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        onChange={handleFileSelect}
+        className="hidden"
+      />
       <div className="relative group">
-        <div className="relative h-32 w-32 rounded-lg overflow-hidden border-2 border-border bg-muted">
+        <div 
+          className="relative h-32 w-32 rounded-lg overflow-hidden border-2 border-border bg-muted cursor-pointer"
+          onClick={() => !uploading && fileInputRef.current?.click()}
+        >
           {imageUrl ? (
             <img
               src={imageUrl}
@@ -3371,43 +3393,37 @@ function CharacterImageUpload({
               <Loader2 className="h-6 w-6 animate-spin text-white" />
             </div>
           )}
+
+          {/* Hover overlay */}
+          {!uploading && (
+            <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
+              <Upload className="h-6 w-6 text-white" />
+              <div className="text-center space-y-0.5 px-2">
+                <p className="text-xs font-medium text-white">
+                  Click to {imageUrl ? "change" : "upload"}
+                </p>
+                <p className="text-[10px] text-white/80">
+                  PNG, JPG, WEBP up to 5MB
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
-      <div className="flex gap-2">
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          onChange={handleFileSelect}
-          className="hidden"
-        />
+      {imageUrl && (
         <Button
           type="button"
           variant="outline"
           size="sm"
-          onClick={() => fileInputRef.current?.click()}
+          onClick={handleRemoveImage}
           disabled={uploading}
+          className="w-full"
         >
-          <Upload className="h-4 w-4 mr-2" />
-          {imageUrl ? "Change Image" : "Upload Image"}
+          <X className="h-4 w-4 mr-2" />
+          Remove Image
         </Button>
-        {imageUrl && (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={handleRemoveImage}
-            disabled={uploading}
-          >
-            <X className="h-4 w-4 mr-2" />
-            Remove
-          </Button>
-        )}
-      </div>
-      <p className="text-sm text-muted-foreground">
-        Upload a character portrait (optional). Max size: 5MB
-      </p>
+      )}
     </div>
   );
 }

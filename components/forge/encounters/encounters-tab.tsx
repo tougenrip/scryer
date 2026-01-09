@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
 import {
   useCampaignEncounters,
   useCreateEncounter,
@@ -11,7 +12,13 @@ import {
   useDeleteEncounter,
   type Encounter,
 } from "@/hooks/useCampaignContent";
+import { useMonsters } from "@/hooks/useDndContent";
 import { EncounterFormDialog } from "@/components/campaign/encounter-form-dialog";
+import {
+  calculateEncounterStats,
+  type EncounterMonster,
+  type Difficulty,
+} from "@/lib/utils/encounter-calculator";
 import { toast } from "sonner";
 import { Plus, Swords, Edit, Trash2 } from "lucide-react";
 import {
@@ -36,9 +43,30 @@ export function EncountersTab({ campaignId, isDm }: EncountersTabProps) {
   const [deletingEncounterId, setDeletingEncounterId] = useState<string | null>(null);
 
   const { encounters, loading, refetch } = useCampaignEncounters(campaignId);
+  const { monsters } = useMonsters(campaignId);
   const { createEncounter } = useCreateEncounter();
   const { updateEncounter } = useUpdateEncounter();
   const { deleteEncounter, deleting } = useDeleteEncounter();
+
+  // Default party stats for difficulty calculation
+  const defaultPartySize = 4;
+  const defaultPartyLevel = 5;
+
+  // Get difficulty badge color
+  const getDifficultyColor = (difficulty: Difficulty) => {
+    switch (difficulty) {
+      case "Easy":
+        return "bg-green-600";
+      case "Medium":
+        return "bg-yellow-600";
+      case "Hard":
+        return "bg-orange-600";
+      case "Deadly":
+        return "bg-red-600";
+      default:
+        return "bg-gray-600";
+    }
+  };
 
   const handleCreate = async (data: {
     campaign_id: string;
@@ -136,36 +164,134 @@ export function EncountersTab({ campaignId, isDm }: EncountersTabProps) {
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {encounters.map((encounter) => (
-            <Card key={encounter.id}>
-              <CardContent className="p-6">
-                <h3 className="font-semibold text-lg mb-2">
-                  {encounter.name || "Unnamed Encounter"}
-                </h3>
-                {isDm && (
-                  <div className="flex items-center gap-2 mt-4">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setEditingEncounter(encounter)}
-                      className="flex-1"
-                    >
-                      <Edit className="h-4 w-4 mr-2" />
-                      Edit
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setDeletingEncounterId(encounter.id)}
-                      className="text-destructive hover:text-destructive"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+          {encounters.map((encounter) => {
+            // Resolve monster names from saved monster data
+            const encounterMonsters: EncounterMonster[] =
+              encounter.monsters && encounter.monsters.length > 0
+                ? encounter.monsters
+                    .map((savedMonster) => {
+                      const monster = monsters.find(
+                        (m) =>
+                          m.index === savedMonster.monster_index &&
+                          m.source === savedMonster.monster_source
+                      );
+                      return monster
+                        ? { monster, quantity: savedMonster.quantity }
+                        : null;
+                    })
+                    .filter((m): m is EncounterMonster => m !== null)
+                : [];
+
+            // Calculate encounter stats
+            const encounterStats =
+              encounterMonsters.length > 0
+                ? calculateEncounterStats(
+                    encounterMonsters,
+                    defaultPartySize,
+                    defaultPartyLevel
+                  )
+                : null;
+
+            const totalMonsters = encounterMonsters.reduce(
+              (sum, m) => sum + m.quantity,
+              0
+            );
+
+            return (
+              <Card key={encounter.id} className="hover:shadow-md transition-shadow">
+                <CardContent className="p-6 space-y-4">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold text-lg truncate">
+                        {encounter.name || "Unnamed Encounter"}
+                      </h3>
+                    </div>
+                    {encounterStats && (
+                      <Badge
+                        className={`${getDifficultyColor(
+                          encounterStats.difficulty
+                        )} text-white ml-2 flex-shrink-0`}
+                      >
+                        {encounterStats.difficulty}
+                      </Badge>
+                    )}
                   </div>
-                )}
-              </CardContent>
-            </Card>
-          ))}
+
+                  {/* Monsters List */}
+                  {encounterMonsters.length > 0 ? (
+                    <div className="space-y-2 pt-2 border-t">
+                      <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                        Creatures ({totalMonsters})
+                      </div>
+                      <div className="space-y-1 max-h-[120px] overflow-y-auto">
+                        {encounterMonsters.map(({ monster, quantity }, idx) => (
+                          <div
+                            key={`${monster.source}-${monster.index}-${idx}`}
+                            className="flex items-center justify-between text-sm"
+                          >
+                            <span className="truncate flex-1 min-w-0">
+                              {quantity > 1 && (
+                                <span className="font-medium mr-1">{quantity}x</span>
+                              )}
+                              {monster.name}
+                            </span>
+                            <span className="text-xs text-muted-foreground ml-2 flex-shrink-0">
+                              CR {monster.challenge_rating}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-sm text-muted-foreground pt-2 border-t">
+                      No monsters added
+                    </div>
+                  )}
+
+                  {/* Encounter Stats */}
+                  {encounterStats && (
+                    <div className="grid grid-cols-2 gap-2 pt-2 border-t text-xs">
+                      <div>
+                        <div className="text-muted-foreground">Total XP</div>
+                        <div className="font-semibold">
+                          {encounterStats.totalXP.toLocaleString()}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-muted-foreground">Adjusted XP</div>
+                        <div className="font-semibold">
+                          {encounterStats.adjustedXP.toLocaleString()}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Action Buttons */}
+                  {isDm && (
+                    <div className="flex items-center gap-2 pt-2 border-t">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setEditingEncounter(encounter)}
+                        className="flex-1"
+                      >
+                        <Edit className="h-4 w-4 mr-2" />
+                        Edit
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setDeletingEncounterId(encounter.id)}
+                        className="text-destructive hover:text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
 

@@ -27,6 +27,7 @@ import { Faction, useWorldLocations } from "@/hooks/useForgeContent";
 import { useCampaignNPCs } from "@/hooks/useCampaignContent";
 import { FactionImageUpload } from "./faction-image-upload";
 import { Search, X, Plus } from "lucide-react";
+import { NameGeneratorButton } from "@/components/shared/name-generator-button";
 
 interface FactionFormDialogProps {
   open: boolean;
@@ -226,13 +227,21 @@ export function FactionFormDialog({
                 <Label htmlFor="name">
                   Name <span className="text-destructive">*</span>
                 </Label>
-                <Input
-                  id="name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g., The Zhentarim"
-                  required
-                />
+                <div className="flex gap-2">
+                  <Input
+                    id="name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="e.g., The Zhentarim"
+                    required
+                    className="flex-1"
+                  />
+                  <NameGeneratorButton
+                    category="faction"
+                    onGenerate={(generatedName) => setName(generatedName)}
+                    disabled={loading}
+                  />
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">

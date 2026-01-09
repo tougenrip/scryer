@@ -11,7 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Edit, Trash2, MapPin, Globe, Mountain, Flag, Building2, Home, Store, Landmark, Castle, TreePine, Waves, Map as MapIcon } from "lucide-react";
+import { Edit, Trash2, MapPin, Globe, Mountain, Flag, Building2, Home, Store, Landmark, Castle, TreePine, Waves, Map as MapIcon, EyeOff } from "lucide-react";
 import { WorldLocation } from "@/hooks/useForgeContent";
 
 interface LocationDetailDialogProps {
@@ -96,6 +96,12 @@ export function LocationDetailDialog({
                   <Badge variant="secondary">
                     {getTypeLabel(location.type)}
                   </Badge>
+                  {isDm && location.hidden_from_players && (
+                    <Badge variant="outline" className="flex items-center gap-1">
+                      <EyeOff className="h-3 w-3 text-yellow-400" />
+                      Hidden
+                    </Badge>
+                  )}
                   {location.status && location.status !== 'normal' && (
                     <Badge variant="outline" className="capitalize">
                       {location.status.replace('_', ' ')}
@@ -236,6 +242,21 @@ export function LocationDetailDialog({
                       </span>
                     </div>
                   )}
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* DM Notes - Only visible to DM */}
+          {isDm && location.dm_notes && (
+            <>
+              <Separator />
+              <div>
+                <h3 className="text-sm font-medium text-muted-foreground mb-2">
+                  DM Notes
+                </h3>
+                <div className="p-3 bg-muted/50 rounded-lg border border-border">
+                  <p className="text-sm whitespace-pre-wrap">{location.dm_notes}</p>
                 </div>
               </div>
             </>

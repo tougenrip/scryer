@@ -15,7 +15,7 @@ import { useClasses, useRaces } from "@/hooks/useDndContent";
 import { NPCFormDialog } from "@/components/campaign/npc-form-dialog";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
-import { Plus, User, Edit, Trash2 } from "lucide-react";
+import { Plus, User, Edit, Trash2, EyeOff } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -38,7 +38,7 @@ export function NPCsTab({ campaignId, isDm }: NPCsTabProps) {
   const [editingNPC, setEditingNPC] = useState<NPC | null>(null);
   const [deletingNPCId, setDeletingNPCId] = useState<string | null>(null);
 
-  const { npcs, loading, refetch } = useCampaignNPCs(campaignId);
+  const { npcs, loading, refetch } = useCampaignNPCs(campaignId, isDm);
   const { classes } = useClasses(campaignId, null);
   const { races } = useRaces(campaignId, null);
   const { createNPC } = useCreateNPC();
@@ -90,6 +90,7 @@ export function NPCsTab({ campaignId, isDm }: NPCsTabProps) {
     location?: string | null;
     notes?: string | null;
     image_url?: string | null;
+    hidden_from_players?: boolean;
     created_by: string;
   }) => {
     const result = await createNPC(data);
@@ -114,6 +115,7 @@ export function NPCsTab({ campaignId, isDm }: NPCsTabProps) {
       location?: string | null;
       notes?: string | null;
       image_url?: string | null;
+      hidden_from_players?: boolean;
     }
   ) => {
     const result = await updateNPC(npcId, data);
@@ -199,8 +201,11 @@ export function NPCsTab({ campaignId, isDm }: NPCsTabProps) {
                 </div>
                 <div className="p-3 flex flex-col flex-1 min-h-0">
                   <div className="space-y-2 flex-1">
-                    <div>
+                    <div className="flex items-center justify-between">
                       <h3 className="font-semibold text-sm leading-tight">{npc.name}</h3>
+                      {isDm && npc.hidden_from_players && (
+                        <EyeOff className="h-4 w-4 text-yellow-400" />
+                      )}
                     </div>
                     {npc.description && (
                       <p className="text-xs text-muted-foreground line-clamp-2">
@@ -258,6 +263,7 @@ export function NPCsTab({ campaignId, isDm }: NPCsTabProps) {
           campaignId={campaignId}
           userId={userId}
           npc={editingNPC}
+          isDm={isDm}
           onCreate={handleCreate}
           onUpdate={handleUpdate}
         />

@@ -150,7 +150,12 @@ export function CharacterPortrait({
 
   return (
     <div className="relative group">
-      <div className={`relative ${sizeClasses[size]} rounded-full overflow-hidden border-2 border-border bg-muted`}>
+      <div 
+        className={`relative ${sizeClasses[size]} rounded-full overflow-hidden border-2 border-border bg-muted cursor-pointer ${
+          editable && !uploading ? "" : ""
+        }`}
+        onClick={() => editable && !uploading && fileInputRef.current?.click()}
+      >
         {imageUrl ? (
           <img
             src={imageUrl}
@@ -166,13 +171,13 @@ export function CharacterPortrait({
         )}
 
         {uploading && (
-          <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-10">
+          <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-10 rounded-full">
             <Loader2 className="h-6 w-6 animate-spin text-white" />
           </div>
         )}
 
-        {editable && (
-          <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 rounded-full flex items-center justify-center gap-2 z-20">
+        {editable && !uploading && (
+          <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-20 rounded-full">
             <input
               ref={fileInputRef}
               type="file"
@@ -180,28 +185,31 @@ export function CharacterPortrait({
               onChange={handleFileSelect}
               className="hidden"
             />
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploading}
-            >
-              <Upload className="h-4 w-4 mr-1" />
-              {imageUrl ? "Change" : "Upload"}
-            </Button>
-            {imageUrl && (
-              <Button
-                size="sm"
-                variant="destructive"
-                onClick={handleRemoveImage}
-                disabled={uploading}
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            )}
+            <Upload className="h-6 w-6 text-white" />
+            <div className="text-center space-y-0.5 px-2">
+              <p className="text-xs font-medium text-white">
+                Click to {imageUrl ? "change" : "upload"}
+              </p>
+              <p className="text-[10px] text-white/80">
+                PNG, JPG, WEBP up to 5MB
+              </p>
+            </div>
           </div>
         )}
       </div>
+      {editable && imageUrl && !uploading && (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={handleRemoveImage}
+          disabled={uploading}
+          className="absolute -bottom-8 left-1/2 -translate-x-1/2 mt-2"
+        >
+          <X className="h-4 w-4 mr-2" />
+          Remove
+        </Button>
+      )}
     </div>
   );
 }

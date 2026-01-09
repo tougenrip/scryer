@@ -22,6 +22,8 @@ export interface WorldLocation {
   marker_color: string | null;
   status: string | null; // Location status (syncs with marker if linked)
   metadata: Record<string, any>; // Stores: ruler_owner_id, population, demographics, faction_ids
+  hidden_from_players: boolean; // If true, only DM can see this location
+  dm_notes: string | null; // DM-only notes that are not visible to players
   created_at: string | null;
   updated_at: string | null;
 }
@@ -114,6 +116,7 @@ export interface CampaignTimeline {
   associated_quest_ids: string[];
   notes: string | null;
   image_url: string | null; // Background image for the timeline entry card
+  hidden_from_players: boolean; // If true, only DM can see this entry
   created_at: string | null;
   updated_at: string | null;
 }
@@ -207,7 +210,7 @@ export interface RelationshipStrengthOverride {
 // WORLD LOCATIONS HOOKS
 // ============================================
 
-export function useWorldLocations(campaignId: string | null) {
+export function useWorldLocations(campaignId: string | null, isDm: boolean = false) {
   const [locations, setLocations] = useState<WorldLocation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -229,14 +232,21 @@ export function useWorldLocations(campaignId: string | null) {
         .order('name', { ascending: true });
 
       if (fetchError) throw fetchError;
-      setLocations(data || []);
+      
+      // Filter dm_notes for non-DM users
+      const filteredData = (data || []).map(location => ({
+        ...location,
+        dm_notes: isDm ? location.dm_notes : null, // Hide dm_notes from non-DM users
+      }));
+      
+      setLocations(filteredData);
       setError(null);
     } catch (err) {
       setError(err as Error);
     } finally {
       setLoading(false);
     }
-  }, [campaignId]);
+  }, [campaignId, isDm]);
 
   useEffect(() => {
     fetchLocations();
@@ -260,7 +270,10 @@ export function useCreateWorldLocation() {
     y_coordinate?: number | null;
     map_level?: number;
     marker_color?: string | null;
+    status?: string | null;
     metadata?: Record<string, any>;
+    hidden_from_players?: boolean;
+    dm_notes?: string | null;
   }) => {
     try {
       setLoading(true);
@@ -271,6 +284,8 @@ export function useCreateWorldLocation() {
         .insert({
           ...locationData,
           metadata: locationData.metadata || {},
+          hidden_from_players: locationData.hidden_from_players ?? true,
+          dm_notes: locationData.dm_notes || null,
         })
         .select()
         .single();
@@ -1103,11 +1118,26 @@ export function useCampaignTimeline(campaignId: string | null) {
     }
   }, [campaignId]);
 
+  // Optimistic update function to add an entry without refetching
+  const addEntry = useCallback((entry: CampaignTimeline) => {
+    setTimeline(prev => [...prev, entry].sort((a, b) => a.order_index - b.order_index));
+  }, []);
+
+  // Optimistic update function to remove an entry without refetching
+  const removeEntry = useCallback((entryId: string) => {
+    setTimeline(prev => prev.filter(e => e.id !== entryId));
+  }, []);
+
+  // Optimistic update function to update an entry without refetching
+  const updateEntry = useCallback((entryId: string, updates: Partial<CampaignTimeline>) => {
+    setTimeline(prev => prev.map(e => e.id === entryId ? { ...e, ...updates } : e));
+  }, []);
+
   useEffect(() => {
     fetchTimeline();
   }, [fetchTimeline]);
 
-  return { timeline, loading, error, refetch: fetchTimeline };
+  return { timeline, loading, error, refetch: fetchTimeline, addEntry, removeEntry, updateEntry };
 }
 
 export function useCreateCampaignTimeline() {
@@ -1129,6 +1159,7 @@ export function useCreateCampaignTimeline() {
     associated_quest_ids?: string[];
     notes?: string | null;
     image_url?: string | null;
+    hidden_from_players?: boolean;
   }) => {
     try {
       setLoading(true);
@@ -1144,6 +1175,7 @@ export function useCreateCampaignTimeline() {
           associated_location_ids: entryData.associated_location_ids || [],
           associated_quest_ids: entryData.associated_quest_ids || [],
           image_url: entryData.image_url || null,
+          hidden_from_players: entryData.hidden_from_players ?? true,
         })
         .select()
         .single();

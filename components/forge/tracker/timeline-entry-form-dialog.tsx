@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/select";
 import { CampaignTimeline } from "@/hooks/useForgeContent";
 import { TimelineImageUpload } from "./timeline-image-upload";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface TimelineEntryFormDialogProps {
   open: boolean;
@@ -43,9 +44,11 @@ interface TimelineEntryFormDialogProps {
     associated_quest_ids?: string[];
     notes?: string | null;
     image_url?: string | null;
+    hidden_from_players?: boolean;
   }) => void;
   loading?: boolean;
   isSideQuest?: boolean; // Flag to indicate if this is a side quest
+  isDm?: boolean; // Whether the current user is the DM
 }
 
 const sessionTypeOptions = [
@@ -72,6 +75,7 @@ export function TimelineEntryFormDialog({
   onSave,
   loading = false,
   isSideQuest = false,
+  isDm = false,
 }: TimelineEntryFormDialogProps) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -83,6 +87,7 @@ export function TimelineEntryFormDialog({
   const [parentEntryId, setParentEntryId] = useState<string | null>(null);
   const [branchPathIndex, setBranchPathIndex] = useState(0);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [hiddenFromPlayers, setHiddenFromPlayers] = useState(true);
 
   // Get next order_index (either max + 1 or based on parent)
   const getNextOrderIndex = () => {
@@ -114,6 +119,7 @@ export function TimelineEntryFormDialog({
       setParentEntryId(entry.parent_entry_id);
       setBranchPathIndex(entry.branch_path_index ?? 0);
       setImageUrl(entry.image_url || null);
+      setHiddenFromPlayers(entry.hidden_from_players ?? false);
     } else {
       setTitle("");
       setDescription("");
@@ -125,6 +131,7 @@ export function TimelineEntryFormDialog({
       setParentEntryId(null);
       setBranchPathIndex(0);
       setImageUrl(null);
+      setHiddenFromPlayers(true);
     }
   }, [entry, open]);
 
@@ -164,6 +171,7 @@ export function TimelineEntryFormDialog({
       associated_quest_ids: [],
       notes: notes.trim() || null,
       image_url: imageUrl || null,
+      hidden_from_players: hiddenFromPlayers,
     });
   };
 
@@ -319,6 +327,25 @@ export function TimelineEntryFormDialog({
               rows={4}
             />
           </div>
+
+          {isDm && (
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="hidden-from-players"
+                checked={hiddenFromPlayers}
+                onCheckedChange={(checked) => setHiddenFromPlayers(checked === true)}
+              />
+              <Label
+                htmlFor="hidden-from-players"
+                className="text-sm font-normal cursor-pointer"
+              >
+                Hide from players
+              </Label>
+              <p className="text-xs text-muted-foreground ml-2">
+                Only you will be able to see this timeline entry
+              </p>
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label>Background Image</Label>

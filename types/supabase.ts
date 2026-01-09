@@ -325,6 +325,7 @@ export type Database = {
           campaign_id: string
           created_at: string | null
           description: string | null
+          hidden_from_players: boolean
           id: string
           image_url: string | null
           notes: string | null
@@ -344,6 +345,7 @@ export type Database = {
           campaign_id: string
           created_at?: string | null
           description?: string | null
+          hidden_from_players?: boolean
           id?: string
           image_url?: string | null
           notes?: string | null
@@ -363,6 +365,7 @@ export type Database = {
           campaign_id?: string
           created_at?: string | null
           description?: string | null
+          hidden_from_players?: boolean
           id?: string
           image_url?: string | null
           notes?: string | null

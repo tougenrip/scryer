@@ -23,6 +23,8 @@ import {
 import { NPC } from "@/hooks/useCampaignContent";
 import { useClasses, useRaces } from "@/hooks/useDndContent";
 import { MapImageUpload } from "./map-image-upload";
+import { Checkbox } from "@/components/ui/checkbox";
+import { NameGeneratorButton } from "@/components/shared/name-generator-button";
 
 interface NPCFormDialogProps {
   open: boolean;
@@ -30,6 +32,7 @@ interface NPCFormDialogProps {
   campaignId: string;
   userId: string;
   npc?: NPC | null;
+  isDm?: boolean;
   onCreate: (data: {
     campaign_id: string;
     name: string;
@@ -46,6 +49,7 @@ interface NPCFormDialogProps {
     species_index?: string | null;
     custom_class?: string | null;
     custom_species?: string | null;
+    hidden_from_players?: boolean;
     created_by: string;
   }) => Promise<{ success: boolean; error?: Error }>;
   onUpdate: (
@@ -65,6 +69,7 @@ interface NPCFormDialogProps {
       species_index?: string | null;
       custom_class?: string | null;
       custom_species?: string | null;
+      hidden_from_players?: boolean;
     }
   ) => Promise<{ success: boolean; error?: Error }>;
 }
@@ -75,6 +80,7 @@ export function NPCFormDialog({
   campaignId,
   userId,
   npc,
+  isDm = false,
   onCreate,
   onUpdate,
 }: NPCFormDialogProps) {
@@ -86,6 +92,7 @@ export function NPCFormDialog({
   const [location, setLocation] = useState("");
   const [notes, setNotes] = useState("");
   const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [hiddenFromPlayers, setHiddenFromPlayers] = useState(true);
   const [loading, setLoading] = useState(false);
   
   // Class fields
@@ -114,6 +121,7 @@ export function NPCFormDialog({
       setLocation(npc.location || "");
       setNotes(npc.notes || "");
       setImageUrl(npc.image_url || null);
+      setHiddenFromPlayers(npc.hidden_from_players ?? false);
       
       // Initialize class fields
       if (npc.custom_class) {
@@ -149,6 +157,7 @@ export function NPCFormDialog({
       setLocation("");
       setNotes("");
       setImageUrl(null);
+      setHiddenFromPlayers(false);
       setClassSource(null);
       setClassIndex(null);
       setIsCustomClass(false);
@@ -157,6 +166,7 @@ export function NPCFormDialog({
       setSpeciesIndex(null);
       setIsCustomSpecies(false);
       setCustomSpecies("");
+      setHiddenFromPlayers(true);
     }
   }, [npc, open]);
 
@@ -184,6 +194,7 @@ export function NPCFormDialog({
         species_source: isCustomSpecies ? null : speciesSource || null,
         species_index: isCustomSpecies ? null : speciesIndex || null,
         custom_species: isCustomSpecies ? customSpecies.trim() || null : null,
+        hidden_from_players: hiddenFromPlayers,
       };
 
       let result;
@@ -224,14 +235,29 @@ export function NPCFormDialog({
               <Label htmlFor="name">
                 Name <span className="text-destructive">*</span>
               </Label>
-              <Input
-                id="name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="NPC name"
-                required
-                disabled={loading}
-              />
+              <div className="flex gap-2">
+                <Input
+                  id="name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="NPC name"
+                  required
+                  disabled={loading}
+                  className="flex-1"
+                />
+                <NameGeneratorButton
+                  category="npc"
+                  onGenerate={(generatedName) => setName(generatedName)}
+                  race={
+                    isCustomSpecies
+                      ? customSpecies
+                      : speciesIndex
+                        ? races.find((r) => r.index === speciesIndex)?.name
+                        : undefined
+                  }
+                  disabled={loading}
+                />
+              </div>
             </div>
             <div className="grid gap-2">
               <Label htmlFor="location">Location</Label>
@@ -412,17 +438,37 @@ export function NPCFormDialog({
                 disabled={loading}
               />
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="notes">Notes</Label>
-              <Textarea
-                id="notes"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="DM-only notes and reminders"
-                rows={3}
-                disabled={loading}
-              />
-            </div>
+            {isDm && (
+              <div className="grid gap-2">
+                <Label htmlFor="notes">DM Notes</Label>
+                <Textarea
+                  id="notes"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Private notes for the DM..."
+                  rows={3}
+                  disabled={loading}
+                />
+              </div>
+            )}
+            {isDm && (
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="hidden-from-players"
+                  checked={hiddenFromPlayers}
+                  onCheckedChange={(checked) => setHiddenFromPlayers(checked === true)}
+                />
+                <Label
+                  htmlFor="hidden-from-players"
+                  className="text-sm font-normal cursor-pointer"
+                >
+                  Hide from players
+                </Label>
+                <p className="text-xs text-muted-foreground ml-2">
+                  Only you will be able to see this NPC
+                </p>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button

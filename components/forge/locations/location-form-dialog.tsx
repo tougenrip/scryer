@@ -26,6 +26,8 @@ import { WorldLocation, useFactions } from "@/hooks/useForgeContent";
 import { useCampaignNPCs } from "@/hooks/useCampaignContent";
 import { LocationImageUpload } from "./location-image-upload";
 import { Search, X } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { NameGeneratorButton } from "@/components/shared/name-generator-button";
 
 interface LocationFormDialogProps {
   open: boolean;
@@ -33,6 +35,7 @@ interface LocationFormDialogProps {
   location: WorldLocation | null;
   locations: WorldLocation[];
   campaignId: string;
+  isDm?: boolean;
   onSave: (data: {
     parent_location_id?: string | null;
     name: string;
@@ -42,6 +45,8 @@ interface LocationFormDialogProps {
     marker_color?: string | null;
     status?: string | null;
     metadata?: Record<string, any>;
+    hidden_from_players?: boolean;
+    dm_notes?: string | null;
   }) => void;
   loading?: boolean;
 }
@@ -81,6 +86,7 @@ export function LocationFormDialog({
   location,
   locations,
   campaignId,
+  isDm = false,
   onSave,
   loading = false,
 }: LocationFormDialogProps) {
@@ -93,6 +99,8 @@ export function LocationFormDialog({
   const [status, setStatus] = useState<string>('normal');
   const [isCustomStatus, setIsCustomStatus] = useState(false);
   const [customStatusText, setCustomStatusText] = useState('');
+  const [hiddenFromPlayers, setHiddenFromPlayers] = useState(true);
+  const [dmNotes, setDmNotes] = useState("");
   
   // New fields stored in metadata
   const [rulerOwnerId, setRulerOwnerId] = useState<string | null>(null);
@@ -145,6 +153,8 @@ export function LocationFormDialog({
       setPopulation(metadata.population || "");
       setDemographics(metadata.demographics || "");
       setFactionIds(metadata.faction_ids || []);
+      setHiddenFromPlayers(location.hidden_from_players ?? false);
+      setDmNotes(location.dm_notes || "");
     } else {
       setName("");
       setType("poi");
@@ -159,6 +169,8 @@ export function LocationFormDialog({
       setPopulation("");
       setDemographics("");
       setFactionIds([]);
+      setHiddenFromPlayers(true);
+      setDmNotes("");
     }
     // Reset searches when dialog opens/closes
     setNpcSearch("");
@@ -204,6 +216,8 @@ export function LocationFormDialog({
       marker_color: markerColor || null,
       status: finalStatus || null,
       metadata: Object.keys(metadata).length > 0 ? metadata : {},
+      hidden_from_players: hiddenFromPlayers,
+      dm_notes: dmNotes.trim() || null,
     });
   };
 
@@ -241,13 +255,21 @@ export function LocationFormDialog({
               <Label htmlFor="name">
                 Name <span className="text-destructive">*</span>
               </Label>
-              <Input
-                id="name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Location name"
-                required
-              />
+              <div className="flex gap-2">
+                <Input
+                  id="name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Location name"
+                  required
+                  className="flex-1"
+                />
+                <NameGeneratorButton
+                  category="location"
+                  onGenerate={(generatedName) => setName(generatedName)}
+                  disabled={loading}
+                />
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -555,6 +577,49 @@ export function LocationFormDialog({
               disabled={loading}
             />
           </div>
+
+          {isDm && (
+            <>
+              <Separator />
+              
+              {/* DM-Only Section */}
+              <div className="space-y-4">
+                <h3 className="text-sm font-semibold">DM-Only Information</h3>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="dm-notes">DM Notes</Label>
+                  <Textarea
+                    id="dm-notes"
+                    value={dmNotes}
+                    onChange={(e) => setDmNotes(e.target.value)}
+                    placeholder="Private notes for the DM only..."
+                    rows={4}
+                    disabled={loading}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    These notes are only visible to you and will not be shown to players.
+                  </p>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="hidden-from-players"
+                    checked={hiddenFromPlayers}
+                    onCheckedChange={(checked) => setHiddenFromPlayers(checked === true)}
+                  />
+                  <Label
+                    htmlFor="hidden-from-players"
+                    className="text-sm font-normal cursor-pointer"
+                  >
+                    Hide from players
+                  </Label>
+                  <p className="text-xs text-muted-foreground ml-2">
+                    Only you will be able to see this location
+                  </p>
+                </div>
+              </div>
+            </>
+          )}
         </div>
 
         <DialogFooter>

@@ -146,6 +146,14 @@ export function FactionImageUpload({
   return (
     <div className="space-y-2">
       <label className="text-sm font-medium">{label}</label>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        onChange={handleFileInputChange}
+        className="hidden"
+        disabled={disabled || uploading}
+      />
       {imageUrl ? (
         <div className="relative w-full">
           <div
@@ -164,37 +172,25 @@ export function FactionImageUpload({
               alt={label}
               className="h-full w-full object-contain"
             />
-            {!disabled && (
-              <>
-                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
-                  <div className="opacity-0 group-hover:opacity-100 transition-opacity text-white text-sm font-medium">
-                    Click to replace
-                  </div>
-                </div>
-                <div className="absolute right-2 top-2 flex gap-1">
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleRemoveImage();
-                    }}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-              </>
+            {uploading && (
+              <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-10">
+                <Loader2 className="h-6 w-6 animate-spin text-white" />
+              </div>
             )}
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handleFileInputChange}
-              className="hidden"
-              disabled={disabled || uploading}
-            />
+            {/* Hover overlay */}
+            {!uploading && !disabled && (
+              <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
+                <Upload className="h-8 w-8 text-white" />
+                <div className="text-center space-y-1">
+                  <p className="text-sm font-medium text-white">
+                    Click to change image
+                  </p>
+                  <p className="text-xs text-white/80">
+                    PNG, JPG, WEBP up to 10MB
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       ) : (
@@ -209,14 +205,6 @@ export function FactionImageUpload({
           } ${disabled ? "cursor-not-allowed opacity-50" : "hover:bg-muted"}`}
           onClick={() => !disabled && !uploading && fileInputRef.current?.click()}
         >
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            onChange={handleFileInputChange}
-            className="hidden"
-            disabled={disabled || uploading}
-          />
           {uploading ? (
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
           ) : (
@@ -225,10 +213,24 @@ export function FactionImageUpload({
               <p className="mt-2 text-sm text-muted-foreground">
                 Click to upload or drag and drop
               </p>
-              <p className="text-xs text-muted-foreground">PNG, JPG, GIF up to 10MB</p>
+              <p className="text-xs text-muted-foreground">PNG, JPG, WEBP up to 10MB</p>
             </>
           )}
         </div>
+      )}
+
+      {imageUrl && !disabled && (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={handleRemoveImage}
+          disabled={uploading}
+          className="w-full"
+        >
+          <X className="h-4 w-4 mr-2" />
+          Remove Image
+        </Button>
       )}
     </div>
   );

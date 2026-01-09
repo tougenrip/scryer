@@ -17,7 +17,8 @@ import {
   User, 
   Swords, 
   ScrollText,
-  Network
+  Network,
+  Target
 } from "lucide-react";
 
 // Import tab components (to be created)
@@ -31,6 +32,7 @@ import { NPCsTab } from "@/components/forge/npcs/npcs-tab";
 import { EncountersTab } from "@/components/forge/encounters/encounters-tab";
 import { QuestBoardTab } from "@/components/forge/quests/quests-tab";
 import { RelationshipWebTab } from "@/components/forge/relationships/relationship-web-tab";
+import { BountiesTab } from "@/components/forge/bounties/bounties-tab";
 
 export default function ForgePage() {
   const params = useParams();
@@ -113,48 +115,54 @@ export default function ForgePage() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-        <TabsList className="grid w-full grid-cols-10 max-w-full overflow-x-auto">
-          <TabsTrigger value="scenes" className="flex items-center gap-2">
-            <Map className="h-4 w-4" />
-            <span className="hidden sm:inline">Scenes</span>
-          </TabsTrigger>
-          <TabsTrigger value="locations" className="flex items-center gap-2">
-            <MapPin className="h-4 w-4" />
-            <span className="hidden sm:inline">Locations</span>
-          </TabsTrigger>
-          <TabsTrigger value="pantheon" className="flex items-center gap-2">
-            <Sparkles className="h-4 w-4" />
-            <span className="hidden sm:inline">Pantheon</span>
-          </TabsTrigger>
-          <TabsTrigger value="tracker" className="flex items-center gap-2">
-            <Clock className="h-4 w-4" />
-            <span className="hidden sm:inline">Timeline</span>
-          </TabsTrigger>
-          <TabsTrigger value="calendar" className="flex items-center gap-2">
-            <Calendar className="h-4 w-4" />
-            <span className="hidden sm:inline">Calendar</span>
-          </TabsTrigger>
-          <TabsTrigger value="factions" className="flex items-center gap-2">
-            <Users className="h-4 w-4" />
-            <span className="hidden sm:inline">Factions</span>
-          </TabsTrigger>
-          <TabsTrigger value="npcs" className="flex items-center gap-2">
-            <User className="h-4 w-4" />
-            <span className="hidden sm:inline">NPCs</span>
-          </TabsTrigger>
-          <TabsTrigger value="encounters" className="flex items-center gap-2">
-            <Swords className="h-4 w-4" />
-            <span className="hidden sm:inline">Encounters</span>
-          </TabsTrigger>
-          <TabsTrigger value="quests" className="flex items-center gap-2">
-            <ScrollText className="h-4 w-4" />
-            <span className="hidden sm:inline">Quests</span>
-          </TabsTrigger>
-          <TabsTrigger value="relationships" className="flex items-center gap-2">
-            <Network className="h-4 w-4" />
-            <span className="hidden sm:inline">Relationships</span>
-          </TabsTrigger>
-        </TabsList>
+        <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
+          <TabsList className="inline-flex w-full min-w-max h-auto flex-wrap gap-1 p-1 md:flex-nowrap md:grid md:grid-cols-11">
+            <TabsTrigger value="scenes" className="flex items-center gap-1.5 flex-shrink-0 text-xs sm:text-sm px-2 sm:px-3 whitespace-nowrap hover:bg-accent hover:text-accent-foreground hover:border-border transition-colors duration-200 hover:scale-105 active:scale-95 [&_svg]:transition-transform [&_svg]:duration-200 hover:[&_svg]:scale-110">
+              <Map className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
+              <span className="hidden sm:inline">Scenes</span>
+            </TabsTrigger>
+            <TabsTrigger value="locations" className="flex items-center gap-1.5 flex-shrink-0 text-xs sm:text-sm px-2 sm:px-3 whitespace-nowrap hover:bg-card hover:text-accent-foreground hover:border-border transition-colors duration-200 hover:scale-105 active:scale-95 [&_svg]:transition-transform [&_svg]:duration-200 hover:[&_svg]:scale-110">
+              <MapPin className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
+              <span className="hidden sm:inline">Locations</span>
+            </TabsTrigger>
+            <TabsTrigger value="pantheon" className="flex items-center gap-1.5 flex-shrink-0 text-xs sm:text-sm px-2 sm:px-3 whitespace-nowrap hover:bg-card hover:text-accent-foreground hover:border-border transition-colors duration-200 hover:scale-105 active:scale-95 [&_svg]:transition-transform [&_svg]:duration-200 hover:[&_svg]:scale-110">
+              <Sparkles className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
+              <span className="hidden sm:inline">Pantheon</span>
+            </TabsTrigger>
+            <TabsTrigger value="tracker" className="flex items-center gap-1.5 flex-shrink-0 text-xs sm:text-sm px-2 sm:px-3 whitespace-nowrap hover:bg-card hover:text-accent-foreground hover:border-border transition-colors duration-200 hover:scale-105 active:scale-95 [&_svg]:transition-transform [&_svg]:duration-200 hover:[&_svg]:scale-110">
+              <Clock className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
+              <span className="hidden sm:inline">Timeline</span>
+            </TabsTrigger>
+            <TabsTrigger value="calendar" className="flex items-center gap-1.5 flex-shrink-0 text-xs sm:text-sm px-2 sm:px-3 whitespace-nowrap hover:bg-card hover:text-accent-foreground hover:border-border transition-colors duration-200 hover:scale-105 active:scale-95 [&_svg]:transition-transform [&_svg]:duration-200 hover:[&_svg]:scale-110">
+              <Calendar className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
+              <span className="hidden sm:inline">Calendar</span>
+            </TabsTrigger>
+            <TabsTrigger value="factions" className="flex items-center gap-1.5 flex-shrink-0 text-xs sm:text-sm px-2 sm:px-3 whitespace-nowrap hover:bg-card hover:text-accent-foreground hover:border-border transition-colors duration-200 hover:scale-105 active:scale-95 [&_svg]:transition-transform [&_svg]:duration-200 hover:[&_svg]:scale-110">
+              <Users className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
+              <span className="hidden sm:inline">Factions</span>
+            </TabsTrigger>
+            <TabsTrigger value="npcs" className="flex items-center gap-1.5 flex-shrink-0 text-xs sm:text-sm px-2 sm:px-3 whitespace-nowrap hover:bg-card hover:text-accent-foreground hover:border-border transition-colors duration-200 hover:scale-105 active:scale-95 [&_svg]:transition-transform [&_svg]:duration-200 hover:[&_svg]:scale-110">
+              <User className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
+              <span className="hidden sm:inline">NPCs</span>
+            </TabsTrigger>
+            <TabsTrigger value="encounters" className="flex items-center gap-1.5 flex-shrink-0 text-xs sm:text-sm px-2 sm:px-3 whitespace-nowrap hover:bg-card hover:text-accent-foreground hover:border-border transition-colors duration-200 hover:scale-105 active:scale-95 [&_svg]:transition-transform [&_svg]:duration-200 hover:[&_svg]:scale-110">
+              <Swords className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
+              <span className="hidden sm:inline">Encounters</span>
+            </TabsTrigger>
+            <TabsTrigger value="quests" className="flex items-center gap-1.5 flex-shrink-0 text-xs sm:text-sm px-2 sm:px-3 whitespace-nowrap hover:bg-card hover:text-accent-foreground hover:border-border transition-colors duration-200 hover:scale-105 active:scale-95 [&_svg]:transition-transform [&_svg]:duration-200 hover:[&_svg]:scale-110">
+              <ScrollText className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
+              <span className="hidden sm:inline">Quests</span>
+            </TabsTrigger>
+            <TabsTrigger value="bounties" className="flex items-center gap-1.5 flex-shrink-0 text-xs sm:text-sm px-2 sm:px-3 whitespace-nowrap hover:bg-card hover:text-accent-foreground hover:border-border transition-colors duration-200 hover:scale-105 active:scale-95 [&_svg]:transition-transform [&_svg]:duration-200 hover:[&_svg]:scale-110">
+              <Target className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
+              <span className="hidden sm:inline">Bounties</span>
+            </TabsTrigger>
+            <TabsTrigger value="relationships" className="flex items-center gap-1.5 flex-shrink-0 text-xs sm:text-sm px-2 sm:px-3 whitespace-nowrap hover:bg-card hover:text-accent-foreground hover:border-border transition-colors duration-200 hover:scale-105 active:scale-95 [&_svg]:transition-transform [&_svg]:duration-200 hover:[&_svg]:scale-110">
+              <Network className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
+              <span className="hidden sm:inline">Relationships</span>
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         {/* Tab Contents */}
         <div className="mt-6">
@@ -192,6 +200,10 @@ export default function ForgePage() {
 
           <TabsContent value="quests" className="mt-0">
             <QuestBoardTab campaignId={campaignId} isDm={isDm} />
+          </TabsContent>
+
+          <TabsContent value="bounties" className="mt-0">
+            <BountiesTab campaignId={campaignId} isDm={isDm} />
           </TabsContent>
 
           <TabsContent value="relationships" className="mt-0">

@@ -23,7 +23,7 @@ import "reactflow/dist/style.css";
 import { cn } from "@/lib/utils";
 import { CampaignTimeline } from "@/hooks/useForgeContent";
 import { Button } from "@/components/ui/button";
-import { Plus, ArrowRight, ArrowDown, Edit, Trash2 } from "lucide-react";
+import { Plus, ArrowRight, ArrowDown, Edit, Trash2, EyeOff } from "lucide-react";
 
 interface TimelineCanvasProps {
   width?: number;
@@ -38,6 +38,7 @@ interface TimelineCanvasProps {
   onEntryEdit?: (entryId: string) => void;
   selectedEntryId?: string | null;
   isDm?: boolean;
+  isProcessing?: boolean; // Disable interactions while operations are in progress
   className?: string;
 }
 
@@ -82,6 +83,7 @@ function TimelineEntryNode({ data }: { data: any }) {
   const isDm = data.isDm;
   const isSideQuest = data.isSideQuest;
   const hasNextNode = data.hasNextNode || false;
+  const isProcessing = data.isProcessing || false;
   const onEdit = data.onEdit;
   const onDelete = data.onDelete;
   const onCreateNext = data.onCreateNext;
@@ -299,6 +301,15 @@ function TimelineEntryNode({ data }: { data: any }) {
           </div>
         </div>
 
+        {/* Hidden indicator - top right (only visible to DM) */}
+        {isDm && entry.hidden_from_players && (
+          <div className="absolute top-2 right-2 z-10">
+            <div className="w-5 h-5 rounded bg-black/70 flex items-center justify-center">
+              <EyeOff className="w-3 h-3 text-yellow-400" />
+            </div>
+          </div>
+        )}
+
         {/* Title - bottom left */}
         <div className="absolute bottom-2 left-2.5 right-2.5 z-10">
           <h3
@@ -379,10 +390,10 @@ function TimelineEntryNode({ data }: { data: any }) {
                onClick={(e) => {
                  e.stopPropagation();
                  e.preventDefault();
-                 if (!hasNextNode && onCreateNext) {
+                 if (!isProcessing && !hasNextNode && onCreateNext) {
                    // No next node - create next sequential node
                    onCreateNext(entry.id);
-                 } else if (hasNextNode && onCreateMainBranch) {
+                 } else if (!isProcessing && hasNextNode && onCreateMainBranch) {
                    // Next node exists - create a branch
                    onCreateMainBranch(entry.id);
                  }
@@ -391,7 +402,8 @@ function TimelineEntryNode({ data }: { data: any }) {
                  e.stopPropagation();
                  e.preventDefault();
                }}
-               className="absolute right-[-40px] top-[36px] z-50 w-7 h-7 rounded-full bg-[rgb(201,184,130)] flex items-center justify-center shadow-md hover:shadow-lg transition-shadow pointer-events-auto cursor-pointer"
+               disabled={isProcessing}
+               className="absolute right-[-40px] top-[36px] z-50 w-7 h-7 rounded-full bg-[rgb(201,184,130)] flex items-center justify-center shadow-md hover:shadow-lg transition-shadow pointer-events-auto cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                style={{
                  boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
                }}
@@ -406,13 +418,16 @@ function TimelineEntryNode({ data }: { data: any }) {
                onClick={(e) => {
                  e.stopPropagation();
                  e.preventDefault();
-                 onCreateSideQuest(entry.id);
+                 if (!isProcessing) {
+                   onCreateSideQuest(entry.id);
+                 }
                }}
                onMouseDown={(e) => {
                  e.stopPropagation();
                  e.preventDefault();
                }}
-               className="absolute right-[-40px] top-[72px] z-50 w-7 h-7 rounded-full bg-[rgb(133,173,133)] flex items-center justify-center shadow-md hover:shadow-lg transition-shadow pointer-events-auto cursor-pointer"
+               disabled={isProcessing}
+               className="absolute right-[-40px] top-[72px] z-50 w-7 h-7 rounded-full bg-[rgb(133,173,133)] flex items-center justify-center shadow-md hover:shadow-lg transition-shadow pointer-events-auto cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                style={{
                  boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
                }}
@@ -426,9 +441,10 @@ function TimelineEntryNode({ data }: { data: any }) {
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                if (onEdit) onEdit(entry.id);
+                if (!isProcessing && onEdit) onEdit(entry.id);
               }}
-              className="flex-1 h-[18px] bg-[rgb(201,184,130)] text-[rgb(23,19,17)] text-[10px] font-semibold rounded-md flex items-center justify-center shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+              disabled={isProcessing}
+              className="flex-1 h-[18px] bg-[rgb(201,184,130)] text-[rgb(23,19,17)] text-[10px] font-semibold rounded-md flex items-center justify-center shadow-sm hover:shadow-md transition-shadow cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Edit
             </button>
@@ -436,11 +452,12 @@ function TimelineEntryNode({ data }: { data: any }) {
               onClick={(e) => {
                 e.stopPropagation();
                 e.preventDefault();
-                if (onDelete) {
+                if (!isProcessing && onDelete) {
                   onDelete(entry.id);
                 }
               }}
-              className="flex-1 h-[18px] bg-[rgb(228,124,103)] text-[rgb(23,19,17)] text-[10px] font-semibold rounded-md flex items-center justify-center shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+              disabled={isProcessing}
+              className="flex-1 h-[18px] bg-[rgb(228,124,103)] text-[rgb(23,19,17)] text-[10px] font-semibold rounded-md flex items-center justify-center shadow-sm hover:shadow-md transition-shadow cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Delete
             </button>
@@ -470,6 +487,7 @@ function TimelineCanvasInner({
   onEntryEdit,
   selectedEntryId = null,
   isDm = true,
+  isProcessing = false,
   className,
 }: TimelineCanvasProps) {
   const reactFlowInstance = useReactFlow();
@@ -643,19 +661,20 @@ function TimelineCanvasInner({
           isDm,
           isSideQuest,
           hasNextNode, // Pass this to the node component
+          isProcessing, // Pass processing state to disable interactions
           onEdit: onEntryEdit,
           onDelete: onEntryDelete,
           onCreateNext: (entryId: string) => {
             const entry = entries.find(e => e.id === entryId);
             const pos = positions.get(entryId);
-            if (entry && pos && onEntryCreate) {
+            if (entry && pos && onEntryCreate && !isProcessing) {
               onEntryCreate(pos.x + 450, pos.y, entryId, 'next');
             }
           },
           onCreateSideQuest: (entryId: string) => {
             const entry = entries.find(e => e.id === entryId);
             const pos = positions.get(entryId);
-            if (entry && pos && onEntryCreate) {
+            if (entry && pos && onEntryCreate && !isProcessing) {
               const sideQuests = entries.filter(e => e.parent_entry_id === entryId);
               onEntryCreate(pos.x + 280, pos.y + 180 + sideQuests.length * 200, entryId, 'side');
             }
@@ -663,7 +682,7 @@ function TimelineCanvasInner({
           onCreateMainBranch: (entryId: string) => {
             const entry = entries.find(e => e.id === entryId);
             const pos = positions.get(entryId);
-            if (entry && pos && onEntryCreate) {
+            if (entry && pos && onEntryCreate && !isProcessing) {
               // Create a new main timeline entry at the top of the source node
               const topY = 50; // Much higher at the top
               // Count existing main timeline branches from this source to stack them
@@ -877,7 +896,7 @@ function TimelineCanvasInner({
       nodes: Array.from(nodeMap.values()),
       edges: edgeList,
     };
-  }, [entries, height, selectedEntryId, isDm, onEntryCreate, onEntryEdit, onEntryDelete, mainTimelineBranches]);
+  }, [entries, height, selectedEntryId, isDm, isProcessing, onEntryCreate, onEntryEdit, onEntryDelete, mainTimelineBranches]);
 
   const [reactFlowNodes, setNodes, onNodesChange] = useNodesState(nodes);
   const [reactFlowEdges, setEdges, onEdgesChange] = useEdgesState(edges);
@@ -973,17 +992,19 @@ function TimelineCanvasInner({
       Math.abs(clickPos.y - (lastClickPositionRef.current.y || 0)) < 10;
     
     if (isDoubleClick) {
-      // Double click - open edit
-      if (clickTimeoutRef.current) {
-        clearTimeout(clickTimeoutRef.current);
-        clickTimeoutRef.current = null;
+      // Double click - open edit (only if not processing)
+      if (!isProcessing) {
+        if (clickTimeoutRef.current) {
+          clearTimeout(clickTimeoutRef.current);
+          clickTimeoutRef.current = null;
+        }
+        // Clear selection first, then open edit
+        onEntrySelect?.(null);
+        onEntryEdit?.(node.id);
+        lastClickTimeRef.current = 0;
+        lastClickPositionRef.current = null;
+        lastClickedNodeRef.current = null;
       }
-      // Clear selection first, then open edit
-      onEntrySelect?.(null);
-      onEntryEdit?.(node.id);
-      lastClickTimeRef.current = 0;
-      lastClickPositionRef.current = null;
-      lastClickedNodeRef.current = null;
     } else {
       // Single click - select immediately (buttons show right away)
       onEntrySelect?.(node.id);
@@ -1006,7 +1027,7 @@ function TimelineCanvasInner({
         lastClickedNodeRef.current = null;
       }, 300);
     }
-  }, [onEntrySelect, onEntryEdit]);
+  }, [onEntrySelect, onEntryEdit, isProcessing]);
 
   // Handle pane click (deselect) with double-click detection for creating entries
   const handlePaneClick = useCallback((event: React.MouseEvent<Element, MouseEvent>) => {
@@ -1020,8 +1041,8 @@ function TimelineCanvasInner({
       Math.abs(clickPos.x - lastClickPositionRef.current.x) < 10 &&
       Math.abs(clickPos.y - lastClickPositionRef.current.y) < 10;
     
-    if (isDoubleClick && isDm && onEntryCreate) {
-      // Double click - create entry
+    if (isDoubleClick && isDm && onEntryCreate && !isProcessing) {
+      // Double click - create entry (only if not processing)
       if (clickTimeoutRef.current) {
         clearTimeout(clickTimeoutRef.current);
         clickTimeoutRef.current = null;
@@ -1051,7 +1072,7 @@ function TimelineCanvasInner({
         lastClickPositionRef.current = null;
       }, 300);
     }
-  }, [onEntrySelect, isDm, onEntryCreate, reactFlowInstance]);
+  }, [onEntrySelect, isDm, onEntryCreate, reactFlowInstance, isProcessing]);
 
   // Handle node mouse enter/leave - update hover state directly on nodes
   const onNodeMouseEnter: NodeMouseHandler = useCallback((event, node) => {
@@ -1300,6 +1321,7 @@ export function TimelineCanvas({
   onEntryEdit,
   selectedEntryId = null,
   isDm = true,
+  isProcessing = false,
   className,
 }: TimelineCanvasProps) {
   return (
@@ -1324,6 +1346,7 @@ export function TimelineCanvas({
           onEntryEdit={onEntryEdit}
           selectedEntryId={selectedEntryId}
           isDm={isDm}
+          isProcessing={isProcessing}
           className={className}
         />
       </ReactFlowProvider>

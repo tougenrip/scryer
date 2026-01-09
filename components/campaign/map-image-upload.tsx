@@ -142,15 +142,27 @@ export function MapImageUpload({
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        onChange={handleFileInputChange}
+        className="hidden"
+        disabled={disabled || uploading}
+      />
       {imageUrl ? (
         /* Image Preview with Hover Overlay */
         <div
-          className="relative rounded-lg overflow-hidden border-2 border-border bg-muted group"
+          ref={dropZoneRef}
+          className={`relative rounded-lg overflow-hidden border-2 border-border bg-muted cursor-pointer group ${
+            dragActive ? "border-primary" : ""
+          } ${disabled || uploading ? "opacity-50 cursor-not-allowed" : ""}`}
           onDragEnter={handleDrag}
           onDragLeave={handleDrag}
           onDragOver={handleDrag}
           onDrop={handleDrop}
+          onClick={() => !disabled && !uploading && fileInputRef.current?.click()}
         >
           <img
             src={imageUrl}
@@ -163,36 +175,30 @@ export function MapImageUpload({
             </div>
           )}
           {/* Hover Overlay */}
-          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 z-10">
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handleFileInputChange}
-              className="hidden"
-              disabled={disabled || uploading}
-            />
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
+          {!uploading && (
+            <div 
+              className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10 cursor-pointer"
               onClick={() => !disabled && !uploading && fileInputRef.current?.click()}
-              disabled={disabled || uploading}
             >
-              <Upload className="h-4 w-4 mr-2" />
-              Change Image
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              size="sm"
-              onClick={handleRemoveImage}
-              disabled={disabled || uploading}
-            >
-              <X className="h-4 w-4 mr-2" />
-              Remove
-            </Button>
-          </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleFileInputChange}
+                className="hidden"
+                disabled={disabled || uploading}
+              />
+              <Upload className="h-8 w-8 text-white" />
+              <div className="text-center space-y-1">
+                <p className="text-sm font-medium text-white">
+                  Click to change image
+                </p>
+                <p className="text-xs text-white/80">
+                  PNG, JPG, WEBP up to 10MB
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       ) : (
         /* Drop Zone (only shown when no image) */
@@ -202,33 +208,46 @@ export function MapImageUpload({
         onDragLeave={handleDrag}
         onDragOver={handleDrag}
         onDrop={handleDrop}
-        className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+        className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
           dragActive
             ? "border-primary bg-primary/5"
-            : "border-border hover:border-primary/50"
-        } ${disabled || uploading ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+            : "border-border bg-muted/50 hover:bg-muted"
+        } ${disabled || uploading ? "opacity-50 cursor-not-allowed" : ""}`}
         onClick={() => !disabled && !uploading && fileInputRef.current?.click()}
       >
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          onChange={handleFileInputChange}
-          className="hidden"
-          disabled={disabled || uploading}
-        />
-        <div className="flex flex-col items-center gap-2">
-          <Upload className="h-8 w-8 text-muted-foreground" />
-          <div className="space-y-1">
-            <p className="text-sm font-medium">
-                Click or drag image here
-            </p>
-            <p className="text-xs text-muted-foreground">
-              PNG, JPG, WEBP up to 10MB
-            </p>
+        {uploading ? (
+          <div className="flex flex-col items-center gap-2">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">Uploading...</p>
           </div>
+        ) : (
+          <div className="flex flex-col items-center gap-2">
+            <Upload className="h-8 w-8 text-muted-foreground" />
+            <div className="space-y-1">
+              <p className="text-sm font-medium">
+                {dragActive ? "Drop image here" : "Click to upload or drag and drop"}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                PNG, JPG, WEBP up to 10MB
+              </p>
+            </div>
+          </div>
+        )}
         </div>
-      </div>
+      )}
+
+      {imageUrl && !disabled && (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={handleRemoveImage}
+          disabled={uploading}
+          className="w-full"
+        >
+          <X className="h-4 w-4 mr-2" />
+          Remove Image
+        </Button>
       )}
     </div>
   );
