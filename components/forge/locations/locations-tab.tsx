@@ -45,6 +45,16 @@ import {
 import { toast } from "sonner";
 import { LocationFormDialog } from "./location-form-dialog";
 import { LocationDetailDialog } from "./location-detail-dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface LocationsTabProps {
   campaignId: string;
@@ -107,6 +117,8 @@ export function LocationsTab({ campaignId, isDm }: LocationsTabProps) {
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [editingLocation, setEditingLocation] = useState<WorldLocation | null>(null);
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
+  const [locationToDelete, setLocationToDelete] = useState<WorldLocation | null>(null);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
   // Build hierarchical structure
   const locationTree = useMemo(() => {
@@ -156,15 +168,20 @@ export function LocationsTab({ campaignId, isDm }: LocationsTabProps) {
     setIsFormOpen(true);
   };
 
-  const handleDelete = async (location: WorldLocation) => {
-    if (!confirm(`Are you sure you want to delete "${location.name}"? This will also delete all child locations.`)) {
-      return;
-    }
+  const handleDelete = (location: WorldLocation) => {
+    setLocationToDelete(location);
+    setIsDeleteDialogOpen(true);
+  };
 
-    const result = await deleteLocation(location.id);
+  const confirmDelete = async () => {
+    if (!locationToDelete) return;
+
+    const result = await deleteLocation(locationToDelete.id);
     if (result.success) {
       toast.success("Location deleted");
       refetch();
+      setIsDeleteDialogOpen(false);
+      setLocationToDelete(null);
     } else {
       toast.error(result.error?.message || "Failed to delete location");
     }
@@ -539,6 +556,36 @@ export function LocationsTab({ campaignId, isDm }: LocationsTabProps) {
           }
         }}
       />
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog 
+        open={isDeleteDialogOpen} 
+        onOpenChange={(open) => {
+          setIsDeleteDialogOpen(open);
+          if (!open) {
+            setLocationToDelete(null);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Location</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{locationToDelete?.name}"? This will also delete all child locations. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

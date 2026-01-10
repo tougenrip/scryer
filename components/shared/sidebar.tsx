@@ -56,17 +56,19 @@ export function CampaignSidebar({ campaignId, campaignName, collapsed, onToggleC
             </h2>
           </div>
         )}
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onToggleCollapse}
-          className="h-8 w-8 text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent"
-        >
-          <ChevronLeft className={cn(
-            "h-4 w-4 transition-transform",
-            collapsed && "rotate-180"
-          )} />
-        </Button>
+        {onToggleCollapse && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onToggleCollapse}
+            className="h-8 w-8 text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent"
+          >
+            <ChevronLeft className={cn(
+              "h-4 w-4 transition-transform",
+              collapsed && "rotate-180"
+            )} />
+          </Button>
+        )}
       </div>
 
       {/* Navigation */}
