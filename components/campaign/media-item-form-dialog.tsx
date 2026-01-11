@@ -20,27 +20,30 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { MediaItem } from "@/hooks/useCampaignContent";
-import { MapImageUpload } from "./map-image-upload";
+import { MediaUpload } from "./media-upload";
 
 interface MediaItemFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   campaignId: string;
   item?: MediaItem | null;
-  defaultType?: 'map' | 'token' | 'prop';
+  defaultType?: 'map' | 'token' | 'prop' | 'sound';
   pendingImageUrl?: string | null; // Pre-filled image URL from drag-and-drop
+  pendingAudioUrl?: string | null; // Pre-filled audio URL from drag-and-drop
   onCreate: (data: {
     campaign_id: string;
     name: string;
     image_url?: string | null;
-    type?: 'map' | 'token' | 'prop' | null;
+    audio_url?: string | null;
+    type?: 'map' | 'token' | 'prop' | 'sound' | null;
   }) => Promise<{ success: boolean; error?: Error }>;
   onUpdate: (
     itemId: string,
     data: {
       name?: string;
       image_url?: string | null;
-      type?: 'map' | 'token' | 'prop' | null;
+      audio_url?: string | null;
+      type?: 'map' | 'token' | 'prop' | 'sound' | null;
     }
   ) => Promise<{ success: boolean; error?: Error }>;
 }
@@ -52,27 +55,31 @@ export function MediaItemFormDialog({
   item,
   defaultType,
   pendingImageUrl,
+  pendingAudioUrl,
   onCreate,
   onUpdate,
 }: MediaItemFormDialogProps) {
   const [name, setName] = useState("");
   const [imageUrl, setImageUrl] = useState<string | null>(null);
-  const [type, setType] = useState<'map' | 'token' | 'prop' | null>(null);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [type, setType] = useState<'map' | 'token' | 'prop' | 'sound' | null>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (item) {
       setName(item.name);
       setImageUrl(item.image_url);
+      setAudioUrl(item.audio_url);
       setType(item.type);
     } else {
       setName("");
-      // Use pendingImageUrl if available (from drag-and-drop), otherwise null
+      // Use pending URLs if available (from drag-and-drop), otherwise null
       setImageUrl(pendingImageUrl || null);
+      setAudioUrl(pendingAudioUrl || null);
       // Default to null (None) unless defaultType is explicitly provided
       setType(defaultType || null);
     }
-  }, [item, defaultType, pendingImageUrl, open]);
+  }, [item, defaultType, pendingImageUrl, pendingAudioUrl, open]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -86,6 +93,7 @@ export function MediaItemFormDialog({
       const data = {
         name: name.trim(),
         image_url: imageUrl || null,
+        audio_url: audioUrl || null,
         type: type,
       };
 
@@ -118,7 +126,7 @@ export function MediaItemFormDialog({
             <DialogDescription>
               {item
                 ? "Update media item details below."
-                : "Upload an image and set the item type."}
+                : "Upload an image or audio file and set the item type."}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
@@ -152,6 +160,7 @@ export function MediaItemFormDialog({
                     <SelectItem value="map">Map</SelectItem>
                     <SelectItem value="token">Token</SelectItem>
                     <SelectItem value="prop">Prop</SelectItem>
+                    <SelectItem value="sound">Sound</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -159,12 +168,15 @@ export function MediaItemFormDialog({
 
             <div className="grid gap-2">
               <Label>
-                Image {!item && <span className="text-destructive">*</span>}
+                Media {!item && <span className="text-destructive">*</span>}
               </Label>
-              <MapImageUpload
+              <MediaUpload
                 imageUrl={imageUrl}
+                audioUrl={audioUrl}
                 onImageChange={setImageUrl}
+                onAudioChange={setAudioUrl}
                 campaignId={campaignId}
+                mediaType={type === 'sound' ? 'audio' : type === 'map' || type === 'token' || type === 'prop' ? 'image' : 'both'}
                 disabled={loading}
               />
             </div>
@@ -180,7 +192,7 @@ export function MediaItemFormDialog({
             </Button>
             <Button 
               type="submit" 
-              disabled={loading || !name.trim() || (!item && !imageUrl)}
+              disabled={loading || !name.trim() || (!item && !imageUrl && !audioUrl)}
             >
               {loading ? "Saving..." : item ? "Save Changes" : "Create"}
             </Button>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { Upload, X, Loader2, Image as ImageIcon } from "lucide-react";
+import { Upload, X, Loader2, Image as ImageIcon, Music } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -18,8 +18,8 @@ interface UploadProgress {
 
 interface MediaDragDropProps {
   campaignId: string;
-  type: 'map' | 'token' | 'prop';
-  onUploadComplete: (urls: string[]) => void;
+  type: 'map' | 'token' | 'prop' | 'sound';
+  onUploadComplete: (urls: string[], isAudio: boolean) => void;
   disabled?: boolean;
   className?: string;
 }
@@ -39,12 +39,27 @@ export function MediaDragDrop({
   const handleFileUpload = async (files: FileList | File[]) => {
     const fileArray = Array.from(files);
     const validFiles = fileArray.filter(file => {
-      if (!file.type.startsWith("image/")) {
-        toast.error(`${file.name} is not an image file`);
-        return false;
+      const isImage = file.type.startsWith("image/");
+      const isAudio = file.type.startsWith("audio/") || 
+                      ['.mp3', '.wav', '.ogg', '.m4a', '.aac'].some(ext => 
+                        file.name.toLowerCase().endsWith(ext)
+                      );
+      
+      if (type === 'sound') {
+        if (!isAudio) {
+          toast.error(`${file.name} is not an audio file`);
+          return false;
+        }
+      } else {
+        if (!isImage) {
+          toast.error(`${file.name} is not an image file`);
+          return false;
+        }
       }
-      if (file.size > 10 * 1024 * 1024) {
-        toast.error(`${file.name} is too large (max 10MB)`);
+      
+      const maxSize = type === 'sound' ? 20 * 1024 * 1024 : 10 * 1024 * 1024; // 20MB for audio, 10MB for images
+      if (file.size > maxSize) {
+        toast.error(`${file.name} is too large (max ${maxSize / (1024 * 1024)}MB)`);
         return false;
       }
       return true;
@@ -78,11 +93,15 @@ export function MediaDragDrop({
         const fileExt = file.name.split(".").pop();
         const timestamp = Date.now();
         const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
-        const fileName = `${campaignId}/media/${type}/${timestamp}-${uploadIndex}-${sanitizedName}`;
+        const mediaType = type === 'sound' ? 'sound' : type;
+        const fileName = `${campaignId}/media/${mediaType}/${timestamp}-${uploadIndex}-${sanitizedName}`;
+        
+        // Use campaign-audio bucket for audio files, campaigns bucket for images
+        const bucketName = type === 'sound' ? 'campaign-audio' : 'campaigns';
 
         // Upload file
         const { error: uploadError } = await supabase.storage
-          .from("campaigns")
+          .from(bucketName)
           .upload(fileName, file, {
             cacheControl: "3600",
             upsert: false,
@@ -92,7 +111,7 @@ export function MediaDragDrop({
 
         // Get public URL
         const { data: { publicUrl } } = supabase.storage
-          .from("campaigns")
+          .from(bucketName)
           .getPublicUrl(fileName);
 
         uploadedUrls.push(publicUrl);
@@ -115,7 +134,7 @@ export function MediaDragDrop({
     }
 
     if (uploadedUrls.length > 0) {
-      onUploadComplete(uploadedUrls);
+      onUploadComplete(uploadedUrls, type === 'sound');
       // Clear uploads after a delay
       setTimeout(() => {
         setUploads([]);
@@ -182,7 +201,7 @@ export function MediaDragDrop({
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/*"
+          accept={type === 'sound' ? "audio/*,.mp3,.wav,.ogg,.m4a,.aac" : "image/*"}
           multiple
           onChange={handleFileInputChange}
           className="hidden"
@@ -193,17 +212,30 @@ export function MediaDragDrop({
             "rounded-full p-3",
             dragActive ? "bg-primary/10" : "bg-muted"
           )}>
-            <Upload className={cn(
-              "h-6 w-6 transition-colors",
-              dragActive ? "text-primary" : "text-muted-foreground"
-            )} />
+            {type === 'sound' ? (
+              <Music className={cn(
+                "h-6 w-6 transition-colors",
+                dragActive ? "text-primary" : "text-muted-foreground"
+              )} />
+            ) : (
+              <Upload className={cn(
+                "h-6 w-6 transition-colors",
+                dragActive ? "text-primary" : "text-muted-foreground"
+              )} />
+            )}
           </div>
           <div className="space-y-1">
             <p className="text-sm font-medium">
-              {dragActive ? "Drop files here" : "Drag & drop images here"}
+              {dragActive 
+                ? "Drop files here" 
+                : type === 'sound' 
+                  ? "Drag & drop audio files here" 
+                  : "Drag & drop images here"}
             </p>
             <p className="text-xs text-muted-foreground">
-              or click to browse • PNG, JPG, WEBP up to 10MB
+              {type === 'sound'
+                ? "or click to browse • MP3, WAV, OGG up to 20MB"
+                : "or click to browse • PNG, JPG, WEBP up to 10MB"}
             </p>
           </div>
         </div>

@@ -10,7 +10,8 @@ export interface MediaItem {
   campaign_id: string;
   name: string;
   image_url: string | null;
-  type: 'map' | 'token' | 'prop' | null;
+  audio_url: string | null;
+  type: 'map' | 'token' | 'prop' | 'sound' | null;
   created_at: string | null;
 }
 
@@ -99,7 +100,7 @@ export interface Quest {
 
 export function useCampaignMediaItems(
   campaignId: string | null,
-  type?: 'map' | 'token' | 'prop' | null
+  type?: 'map' | 'token' | 'prop' | 'sound' | null
 ) {
   const [items, setItems] = useState<MediaItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -157,11 +158,23 @@ export function useCreateMediaItem() {
     campaign_id: string;
     name: string;
     image_url?: string | null;
-    type?: 'map' | 'token' | 'prop' | null;
+    audio_url?: string | null;
+    type?: 'map' | 'token' | 'prop' | 'sound' | null;
   }) => {
     try {
       setLoading(true);
       const supabase = createClient();
+
+      // Debug: Log the data being inserted
+      console.log('[createMediaItem] Inserting data:', JSON.stringify(itemData, null, 2));
+      
+      // Verify user is authenticated
+      const { data: { user } } = await supabase.auth.getUser();
+      console.log('[createMediaItem] Current user:', user?.id);
+      
+      if (!user) {
+        throw new Error('User not authenticated');
+      }
 
       const { data, error: insertError } = await supabase
         .from('media_items')
@@ -169,11 +182,16 @@ export function useCreateMediaItem() {
         .select()
         .single();
 
-      if (insertError) throw insertError;
+      if (insertError) {
+        console.error('[createMediaItem] Insert error:', insertError);
+        throw insertError;
+      }
 
+      console.log('[createMediaItem] Successfully created:', data);
       setError(null);
       return { success: true, data };
     } catch (err) {
+      console.error('[createMediaItem] Caught error:', err);
       setError(err as Error);
       return { success: false, error: err as Error };
     } finally {
@@ -215,7 +233,8 @@ export function useUpdateMediaItem() {
     updates: {
       name?: string;
       image_url?: string | null;
-      type?: 'map' | 'token' | 'prop' | null;
+      audio_url?: string | null;
+      type?: 'map' | 'token' | 'prop' | 'sound' | null;
     }
   ) => {
     try {

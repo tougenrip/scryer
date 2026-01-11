@@ -24,9 +24,11 @@ import { createClient } from '@/lib/supabase/client';
 interface MusicPlayerProps {
   campaignId: string;
   isDm: boolean;
+  isVisible?: boolean; // New prop to control UI visibility
+  audioRef?: React.RefObject<HTMLAudioElement>; // Optional external audio ref
 }
 
-export function MusicPlayer({ campaignId, isDm }: MusicPlayerProps) {
+export function MusicPlayer({ campaignId, isDm, isVisible = true, audioRef: externalAudioRef }: MusicPlayerProps) {
   const { tracks, loading: tracksLoading, refetch: refetchTracks } = useAudioTracks(campaignId);
   const { uploadTrack, uploading } = useAudioUpload();
   const { audioState, updateAudioState } = useAudioSync(campaignId);
@@ -36,7 +38,16 @@ export function MusicPlayer({ campaignId, isDm }: MusicPlayerProps) {
   const [uploadName, setUploadName] = useState('');
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [autoplayBlocked, setAutoplayBlocked] = useState(false);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const internalAudioRef = useRef<HTMLAudioElement | null>(null);
+  const audioRef = externalAudioRef || internalAudioRef; // Use external ref if provided, otherwise use internal
+  
+  // Track last synced state to prevent unnecessary updates on remount
+  const lastSyncedState = useRef<{
+    trackId: string | null;
+    isPlaying: boolean;
+    volume: number;
+    isLooping: boolean;
+  } | null>(null);
 
   // Sync audio element with state
   useEffect(() => {
@@ -47,31 +58,83 @@ export function MusicPlayer({ campaignId, isDm }: MusicPlayerProps) {
     // Find track URL
     const activeTrack = tracks.find(t => t.id === audioState.activeTrackId);
     
+    // Check if state actually changed (prevents restart on remount)
+    const currentState = {
+      trackId: audioState.activeTrackId,
+      isPlaying: audioState.isPlaying,
+      volume: audioState.volume,
+      isLooping: audioState.isLooping
+    };
+    
+    const stateChanged = !lastSyncedState.current || 
+      lastSyncedState.current.trackId !== currentState.trackId ||
+      lastSyncedState.current.isPlaying !== currentState.isPlaying ||
+      lastSyncedState.current.volume !== currentState.volume ||
+      lastSyncedState.current.isLooping !== currentState.isLooping;
+    
     if (activeTrack) {
-      // Only set src if it changed to avoid reloading
+      // Only set src if it changed to avoid reloading/interrupting playback
       const currentSrc = audio.src;
+      const newSrc = activeTrack.url;
       
-      if (activeTrack.url !== currentSrc && !currentSrc.endsWith(activeTrack.url)) {
-        audio.src = activeTrack.url;
+      // Check if we need to change the source
+      const currentSrcPath = currentSrc ? new URL(currentSrc, window.location.href).pathname : '';
+      const newSrcPath = new URL(newSrc, window.location.href).pathname;
+      const isSameTrack = currentSrcPath === newSrcPath;
+      const isCurrentlyPlaying = !audio.paused && audio.currentTime > 0 && !audio.ended;
+      
+      // Only change source if it's actually different
+      if (currentSrcPath !== newSrcPath) {
+        // Preserve current playback position if possible
+        const wasPlaying = isCurrentlyPlaying;
+        const currentTime = audio.currentTime;
+        
+        audio.src = newSrc;
+        audio.load();
+        
+        // If it was playing, resume playback
+        if (wasPlaying && audioState.isPlaying) {
+          audio.currentTime = Math.min(currentTime, audio.duration || 0);
+          audio.play().catch(e => {
+            console.error("[MusicPlayer] Failed to resume playback:", e);
+            setAutoplayBlocked(true);
+          });
+        }
+        lastSyncedState.current = currentState;
+        return; // Exit early after source change
       }
       
+      // Update properties without interrupting playback
       audio.loop = audioState.isLooping;
       audio.volume = audioState.volume * localVolume;
 
-      if (audioState.isPlaying) {
-        audio.play().then(() => {
+      // Only change playback state if state actually changed AND there's a mismatch
+      // Critical: If audio is already playing the same track, don't restart
+      if (stateChanged) {
+        if (audioState.isPlaying && audio.paused && (!isSameTrack || !isCurrentlyPlaying)) {
+          // Should be playing but is paused - start/resume playback
+          audio.play().then(() => {
+            setAutoplayBlocked(false);
+          }).catch(e => {
+            console.error("[MusicPlayer] Autoplay failed:", e);
+            setAutoplayBlocked(true);
+          });
+        } else if (!audioState.isPlaying && !audio.paused) {
+          // Should be paused but is playing
+          audio.pause();
           setAutoplayBlocked(false);
-        }).catch(e => {
-          console.error("Autoplay failed:", e);
-          setAutoplayBlocked(true);
-        });
-      } else {
-        audio.pause();
-        setAutoplayBlocked(false);
+        }
+        // Update last synced state
+        lastSyncedState.current = currentState;
       }
+      // If state hasn't changed and audio is already in correct state, do nothing
     } else {
-      audio.pause();
-      audio.src = '';
+      // No active track
+      if (audio.src) {
+        audio.pause();
+        audio.src = '';
+      }
+      lastSyncedState.current = null;
     }
   }, [audioState, tracks, localVolume]);
 
@@ -92,7 +155,9 @@ export function MusicPlayer({ campaignId, isDm }: MusicPlayerProps) {
     if (!confirm('Are you sure you want to delete this track?')) return;
     
     const supabase = createClient();
-    await supabase.from('audio_tracks').delete().eq('id', trackId);
+    
+    // Delete from media_items instead of audio_tracks
+    await supabase.from('media_items').delete().eq('id', trackId);
     
     // If deleted track was playing, stop it
     if (audioState.activeTrackId === trackId) {
@@ -106,11 +171,15 @@ export function MusicPlayer({ campaignId, isDm }: MusicPlayerProps) {
   };
 
   const playTrack = (trackId: string) => {
+    console.log('[MusicPlayer] playTrack called:', { trackId, currentActiveId: audioState.activeTrackId, isDm });
+    
     // If already playing this track, toggle pause
     if (audioState.activeTrackId === trackId) {
+      console.log('[MusicPlayer] Toggling playback for current track');
       updateAudioState({ isPlaying: !audioState.isPlaying });
     } else {
       // New track
+      console.log('[MusicPlayer] Playing new track');
       updateAudioState({
         activeTrackId: trackId,
         isPlaying: true
@@ -126,8 +195,16 @@ export function MusicPlayer({ campaignId, isDm }: MusicPlayerProps) {
   };
 
   return (
-    <Card className="w-full h-full flex flex-col border-none shadow-none bg-transparent">
-      <CardHeader className="px-4 py-3 border-b">
+    <>
+      {/* Audio element - only render if no external ref provided */}
+      {!externalAudioRef && (
+        <audio ref={audioRef} className="hidden" />
+      )}
+      
+      {/* UI - only shown when isVisible is true */}
+      {isVisible && (
+        <Card className="w-full h-full flex flex-col border-none shadow-none bg-transparent">
+          <CardHeader className="px-4 py-3 border-b">
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg flex items-center gap-2">
             <Music className="h-5 w-5" />
@@ -326,10 +403,9 @@ export function MusicPlayer({ campaignId, isDm }: MusicPlayerProps) {
             )}
           </div>
         </ScrollArea>
-        
-        {/* Hidden Audio Element */}
-        <audio ref={audioRef} />
       </CardContent>
     </Card>
+      )}
+    </>
   );
 }

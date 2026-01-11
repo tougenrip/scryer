@@ -31,7 +31,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-type MediaType = 'all' | 'map' | 'token' | 'prop';
+type MediaType = 'all' | 'map' | 'token' | 'prop' | 'sound';
 
 export default function MediaLibraryPage() {
   const params = useParams();
@@ -43,6 +43,7 @@ export default function MediaLibraryPage() {
   const [editingItem, setEditingItem] = useState<MediaItem | null>(null);
   const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
   const [pendingUrls, setPendingUrls] = useState<string[]>([]);
+  const [pendingAudioUrls, setPendingAudioUrls] = useState<string[]>([]);
 
   const { campaign, loading: campaignLoading } = useCampaign(campaignId);
   const { items, loading: itemsLoading, refetch: refetchItems } = useCampaignMediaItems(
@@ -67,13 +68,14 @@ export default function MediaLibraryPage() {
     getUser();
   }, [campaign]);
 
-  const handleCreateFromUrls = async (urls: string[], type: 'map' | 'token' | 'prop' | null = null) => {
+  const handleCreateFromUrls = async (urls: string[], type: 'map' | 'token' | 'prop' | 'sound' | null = null, isAudio: boolean = false) => {
     // Create media items for each uploaded URL
     const promises = urls.map((url, index) =>
       createMediaItem({
         campaign_id: campaignId,
         name: `Untitled Item ${Date.now()}-${index}`,
-        image_url: url,
+        image_url: isAudio ? null : url,
+        audio_url: isAudio ? url : null,
         type: type,
       })
     );
@@ -97,7 +99,8 @@ export default function MediaLibraryPage() {
     campaign_id: string;
     name: string;
     image_url?: string | null;
-    type?: 'map' | 'token' | 'prop' | null;
+    audio_url?: string | null;
+    type?: 'map' | 'token' | 'prop' | 'sound' | null;
   }) => {
     const result = await createMediaItem(data);
     if (result.success) {
@@ -116,7 +119,8 @@ export default function MediaLibraryPage() {
     data: {
       name?: string;
       image_url?: string | null;
-      type?: 'map' | 'token' | 'prop' | null;
+      audio_url?: string | null;
+      type?: 'map' | 'token' | 'prop' | 'sound' | null;
     },
     silent = false
   ) => {
@@ -148,18 +152,26 @@ export default function MediaLibraryPage() {
     }
   };
 
-  const handleDragDropComplete = (urls: string[]) => {
+  const handleDragDropComplete = (urls: string[], isAudio: boolean = false) => {
     if (activeTab === 'all') {
       // On "All" tab, always open dialog to select type (or none)
-      setPendingUrls(urls);
+      if (isAudio) {
+        setPendingAudioUrls(urls);
+      } else {
+        setPendingUrls(urls);
+      }
       setCreateDialogOpen(true);
     } else if (urls.length === 1) {
       // Single file - open dialog to name it
-      setPendingUrls(urls);
+      if (isAudio) {
+        setPendingAudioUrls(urls);
+      } else {
+        setPendingUrls(urls);
+      }
       setCreateDialogOpen(true);
     } else {
       // Multiple files - create with default names using active tab type
-      handleCreateFromUrls(urls, activeTab as 'map' | 'token' | 'prop');
+      handleCreateFromUrls(urls, activeTab as 'map' | 'token' | 'prop' | 'sound', isAudio);
     }
   };
 
@@ -222,6 +234,7 @@ export default function MediaLibraryPage() {
           <TabsTrigger value="map">Maps</TabsTrigger>
           <TabsTrigger value="token">Tokens</TabsTrigger>
           <TabsTrigger value="prop">Props</TabsTrigger>
+          <TabsTrigger value="sound">Sounds</TabsTrigger>
         </TabsList>
 
         <TabsContent value={activeTab} className="space-y-6 mt-6">
@@ -233,14 +246,14 @@ export default function MediaLibraryPage() {
                   <MediaDragDrop
                     campaignId={campaignId}
                     type="map"
-                    onUploadComplete={handleDragDropComplete}
+                    onUploadComplete={(urls) => handleDragDropComplete(urls, false)}
                     disabled={creating}
                   />
                 ) : (
                   <MediaDragDrop
                     campaignId={campaignId}
-                    type={activeTab}
-                    onUploadComplete={handleDragDropComplete}
+                    type={activeTab as 'map' | 'token' | 'prop' | 'sound'}
+                    onUploadComplete={(urls) => handleDragDropComplete(urls, activeTab === 'sound')}
                     disabled={creating}
                   />
                 )}
@@ -254,7 +267,7 @@ export default function MediaLibraryPage() {
             onEdit={setEditingItem}
             onDelete={setDeletingItemId}
             onTypeChange={async (itemId, newType) => {
-              await handleUpdate(itemId, { type: newType }, true);
+              await handleUpdate(itemId, { type: newType as 'map' | 'token' | 'prop' | 'sound' | null }, true);
             }}
             isLoading={itemsLoading}
           />
@@ -269,14 +282,16 @@ export default function MediaLibraryPage() {
             setCreateDialogOpen(false);
             setEditingItem(null);
             setPendingUrls([]);
+            setPendingAudioUrls([]);
           }
         }}
         campaignId={campaignId}
         item={editingItem}
-        defaultType={pendingUrls.length > 0 ? (activeTab === 'all' ? 'map' : activeTab) : undefined}
+        defaultType={pendingUrls.length > 0 || pendingAudioUrls.length > 0 ? (activeTab === 'all' ? (pendingAudioUrls.length > 0 ? 'sound' : 'map') : activeTab) : undefined}
         pendingImageUrl={pendingUrls.length > 0 ? pendingUrls[0] : null}
+        pendingAudioUrl={pendingAudioUrls.length > 0 ? pendingAudioUrls[0] : null}
         onCreate={async (data) => {
-          // Use the image_url from the form (which already has the pending URL if applicable)
+          // Use the URLs from the form (which already has the pending URLs if applicable)
           return handleCreate(data);
         }}
         onUpdate={handleUpdate}

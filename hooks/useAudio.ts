@@ -48,14 +48,29 @@ export function useAudioTracks(campaignId: string) {
       setLoading(true);
       const supabase = createClient();
       
+      // Fetch from media_items where type = 'sound'
       const { data, error: fetchError } = await supabase
-        .from('audio_tracks')
-        .select('*')
+        .from('media_items')
+        .select('id, name, audio_url, type, created_at')
         .eq('campaign_id', campaignId)
+        .eq('type', 'sound')
+        .not('audio_url', 'is', null)
         .order('created_at', { ascending: false });
 
       if (fetchError) throw fetchError;
-      setTracks(data || []);
+      
+      // Transform media_items to AudioTrack format
+      const transformedTracks: AudioTrack[] = (data || []).map(item => ({
+        id: item.id,
+        campaign_id: campaignId,
+        name: item.name,
+        url: item.audio_url!,
+        type: 'music' as AudioType, // Default to music, can be enhanced later
+        duration: null,
+        created_at: item.created_at || new Date().toISOString()
+      }));
+      
+      setTracks(transformedTracks);
       setError(null);
     } catch (err) {
       setError(err as Error);
@@ -75,7 +90,7 @@ export function useAudioTracks(campaignId: string) {
         {
           event: '*',
           schema: 'public',
-          table: 'audio_tracks',
+          table: 'media_items',
           filter: `campaign_id=eq.${campaignId}`
         },
         () => {
@@ -170,11 +185,16 @@ export function useAudioUpload() {
       
       // 1. Upload file to storage
       const fileExt = file.name.split('.').pop();
-      const fileName = `${campaignId}/${uuidv4()}.${fileExt}`;
+      const timestamp = Date.now();
+      const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+      const fileName = `${campaignId}/media/sound/${timestamp}-${sanitizedName}`;
       
-      const { error: uploadError } = await supabase.storage
+      const { error: uploadError } = supabase.storage
         .from('campaign-audio')
-        .upload(fileName, file);
+        .upload(fileName, file, {
+          cacheControl: "3600",
+          upsert: false,
+        });
 
       if (uploadError) throw uploadError;
 
@@ -183,15 +203,14 @@ export function useAudioUpload() {
         .from('campaign-audio')
         .getPublicUrl(fileName);
 
-      // 3. Create database record
+      // 3. Create database record in media_items
       const { data: track, error: dbError } = await supabase
-        .from('audio_tracks')
+        .from('media_items')
         .insert({
           campaign_id: campaignId,
           name,
-          url: publicUrl,
-          type,
-          duration: 0 // Ideally we'd get this from metadata
+          audio_url: publicUrl,
+          type: 'sound'
         })
         .select()
         .single();
@@ -232,13 +251,18 @@ export function useAudioSync(campaignId: string) {
   // Fetch initial state
   useEffect(() => {
     const supabase = createClient();
+    console.log('[useAudioSync] Fetching initial state for campaign:', campaignId);
+    
     supabase
       .from('campaign_state')
       .select('active_track_id, is_playing, audio_volume, is_looping')
       .eq('campaign_id', campaignId)
       .single()
-      .then(({ data }) => {
-        if (data) {
+      .then(({ data, error }) => {
+        if (error) {
+          console.error('[useAudioSync] Error fetching initial state:', error);
+        } else if (data) {
+          console.log('[useAudioSync] Initial state loaded:', data);
           setAudioState({
             activeTrackId: data.active_track_id,
             isPlaying: data.is_playing,
@@ -259,6 +283,7 @@ export function useAudioSync(campaignId: string) {
           filter: `campaign_id=eq.${campaignId}`
         },
         (payload) => {
+          console.log('[useAudioSync] Realtime update received:', payload.new);
           setAudioState({
             activeTrackId: payload.new.active_track_id,
             isPlaying: payload.new.is_playing,
@@ -267,7 +292,9 @@ export function useAudioSync(campaignId: string) {
           });
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('[useAudioSync] Subscription status:', status);
+      });
 
     return () => {
       supabase.removeChannel(channel);
@@ -280,6 +307,8 @@ export function useAudioSync(campaignId: string) {
     volume: number;
     isLooping: boolean;
   }>) => {
+    console.log('[useAudioSync] updateAudioState called:', { campaignId, updates });
+    
     const supabase = createClient();
     const dbUpdates: any = {};
     if (updates.activeTrackId !== undefined) dbUpdates.active_track_id = updates.activeTrackId;
@@ -287,12 +316,30 @@ export function useAudioSync(campaignId: string) {
     if (updates.volume !== undefined) dbUpdates.audio_volume = updates.volume;
     if (updates.isLooping !== undefined) dbUpdates.is_looping = updates.isLooping;
 
-    if (Object.keys(dbUpdates).length === 0) return;
+    if (Object.keys(dbUpdates).length === 0) {
+      console.log('[useAudioSync] No updates to apply');
+      return;
+    }
 
-    await supabase
+    console.log('[useAudioSync] Updating campaign_state with:', dbUpdates);
+
+    const { data, error } = await supabase
       .from('campaign_state')
       .update(dbUpdates)
-      .eq('campaign_id', campaignId);
+      .eq('campaign_id', campaignId)
+      .select();
+
+    if (error) {
+      console.error('[useAudioSync] Error updating campaign_state:', error);
+      console.error('[useAudioSync] Error details:', {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code
+      });
+    } else {
+      console.log('[useAudioSync] Successfully updated campaign_state:', data);
+    }
   };
 
   return { audioState, updateAudioState };

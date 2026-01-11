@@ -4,7 +4,7 @@ import { MediaItem } from "@/hooks/useCampaignContent";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Edit, Trash2, Eye, Image as ImageIcon } from "lucide-react";
+import { Edit, Trash2, Eye, Image as ImageIcon, Music } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,7 +24,7 @@ interface MediaLibraryGridProps {
   items: MediaItem[];
   onEdit: (item: MediaItem) => void;
   onDelete: (itemId: string) => void;
-  onTypeChange?: (itemId: string, type: 'map' | 'token' | 'prop' | null) => void;
+  onTypeChange?: (itemId: string, type: 'map' | 'token' | 'prop' | 'sound' | null) => void;
   onView?: (item: MediaItem) => void;
   isLoading?: boolean;
 }
@@ -57,7 +57,7 @@ export function MediaLibraryGrid({
         <CardContent className="flex flex-col items-center justify-center py-12">
           <ImageIcon className="h-16 w-16 text-muted-foreground/50 mb-4" />
           <p className="text-muted-foreground text-center">
-            No items yet. Upload some images to get started.
+            No items yet. Upload some media to get started.
           </p>
         </CardContent>
       </Card>
@@ -73,6 +73,8 @@ export function MediaLibraryGrid({
         return 'bg-green-500';
       case 'prop':
         return 'bg-purple-500';
+      case 'sound':
+        return 'bg-orange-500';
       default:
         return 'bg-gray-500';
     }
@@ -87,6 +89,8 @@ export function MediaLibraryGrid({
         return 'Token';
       case 'prop':
         return 'Prop';
+      case 'sound':
+        return 'Sound';
       default:
         return type;
     }
@@ -97,9 +101,19 @@ export function MediaLibraryGrid({
       {items.map((item) => (
         <Card key={item.id} className="group overflow-hidden hover:shadow-lg transition-shadow">
           <CardContent className="p-0">
-            {/* Image */}
+            {/* Image or Audio */}
             <div className="relative aspect-square bg-muted">
-              {item.image_url ? (
+              {item.type === 'sound' && item.audio_url ? (
+                <div className="w-full h-full flex flex-col items-center justify-center p-4 bg-gradient-to-br from-orange-500/20 to-orange-600/20">
+                  <Music className="h-16 w-16 text-orange-500 mb-4" />
+                  <audio
+                    src={item.audio_url}
+                    controls
+                    className="w-full max-w-[200px]"
+                    preload="metadata"
+                  />
+                </div>
+              ) : item.image_url ? (
                 <img
                   src={item.image_url}
                   alt={item.name}
@@ -107,7 +121,11 @@ export function MediaLibraryGrid({
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center">
-                  <ImageIcon className="h-12 w-12 text-muted-foreground/50" />
+                  {item.type === 'sound' ? (
+                    <Music className="h-12 w-12 text-muted-foreground/50" />
+                  ) : (
+                    <ImageIcon className="h-12 w-12 text-muted-foreground/50" />
+                  )}
                 </div>
               )}
               
@@ -146,7 +164,7 @@ export function MediaLibraryGrid({
                   <Select
                     value={item.type || "none"}
                     onValueChange={(value) => {
-                      onTypeChange(item.id, value === "none" ? null : value as 'map' | 'token' | 'prop');
+                      onTypeChange(item.id, value === "none" ? null : value as 'map' | 'token' | 'prop' | 'sound');
                     }}
                   >
                     <SelectTrigger className="h-7 w-24 text-xs bg-black/70 hover:bg-black/80 border-0 text-white [&>svg]:text-white">
@@ -157,6 +175,7 @@ export function MediaLibraryGrid({
                       <SelectItem value="map">Map</SelectItem>
                       <SelectItem value="token">Token</SelectItem>
                       <SelectItem value="prop">Prop</SelectItem>
+                      <SelectItem value="sound">Sound</SelectItem>
                     </SelectContent>
                   </Select>
                 ) : (
