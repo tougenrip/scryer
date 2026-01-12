@@ -5,7 +5,7 @@ import { EdgeProps, getSmoothStepPath, EdgeLabelRenderer, BaseEdge } from "react
 import { useRelationshipGraphStore } from "./relationship-graph-store";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
-import { Heart, Plus, Minus } from "lucide-react";
+import { Heart, Plus, Minus, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type RelationshipType = 
@@ -31,9 +31,11 @@ export interface RelationshipEdgeData {
   isSecret: boolean;
   description?: string | null;
   onStrengthChange?: (newStrength: number) => void;
+  onDelete?: () => void;
   relationshipId?: string;
   sourceType?: string;
   targetType?: string;
+  isDm?: boolean;
 }
 
 // Scryer-themed colors based on app color palette
@@ -225,7 +227,7 @@ export function AffinityEdge({
         >
           <div
             className={cn(
-              "flex flex-col items-center gap-1.5 p-2 rounded-lg bg-background/95 backdrop-blur-sm border-2 shadow-xl",
+              "relative flex flex-col items-center gap-1.5 p-2 rounded-lg bg-background/95 backdrop-blur-sm border-2 shadow-xl",
               isSecret && "border-muted opacity-70"
             )}
             style={{
@@ -239,6 +241,26 @@ export function AffinityEdge({
               e.stopPropagation();
             }}
           >
+            {/* Delete button - top right */}
+            {data?.isDm && data?.onDelete && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="absolute top-0 right-0 h-5 w-5 p-0 hover:bg-destructive/20 rounded-t-lg rounded-bl-none"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  data.onDelete?.();
+                }}
+                onMouseDown={(e) => {
+                  e.stopPropagation();
+                }}
+              >
+                <X className="h-3 w-3 text-muted-foreground hover:text-destructive" />
+              </Button>
+            )}
+
             {/* Relationship icon and type */}
             <div className="flex items-center gap-1.5">
               <span className="text-base">{icon}</span>

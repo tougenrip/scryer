@@ -123,11 +123,15 @@ export function FactionsTab({ campaignId, isDm }: FactionsTabProps) {
 
   if (loading) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {[1, 2, 3].map((i) => (
-          <Card key={i} className="h-64">
-            <CardContent className="p-0">
-              <Skeleton className="h-full w-full" />
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+        {[1, 2, 3, 4, 5, 6].map((i) => (
+          <Card key={i} className="overflow-hidden flex flex-col h-full">
+            <CardContent className="p-0 flex flex-col h-full">
+              <Skeleton className="w-full aspect-square" />
+              <div className="p-3 space-y-2">
+                <Skeleton className="h-4 w-3/4" />
+                <Skeleton className="h-3 w-1/2" />
+              </div>
             </CardContent>
           </Card>
         ))}
@@ -173,65 +177,68 @@ export function FactionsTab({ campaignId, isDm }: FactionsTabProps) {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
           {filteredFactions.map((faction) => (
-            <Card key={faction.id} className="overflow-hidden">
-              <CardContent className="p-0">
-                {faction.emblem_sigil_url && (
-                  <div className="w-full h-32 overflow-hidden bg-muted">
+            <Card key={faction.id} className="overflow-hidden flex flex-col h-full">
+              <CardContent className="p-0 flex flex-col h-full">
+                <div className="w-full aspect-square bg-muted overflow-hidden flex-shrink-0">
+                  {faction.emblem_sigil_url ? (
                     <img
                       src={faction.emblem_sigil_url}
                       alt={faction.name}
                       className="w-full h-full object-cover"
                     />
-                  </div>
-                )}
-                <div className="p-6">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-lg">{faction.name}</h3>
-                      {faction.type && (
-                        <p className="text-sm text-muted-foreground mt-1 capitalize">
-                          {faction.type.replace(/_/g, ' ')}
-                        </p>
-                      )}
-                      {faction.motto_creed && (
-                        <p className="text-sm italic text-muted-foreground mt-2">
-                          "{faction.motto_creed}"
-                        </p>
-                      )}
-                      {faction.influence_level && (
-                        <p className="text-xs text-muted-foreground mt-2 capitalize">
-                          Scope: {faction.influence_level}
-                        </p>
-                      )}
-                      {faction.alignment && (
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Alignment: {faction.alignment}
-                        </p>
-                      )}
+                  ) : (
+                    <div className="w-full h-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
+                      <Users className="h-8 w-8 text-primary/40" />
                     </div>
-                    {isDm && (
-                      <div className="flex gap-1 ml-2">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={() => setEditingFaction(faction)}
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-destructive hover:text-destructive"
-                          onClick={() => setDeletingFactionId(faction.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
+                  )}
+                </div>
+                <div className="p-3 flex flex-col flex-1 min-h-0">
+                  <div className="space-y-1.5 flex-1">
+                    <h3 className="font-semibold text-sm leading-tight">{faction.name}</h3>
+                    {faction.type && (
+                      <p className="text-xs text-muted-foreground capitalize">
+                        {faction.type.replace(/_/g, ' ')}
+                      </p>
+                    )}
+                    {faction.influence_level && (
+                      <p className="text-xs text-muted-foreground capitalize">
+                        <span className="font-medium">Scope:</span> {faction.influence_level}
+                      </p>
+                    )}
+                    {faction.alignment && (
+                      <p className="text-xs text-muted-foreground">
+                        <span className="font-medium">Alignment:</span> {faction.alignment}
+                      </p>
+                    )}
+                    {faction.motto_creed && (
+                      <p className="text-xs italic text-muted-foreground line-clamp-2">
+                        "{faction.motto_creed}"
+                      </p>
                     )}
                   </div>
+                  {isDm && (
+                    <div className="flex items-center gap-1.5 pt-2 mt-auto">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setEditingFaction(faction)}
+                        className="flex-1 h-7 text-xs px-2"
+                      >
+                        <Edit className="h-3 w-3 mr-1" />
+                        Edit
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setDeletingFactionId(faction.id)}
+                        className="text-destructive hover:text-destructive h-7 w-7 p-0"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>

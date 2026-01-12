@@ -38,13 +38,13 @@ function BaseTimelineCardNode({
   data, 
   typeConfig 
 }: { 
-  data: BaseNodeData;
+  data: BaseNodeData & { onDelete?: () => void; isDm?: boolean; isSelected?: boolean };
   typeConfig: typeof NODE_TYPE_CONFIG[keyof typeof NODE_TYPE_CONFIG];
 }) {
   const width = 200;
   const height = 120;
   
-  const isSelected = data.selected || false;
+  const isSelected = data.selected || data.isSelected || false;
   const borderColor = isSelected ? SCRYER_GOLD : SCRYER_BORDER;
 
   // Create placeholder gradient background similar to timeline cards
@@ -97,8 +97,8 @@ function BaseTimelineCardNode({
         position={Position.Top} 
         style={{
           background: 'rgb(236, 217, 198)',
-          width: 8,
-          height: 8,
+          width: 16,
+          height: 16,
           border: '2px solid rgb(23, 19, 17)',
         }}
       />
@@ -108,8 +108,8 @@ function BaseTimelineCardNode({
         position={Position.Top} 
         style={{
           background: 'rgb(179, 166, 152)',
-          width: 8,
-          height: 8,
+          width: 16,
+          height: 16,
           border: '2px solid rgb(23, 19, 17)',
         }}
       />
@@ -119,8 +119,8 @@ function BaseTimelineCardNode({
         position={Position.Right} 
         style={{
           background: SCRYER_GOLD,
-          width: 8,
-          height: 8,
+          width: 16,
+          height: 16,
           border: '2px solid rgb(23, 19, 17)',
         }}
       />
@@ -130,8 +130,8 @@ function BaseTimelineCardNode({
         position={Position.Right} 
         style={{
           background: 'rgb(179, 166, 152)',
-          width: 8,
-          height: 8,
+          width: 16,
+          height: 16,
           border: '2px solid rgb(23, 19, 17)',
         }}
       />
@@ -141,8 +141,8 @@ function BaseTimelineCardNode({
         position={Position.Bottom} 
         style={{
           background: typeConfig.markerColor,
-          width: 8,
-          height: 8,
+          width: 16,
+          height: 16,
           border: '2px solid rgb(23, 19, 17)',
         }}
       />
@@ -152,19 +152,19 @@ function BaseTimelineCardNode({
         position={Position.Bottom} 
         style={{
           background: 'rgb(179, 166, 152)',
-          width: 8,
-          height: 8,
+          width: 16,
+          height: 16,
           border: '2px solid rgb(23, 19, 17)',
         }}
       />
       <Handle 
         id="left-source"
-        type="source" 
+        type="source"
         position={Position.Left} 
         style={{
           background: 'rgb(179, 166, 152)',
-          width: 8,
-          height: 8,
+          width: 16,
+          height: 16,
           border: '2px solid rgb(23, 19, 17)',
         }}
       />
@@ -174,8 +174,8 @@ function BaseTimelineCardNode({
         position={Position.Left} 
         style={{
           background: 'rgb(179, 166, 152)',
-          width: 8,
-          height: 8,
+          width: 16,
+          height: 16,
           border: '2px solid rgb(23, 19, 17)',
         }}
       />
@@ -183,7 +183,7 @@ function BaseTimelineCardNode({
       {/* Timeline-style card */}
       <div
         className={cn(
-          "relative rounded-none border-2 transition-all overflow-hidden",
+          "relative rounded-none border-2 transition-all overflow-visible",
           isSelected && "shadow-[0_0_12px_rgba(201,184,130,0.6)]"
         )}
         style={{
@@ -265,6 +265,22 @@ function BaseTimelineCardNode({
             </h3>
           </div>
         </div>
+
+        {/* Delete button - shown only when selected (like timeline) - outside inner container so it's not clipped */}
+        {data.isDm && isSelected && data.onDelete && (
+          <div className="absolute bottom-[-24px] left-0 right-0 flex z-20">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                data.onDelete?.();
+              }}
+              className="flex-1 h-[18px] bg-[rgb(228,124,103)] text-[rgb(23,19,17)] text-[10px] font-semibold rounded-md flex items-center justify-center shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+            >
+              Delete
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

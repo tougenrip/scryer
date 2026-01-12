@@ -112,11 +112,29 @@ export function LocationDetailDialog({
             </div>
             {isDm && (
               <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={onEdit}>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onEdit();
+                  }}
+                >
                   <Edit className="h-4 w-4 mr-2" />
                   Edit
                 </Button>
-                <Button variant="destructive" size="sm" onClick={onDelete}>
+                <Button 
+                  variant="destructive" 
+                  size="sm" 
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onDelete();
+                  }}
+                >
                   <Trash2 className="h-4 w-4 mr-2" />
                   Delete
                 </Button>

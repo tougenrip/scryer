@@ -72,7 +72,7 @@ const getValidParentTypes = (childType: WorldLocation['type']): WorldLocation['t
     case 'structure':
     case 'lair':
     case 'poi':
-      return ['city', 'village', 'settlement', 'region', 'kingdom', 'biome', 'island'];
+      return ['world', 'continent', 'city', 'village', 'settlement', 'region', 'kingdom', 'biome', 'island'];
     case 'archipelago':
       return ['ocean', 'sea', 'continent'];
     default:
