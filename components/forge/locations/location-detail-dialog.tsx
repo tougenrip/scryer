@@ -268,7 +268,19 @@ export function LocationDetailDialog({
                   {location.metadata.demographics && (
                     <div>
                       <span className="text-sm text-muted-foreground">Demographics:</span>
-                      <span className="ml-2 text-sm font-medium">{location.metadata.demographics}</span>
+                      <div className="ml-2 mt-1 flex flex-wrap gap-1">
+                        {Array.isArray(location.metadata.demographics) ? (
+                          location.metadata.demographics.map((race: string, idx: number) => (
+                            <Badge key={idx} variant="secondary" className="text-xs">
+                              {race}
+                            </Badge>
+                          ))
+                        ) : (
+                          <Badge variant="secondary" className="text-xs">
+                            {location.metadata.demographics}
+                          </Badge>
+                        )}
+                      </div>
                     </div>
                   )}
                   {location.metadata.faction_ids && location.metadata.faction_ids.length > 0 && (

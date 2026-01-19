@@ -22,12 +22,16 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { WorldLocation, useFactions } from "@/hooks/useForgeContent";
 import { useCampaignNPCs } from "@/hooks/useCampaignContent";
+import { useRaces } from "@/hooks/useDndContent";
 import { LocationImageUpload } from "./location-image-upload";
-import { Search, X } from "lucide-react";
+import { Search, X, ChevronDown, Check } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { NameGeneratorButton } from "@/components/shared/name-generator-button";
+import { cn } from "@/lib/utils";
 
 interface LocationFormDialogProps {
   open: boolean;
@@ -105,16 +109,19 @@ export function LocationFormDialog({
   // New fields stored in metadata
   const [rulerOwnerId, setRulerOwnerId] = useState<string | null>(null);
   const [population, setPopulation] = useState("");
-  const [demographics, setDemographics] = useState("");
+  const [demographics, setDemographics] = useState<string[]>([]);
   const [factionIds, setFactionIds] = useState<string[]>([]);
   
   // Search states
   const [npcSearch, setNpcSearch] = useState("");
   const [factionSearch, setFactionSearch] = useState("");
+  const [raceSearch, setRaceSearch] = useState("");
+  const [demographicsOpen, setDemographicsOpen] = useState(false);
 
-  // Fetch NPCs and Factions
-  const { npcs, loading: npcsLoading } = useCampaignNPCs(campaignId);
-  const { factions, loading: factionsLoading } = useFactions(campaignId);
+  // Fetch NPCs, Factions, and Races
+  const { npcs } = useCampaignNPCs(campaignId);
+  const { factions } = useFactions(campaignId);
+  const { races } = useRaces(campaignId, null);
 
   // Filter out current location and its descendants from parent options
   // Also filter by valid parent types
@@ -151,7 +158,9 @@ export function LocationFormDialog({
       const metadata = location.metadata || {};
       setRulerOwnerId(metadata.ruler_owner_id || null);
       setPopulation(metadata.population || "");
-      setDemographics(metadata.demographics || "");
+      // Handle demographics: can be string (legacy) or array (new)
+      const demographicsData = metadata.demographics || [];
+      setDemographics(Array.isArray(demographicsData) ? demographicsData : demographicsData ? [demographicsData] : []);
       setFactionIds(metadata.faction_ids || []);
       setHiddenFromPlayers(location.hidden_from_players ?? false);
       setDmNotes(location.dm_notes || "");
@@ -167,7 +176,7 @@ export function LocationFormDialog({
       setCustomStatusText('');
       setRulerOwnerId(null);
       setPopulation("");
-      setDemographics("");
+      setDemographics([]);
       setFactionIds([]);
       setHiddenFromPlayers(true);
       setDmNotes("");
@@ -175,6 +184,7 @@ export function LocationFormDialog({
     // Reset searches when dialog opens/closes
     setNpcSearch("");
     setFactionSearch("");
+    setRaceSearch("");
   }, [location, open]);
 
   // Filter NPCs and Factions based on search
@@ -192,6 +202,13 @@ export function LocationFormDialog({
     );
   }, [factions, factionSearch]);
 
+  const filteredRaces = useMemo(() => {
+    if (!raceSearch) return races;
+    return races.filter(race => 
+      race.name.toLowerCase().includes(raceSearch.toLowerCase())
+    );
+  }, [races, raceSearch]);
+
   const handleSubmit = () => {
     if (!name.trim()) {
       return;
@@ -200,8 +217,8 @@ export function LocationFormDialog({
     // Build metadata object
     const metadata: Record<string, any> = {};
     if (rulerOwnerId) metadata.ruler_owner_id = rulerOwnerId;
-    if (population.trim()) metadata.population = population.trim();
-    if (demographics.trim()) metadata.demographics = demographics.trim();
+    if (population) metadata.population = population;
+    if (demographics.length > 0) metadata.demographics = demographics;
     if (factionIds.length > 0) metadata.faction_ids = factionIds;
 
     // Get final status
@@ -223,12 +240,21 @@ export function LocationFormDialog({
 
   const selectedRuler = npcs.find(npc => npc.id === rulerOwnerId);
   const selectedFactions = factions.filter(f => factionIds.includes(f.id));
+  const selectedRaces = races.filter(r => demographics.includes(r.name));
 
   const toggleFaction = (factionId: string) => {
     setFactionIds(prev => 
       prev.includes(factionId) 
         ? prev.filter(id => id !== factionId)
         : [...prev, factionId]
+    );
+  };
+
+  const toggleRace = (raceName: string) => {
+    setDemographics(prev => 
+      prev.includes(raceName) 
+        ? prev.filter(name => name !== raceName)
+        : [...prev, raceName]
     );
   };
 
@@ -481,22 +507,112 @@ export function LocationFormDialog({
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="population">Population</Label>
-                <Input
-                  id="population"
-                  value={population}
-                  onChange={(e) => setPopulation(e.target.value)}
-                  placeholder="e.g., 15,000 or 'Sparse'"
-                />
+                <Select
+                  value={population || "none"}
+                  onValueChange={(v) => setPopulation(v === "none" ? "" : v)}
+                >
+                  <SelectTrigger id="population" className="w-full">
+                    <SelectValue placeholder="Select population range" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No population specified</SelectItem>
+                    <SelectItem value="0-20">0-20</SelectItem>
+                    <SelectItem value="20-80">20-80</SelectItem>
+                    <SelectItem value="81-400">81-400</SelectItem>
+                    <SelectItem value="401-900">401-900</SelectItem>
+                    <SelectItem value="901-2000">901-2000</SelectItem>
+                    <SelectItem value="2001-5000">2001-5000</SelectItem>
+                    <SelectItem value="5001-12000">5001-12000</SelectItem>
+                    <SelectItem value="12001-25000">12001-25000</SelectItem>
+                    <SelectItem value="25001+">25001+</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="demographics">Demographics</Label>
-                <Input
-                  id="demographics"
-                  value={demographics}
-                  onChange={(e) => setDemographics(e.target.value)}
-                  placeholder="e.g., 'Mostly Dwarves, some Human traders'"
-                />
+                <Label>Demographics (Races)</Label>
+                <Popover open={demographicsOpen} onOpenChange={setDemographicsOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      className={cn(
+                        "w-full justify-between",
+                        demographics.length === 0 && "text-muted-foreground"
+                      )}
+                    >
+                      {demographics.length === 0
+                        ? "Select races..."
+                        : `${demographics.length} race${demographics.length > 1 ? 's' : ''} selected`}
+                      <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[300px] p-0" align="start">
+                    <div className="p-2">
+                      {races.length > 5 && (
+                        <div className="relative mb-2">
+                          <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                          <Input
+                            placeholder="Search races..."
+                            value={raceSearch}
+                            onChange={(e) => setRaceSearch(e.target.value)}
+                            className="pl-8"
+                          />
+                        </div>
+                      )}
+                      <ScrollArea className="h-[200px]">
+                        {filteredRaces.length === 0 ? (
+                          <div className="px-2 py-6 text-center text-sm text-muted-foreground">
+                            {raceSearch ? `No races found matching "${raceSearch}"` : "No races available"}
+                          </div>
+                        ) : (
+                          <div className="p-1">
+                            {filteredRaces.map((race) => {
+                              const isSelected = demographics.includes(race.name);
+                              return (
+                                <div
+                                  key={race.index}
+                                  className={cn(
+                                    "relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground",
+                                    isSelected && "bg-accent"
+                                  )}
+                                  onClick={() => toggleRace(race.name)}
+                                >
+                                  <div className="flex h-4 w-4 items-center justify-center mr-2">
+                                    {isSelected && (
+                                      <Check className="h-4 w-4" />
+                                    )}
+                                  </div>
+                                  <div className="flex-1">
+                                    <span>{race.name}</span>
+                                    {race.source === 'homebrew' && (
+                                      <span className="text-xs text-muted-foreground ml-2">(Custom)</span>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </ScrollArea>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+                {demographics.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {selectedRaces.map((race) => (
+                      <Badge
+                        key={race.index}
+                        variant="secondary"
+                        className="cursor-pointer hover:bg-destructive hover:text-destructive-foreground"
+                        onClick={() => toggleRace(race.name)}
+                      >
+                        {race.name}
+                        <X className="h-3 w-3 ml-1" />
+                      </Badge>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
