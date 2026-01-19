@@ -24,6 +24,7 @@ export interface WorldLocation {
   metadata: Record<string, any>; // Stores: ruler_owner_id, population, demographics, faction_ids
   hidden_from_players: boolean; // If true, only DM can see this location
   dm_notes: string | null; // DM-only notes that are not visible to players
+  scene_id: string | null; // Associated scene map for this location
   created_at: string | null;
   updated_at: string | null;
 }
@@ -96,6 +97,8 @@ export interface PantheonDeity {
   description: string | null;
   worshipers_location_ids: string[];
   holy_days: string[];
+  scene_id: string | null; // Associated scene map for this deity
+  metadata: Record<string, any> | null; // JSONB field for tags, associates, etc.
   created_at: string | null;
   updated_at: string | null;
 }
@@ -109,11 +112,13 @@ export interface CampaignTimeline {
   planned_date: string | null;
   actual_date: string | null;
   order_index: number;
-  status: 'not_started' | 'ongoing' | 'finished' | 'abandoned';
+  status: 'planned' | 'in_progress' | 'completed' | 'skipped';
   parent_entry_id: string | null; // For branching - references another timeline entry
   branch_path_index: number; // Order within a branch (0 = main path)
   associated_location_ids: string[];
   associated_quest_ids: string[];
+  associated_npc_ids: string[];
+  associated_faction_ids: string[];
   notes: string | null;
   image_url: string | null; // Background image for the timeline entry card
   hidden_from_players: boolean; // If true, only DM can see this entry
@@ -175,7 +180,9 @@ export interface Faction {
   emblem_sigil_url: string | null;
   motto_creed: string | null;
   public_agenda: string | null;
+  scene_id: string | null; // Associated scene map for this faction
   secret_agenda: string | null;
+  metadata: Record<string, any> | null; // JSONB field for tags, associates, etc.
   created_at: string | null;
   updated_at: string | null;
 }
@@ -1157,6 +1164,8 @@ export function useCreateCampaignTimeline() {
     branch_path_index?: number;
     associated_location_ids?: string[];
     associated_quest_ids?: string[];
+    associated_npc_ids?: string[];
+    associated_faction_ids?: string[];
     notes?: string | null;
     image_url?: string | null;
     hidden_from_players?: boolean;
@@ -1169,11 +1178,13 @@ export function useCreateCampaignTimeline() {
         .from('campaign_timeline')
         .insert({
           ...entryData,
-          status: entryData.status || 'not_started',
+          status: entryData.status || 'planned',
           parent_entry_id: entryData.parent_entry_id || null,
           branch_path_index: entryData.branch_path_index ?? 0,
           associated_location_ids: entryData.associated_location_ids || [],
           associated_quest_ids: entryData.associated_quest_ids || [],
+          associated_npc_ids: entryData.associated_npc_ids || [],
+          associated_faction_ids: entryData.associated_faction_ids || [],
           image_url: entryData.image_url || null,
           hidden_from_players: entryData.hidden_from_players ?? true,
         })

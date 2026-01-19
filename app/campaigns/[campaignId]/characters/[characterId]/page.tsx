@@ -13,8 +13,9 @@ import { RollHistory } from "@/components/dice/roll-history";
 
 export default function CharacterPage() {
   const params = useParams();
-  const campaignId = params.campaignId as string;
-  const characterId = params.characterId as string;
+  const { campaignId: campaignIdParam, characterId: characterIdParam } = params;
+  const campaignId = campaignIdParam as string;
+  const characterId = characterIdParam as string;
   const [userId, setUserId] = useState<string | null>(null);
   const [isOwner, setIsOwner] = useState(false);
 

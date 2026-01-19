@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useParams } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,7 @@ import {
 import { MediaItemFormDialog } from "@/components/campaign/media-item-form-dialog";
 import { MediaDragDrop } from "@/components/campaign/media-drag-drop";
 import { MediaLibraryGrid } from "@/components/campaign/media-library-grid";
+import { ContentSidebar } from "@/components/forge/navigation/content-sidebar";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { Plus } from "lucide-react";
@@ -46,10 +47,17 @@ export default function MediaLibraryPage() {
   const [pendingAudioUrls, setPendingAudioUrls] = useState<string[]>([]);
 
   const { campaign, loading: campaignLoading } = useCampaign(campaignId);
-  const { items, loading: itemsLoading, refetch: refetchItems } = useCampaignMediaItems(
+  // Fetch all items once, filter client-side to avoid refetch on tab change
+  const { items: allItems, loading: itemsLoading, refetch: refetchItems } = useCampaignMediaItems(
     campaignId,
-    activeTab === 'all' ? null : activeTab
+    null // Always fetch all items
   );
+  
+  // Filter items client-side based on active tab
+  const items = useMemo(() => {
+    if (activeTab === 'all') return allItems;
+    return allItems.filter(item => item.type === activeTab);
+  }, [allItems, activeTab]);
   const { createMediaItem, loading: creating } = useCreateMediaItem();
   const { updateMediaItem } = useUpdateMediaItem(); // loading: updating unused
   const { deleteMediaItem, loading: deleting } = useDeleteMediaItem();
@@ -210,6 +218,16 @@ export default function MediaLibraryPage() {
   }
 
   return (
+    <div className="flex h-full bg-background overflow-hidden">
+      {/* Left Sidebar Navigation */}
+      <ContentSidebar
+        campaignId={campaignId}
+        isDm={isDm}
+      />
+
+      {/* Main Content Area */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="container mx-auto px-4 py-8 max-w-7xl">
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -237,26 +255,125 @@ export default function MediaLibraryPage() {
           <TabsTrigger value="sound">Sounds</TabsTrigger>
         </TabsList>
 
-        <TabsContent value={activeTab} className="space-y-6 mt-6">
+        <TabsContent value="all" className="space-y-6 mt-6">
           {/* Drag & Drop Zone - Only show when no items exist */}
           {isDm && items.length === 0 && (
             <Card>
               <CardContent className="p-6">
-                {activeTab === 'all' ? (
+                <MediaDragDrop
+                  campaignId={campaignId}
+                  type="map"
+                  onUploadComplete={(urls) => handleDragDropComplete(urls, false)}
+                  disabled={creating}
+                />
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Media Grid */}
+          <MediaLibraryGrid
+            items={items}
+            onEdit={setEditingItem}
+            onDelete={setDeletingItemId}
+            onTypeChange={async (itemId, newType) => {
+              await handleUpdate(itemId, { type: newType as 'map' | 'token' | 'prop' | 'sound' | null }, true);
+            }}
+            isLoading={itemsLoading}
+          />
+        </TabsContent>
+
+        <TabsContent value="map" className="space-y-6 mt-6">
+          {/* Drag & Drop Zone - Only show when no items exist */}
+          {isDm && items.length === 0 && (
+            <Card>
+              <CardContent className="p-6">
                   <MediaDragDrop
                     campaignId={campaignId}
                     type="map"
                     onUploadComplete={(urls) => handleDragDropComplete(urls, false)}
                     disabled={creating}
                   />
-                ) : (
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Media Grid */}
+          <MediaLibraryGrid
+            items={items}
+            onEdit={setEditingItem}
+            onDelete={setDeletingItemId}
+            onTypeChange={async (itemId, newType) => {
+              await handleUpdate(itemId, { type: newType as 'map' | 'token' | 'prop' | 'sound' | null }, true);
+            }}
+            isLoading={itemsLoading}
+          />
+        </TabsContent>
+
+        <TabsContent value="token" className="space-y-6 mt-6">
+          {/* Drag & Drop Zone - Only show when no items exist */}
+          {isDm && items.length === 0 && (
+            <Card>
+              <CardContent className="p-6">
+                <MediaDragDrop
+                  campaignId={campaignId}
+                  type="token"
+                  onUploadComplete={(urls) => handleDragDropComplete(urls, false)}
+                  disabled={creating}
+                />
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Media Grid */}
+          <MediaLibraryGrid
+            items={items}
+            onEdit={setEditingItem}
+            onDelete={setDeletingItemId}
+            onTypeChange={async (itemId, newType) => {
+              await handleUpdate(itemId, { type: newType as 'map' | 'token' | 'prop' | 'sound' | null }, true);
+            }}
+            isLoading={itemsLoading}
+          />
+        </TabsContent>
+
+        <TabsContent value="prop" className="space-y-6 mt-6">
+          {/* Drag & Drop Zone - Only show when no items exist */}
+          {isDm && items.length === 0 && (
+            <Card>
+              <CardContent className="p-6">
                   <MediaDragDrop
                     campaignId={campaignId}
-                    type={activeTab as 'map' | 'token' | 'prop' | 'sound'}
-                    onUploadComplete={(urls) => handleDragDropComplete(urls, activeTab === 'sound')}
+                  type="prop"
+                  onUploadComplete={(urls) => handleDragDropComplete(urls, false)}
                     disabled={creating}
                   />
-                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Media Grid */}
+          <MediaLibraryGrid
+            items={items}
+            onEdit={setEditingItem}
+            onDelete={setDeletingItemId}
+            onTypeChange={async (itemId, newType) => {
+              await handleUpdate(itemId, { type: newType as 'map' | 'token' | 'prop' | 'sound' | null }, true);
+            }}
+            isLoading={itemsLoading}
+          />
+        </TabsContent>
+
+        <TabsContent value="sound" className="space-y-6 mt-6">
+          {/* Drag & Drop Zone - Only show when no items exist */}
+          {isDm && items.length === 0 && (
+            <Card>
+              <CardContent className="p-6">
+                <MediaDragDrop
+                  campaignId={campaignId}
+                  type="sound"
+                  onUploadComplete={(urls) => handleDragDropComplete(urls, true)}
+                  disabled={creating}
+                />
               </CardContent>
             </Card>
           )}
@@ -321,6 +438,9 @@ export default function MediaLibraryPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

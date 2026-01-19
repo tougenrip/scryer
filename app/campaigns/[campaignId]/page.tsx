@@ -15,10 +15,11 @@ import {
 import { CharacterCard } from "@/components/campaign/character-card";
 import { DmNotes } from "@/components/campaign/dm-notes";
 import { PartyToolsPanel } from "@/components/tools/PartyToolsPanel";
+import { ContentSidebar } from "@/components/forge/navigation/content-sidebar";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import Link from "next/link";
-import { Map } from "lucide-react";
+import { Map, Image, Hammer, Settings } from "lucide-react";
 
 export default function CampaignDashboard() {
   const params = useParams();
@@ -144,9 +145,19 @@ export default function CampaignDashboard() {
   const isLoading = activeLoading || unassignedLoading || racesLoading || classesLoading;
 
   return (
-    <div className="space-y-8">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-4">
+    <div className="flex h-full bg-background overflow-hidden">
+      {/* Left Sidebar Navigation */}
+      <ContentSidebar
+        campaignId={campaignId}
+        isDm={isDm}
+      />
+
+      {/* Main Content Area */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="container mx-auto px-4 py-8 max-w-7xl">
+          <div className="space-y-8">
+            {/* Header */}
+            <div className="flex items-start justify-between gap-4">
         <div className="flex-1">
           <h1 className="font-serif text-3xl font-bold">{campaign.name}</h1>
           <p className="text-muted-foreground mt-1">
@@ -158,6 +169,57 @@ export default function CampaignDashboard() {
             <Map className="h-4 w-4" />
             Launch VTT
           </Button>
+        </Link>
+      </div>
+
+      {/* Navigation Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Link href={`/campaigns/${campaignId}/media-library`}>
+          <Card className="hover:border-primary/30 transition-colors cursor-pointer">
+            <CardContent className="p-6">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-md bg-primary/10">
+                  <Image className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <h3 className="font-semibold">Media Library</h3>
+                  <p className="text-sm text-muted-foreground">Manage images and assets</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
+
+        <Link href={`/campaigns/${campaignId}/forge`}>
+          <Card className="hover:border-primary/30 transition-colors cursor-pointer">
+            <CardContent className="p-6">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-md bg-primary/10">
+                  <Hammer className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <h3 className="font-semibold">The Forge</h3>
+                  <p className="text-sm text-muted-foreground">World-building tools</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
+
+        <Link href={`/campaigns/${campaignId}/settings`}>
+          <Card className="hover:border-primary/30 transition-colors cursor-pointer">
+            <CardContent className="p-6">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-md bg-primary/10">
+                  <Settings className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <h3 className="font-semibold">Settings</h3>
+                  <p className="text-sm text-muted-foreground">Campaign configuration</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </Link>
       </div>
 
@@ -280,6 +342,9 @@ export default function CampaignDashboard() {
           />
         </div>
       )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

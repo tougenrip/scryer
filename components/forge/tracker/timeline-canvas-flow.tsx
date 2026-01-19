@@ -44,24 +44,24 @@ interface TimelineCanvasProps {
 
 // Using project design tokens (dark mode colors from globals.css)
 const statusColors: Record<CampaignTimeline['status'], string> = {
-  not_started: "rgb(84, 84, 69)",
-  ongoing: "rgb(201, 184, 130)",
-  finished: "rgb(133, 173, 133)",
-  abandoned: "rgb(228, 124, 103)",
+  planned: "rgb(84, 84, 69)",
+  in_progress: "rgb(201, 184, 130)",
+  completed: "rgb(133, 173, 133)",
+  skipped: "rgb(228, 124, 103)",
 };
 
 const statusMarkerColors: Record<CampaignTimeline['status'], string> = {
-  not_started: "rgb(201, 184, 130)",
-  ongoing: "rgb(148, 166, 184)",
-  finished: "rgb(236, 217, 198)",
-  abandoned: "rgb(228, 124, 103)",
+  planned: "rgb(201, 184, 130)",
+  in_progress: "rgb(148, 166, 184)",
+  completed: "rgb(236, 217, 198)",
+  skipped: "rgb(228, 124, 103)",
 };
 
 const statusLabels: Record<CampaignTimeline['status'], string> = {
-  not_started: "Not Started",
-  ongoing: "Ongoing",
-  finished: "Finished",
-  abandoned: "Abandoned",
+  planned: "Planned",
+  in_progress: "In Progress",
+  completed: "Completed",
+  skipped: "Skipped",
 };
 
 const getSessionIconText = (sessionType: CampaignTimeline['session_type']): string => {

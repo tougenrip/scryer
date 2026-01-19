@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { useRouter } from "next/navigation";
 import {
   Dialog,
   DialogContent,
@@ -11,7 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Edit, Trash2, MapPin, Globe, Mountain, Flag, Building2, Home, Store, Landmark, Castle, TreePine, Waves, Map as MapIcon, EyeOff } from "lucide-react";
+import { Edit, Trash2, MapPin, Globe, Mountain, Flag, Building2, Home, Store, Landmark, Castle, TreePine, Waves, Map as MapIcon, EyeOff, ExternalLink } from "lucide-react";
 import { WorldLocation } from "@/hooks/useForgeContent";
 
 interface LocationDetailDialogProps {
@@ -70,10 +71,12 @@ export function LocationDetailDialog({
   onOpenChange,
   location,
   locations,
+  campaignId,
   isDm,
   onEdit,
   onDelete,
 }: LocationDetailDialogProps) {
+  const router = useRouter();
   if (!location) return null;
 
   const parentLocation = location.parent_location_id
@@ -110,36 +113,52 @@ export function LocationDetailDialog({
                 </DialogDescription>
               </div>
             </div>
-            {isDm && (
-              <div className="flex items-center gap-2">
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  type="button"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    onEdit();
-                  }}
-                >
-                  <Edit className="h-4 w-4 mr-2" />
-                  Edit
-                </Button>
-                <Button 
-                  variant="destructive" 
-                  size="sm" 
-                  type="button"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    onDelete();
-                  }}
-                >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Delete
-                </Button>
-              </div>
-            )}
+            <div className="flex items-center gap-2">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  router.push(`/campaigns/${campaignId}/locations/${location.id}`);
+                  onOpenChange(false);
+                }}
+              >
+                <ExternalLink className="h-4 w-4 mr-2" />
+                View Full Page
+              </Button>
+              {isDm && (
+                <>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      onEdit();
+                    }}
+                  >
+                    <Edit className="h-4 w-4 mr-2" />
+                    Edit
+                  </Button>
+                  <Button 
+                    variant="destructive" 
+                    size="sm" 
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      onDelete();
+                    }}
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete
+                  </Button>
+                </>
+              )}
+            </div>
           </div>
         </DialogHeader>
 

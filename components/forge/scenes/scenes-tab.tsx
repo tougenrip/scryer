@@ -323,7 +323,7 @@ export function ScenesTab({ campaignId, isDm }: ScenesTabProps) {
       </div>
 
       {/* Main Content: Scene List + Map View */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
         {/* Scene List Sidebar */}
         <div className="lg:col-span-1">
           <SceneList

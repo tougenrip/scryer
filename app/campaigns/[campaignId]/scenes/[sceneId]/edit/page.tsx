@@ -70,8 +70,9 @@ import { createClient } from "@/lib/supabase/client";
 export default function SceneEditorPage() {
   const params = useParams();
   const router = useRouter();
-  const campaignId = params.campaignId as string;
-  const sceneId = params.sceneId as string;
+  const { campaignId: campaignIdParam, sceneId: sceneIdParam } = params;
+  const campaignId = campaignIdParam as string;
+  const sceneId = sceneIdParam as string;
   const [isDm, setIsDm] = useState(false);
   const [markerDialogOpen, setMarkerDialogOpen] = useState(false);
   const [editingMarker, setEditingMarker] = useState<LocationMarker | null>(null);

@@ -36,6 +36,8 @@ export interface NPC {
   custom_class: string | null;
   custom_species: string | null;
   hidden_from_players: boolean;
+  scene_id: string | null; // Associated scene map for this NPC
+  metadata: Record<string, any> | null; // JSONB field for tags, associates, etc.
   created_by: string;
   created_at: string | null;
   updated_at: string | null;
@@ -439,6 +441,7 @@ export function useUpdateNPC() {
       custom_class?: string | null;
       custom_species?: string | null;
       hidden_from_players?: boolean;
+      scene_id?: string | null;
     }
   ) => {
     try {

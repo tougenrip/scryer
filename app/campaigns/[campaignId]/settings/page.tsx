@@ -8,6 +8,7 @@ import { useCampaign, useDeleteCampaign } from "@/hooks/useCampaigns";
 import { CampaignForm } from "@/components/campaign/campaign-form";
 import { MemberList } from "@/components/campaign/member-list";
 import { InviteDialog } from "@/components/campaign/invite-dialog";
+import { ContentSidebar } from "@/components/forge/navigation/content-sidebar";
 import { createClient } from "@/lib/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -20,7 +21,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { toast } from "sonner";
 import { Trash2 } from "lucide-react";
 
 export default function CampaignSettingsPage() {
@@ -88,10 +88,19 @@ export default function CampaignSettingsPage() {
   }
 
   return (
-    <>
-      <div className="space-y-8">
-        {/* Header */}
-        <div>
+    <div className="flex h-full bg-background overflow-hidden">
+      {/* Left Sidebar Navigation */}
+      <ContentSidebar
+        campaignId={campaignId}
+        isDm={isDm}
+      />
+
+      {/* Main Content Area */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="container mx-auto px-4 py-8 max-w-7xl">
+          <div className="space-y-8">
+            {/* Header */}
+            <div>
           <h1 className="font-serif text-3xl font-bold">Campaign Settings</h1>
           <p className="text-muted-foreground mt-1">Manage your campaign details and members</p>
         </div>
@@ -164,6 +173,8 @@ export default function CampaignSettingsPage() {
             </CardContent>
           </Card>
         )}
+          </div>
+        </div>
       </div>
 
       {/* Edit Dialog */}
@@ -202,7 +213,7 @@ export default function CampaignSettingsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </>
+    </div>
   );
 }
 

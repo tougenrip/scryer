@@ -33,6 +33,7 @@ import { EncountersTab } from "@/components/forge/encounters/encounters-tab";
 import { QuestBoardTab } from "@/components/forge/quests/quests-tab";
 import { RelationshipWebTab } from "@/components/forge/relationships/relationship-web-tab";
 import { BountiesTab } from "@/components/forge/bounties/bounties-tab";
+import { ContentSidebar } from "@/components/forge/navigation/content-sidebar";
 
 export default function ForgePage() {
   const params = useParams();
@@ -104,9 +105,19 @@ export default function ForgePage() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div>
+    <div className="flex h-full bg-background overflow-hidden">
+      {/* Left Sidebar Navigation */}
+      <ContentSidebar
+        campaignId={campaignId}
+        isDm={isDm}
+      />
+
+      {/* Main Content Area */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="container mx-auto px-4 py-8 max-w-7xl">
+          <div className="space-y-6">
+            {/* Header */}
+            <div>
         <h1 className="font-serif text-3xl font-bold">The Forge</h1>
         <p className="text-muted-foreground mt-1">
           World-building tools and campaign management
@@ -211,6 +222,9 @@ export default function ForgePage() {
           </TabsContent>
         </div>
       </Tabs>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

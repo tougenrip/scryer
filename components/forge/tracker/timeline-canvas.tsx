@@ -25,24 +25,24 @@ interface TimelineCanvasProps {
 
 // Using project design tokens (dark mode colors from globals.css)
 const statusColors: Record<CampaignTimeline['status'], string> = {
-  not_started: "rgb(84, 84, 69)", // Secondary
-  ongoing: "rgb(201, 184, 130)", // Primary
-  finished: "rgb(133, 173, 133)", // Chart-2 (green)
-  abandoned: "rgb(228, 124, 103)", // Destructive
+  planned: "rgb(84, 84, 69)", // Secondary
+  in_progress: "rgb(201, 184, 130)", // Primary
+  completed: "rgb(133, 173, 133)", // Chart-2 (green)
+  skipped: "rgb(228, 124, 103)", // Destructive
 };
 
 const statusMarkerColors: Record<CampaignTimeline['status'], string> = {
-  not_started: "rgb(201, 184, 130)", // Primary (gold)
-  ongoing: "rgb(148, 166, 184)", // Chart-4 (blue)
-  finished: "rgb(236, 217, 198)", // Chart-5 (orange)
-  abandoned: "rgb(228, 124, 103)", // Destructive (red)
+  planned: "rgb(201, 184, 130)", // Primary (gold)
+  in_progress: "rgb(148, 166, 184)", // Chart-4 (blue)
+  completed: "rgb(236, 217, 198)", // Chart-5 (orange)
+  skipped: "rgb(228, 124, 103)", // Destructive (red)
 };
 
 const statusLabels: Record<CampaignTimeline['status'], string> = {
-  not_started: "Not Started",
-  ongoing: "Ongoing",
-  finished: "Finished",
-  abandoned: "Abandoned",
+  planned: "Planned",
+  in_progress: "In Progress",
+  completed: "Completed",
+  skipped: "Skipped",
 };
 
 const getSessionIconText = (sessionType: CampaignTimeline['session_type']): string => {

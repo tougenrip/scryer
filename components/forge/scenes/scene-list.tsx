@@ -133,7 +133,7 @@ export function SceneList({
               onClick={() => onSelectScene(scene.id)}
             >
               <CardContent className="p-4">
-                <div className="flex items-start gap-3">
+                <div className="flex items-start gap-3 flex-wrap">
                   {/* Thumbnail or icon */}
                   <div className="shrink-0">
                     {scene.image_url ? (
@@ -166,7 +166,7 @@ export function SceneList({
 
                   {/* Actions */}
                   {isDm && (
-                    <div className="shrink-0 flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                    <div className="shrink-0 flex items-center gap-1 flex-wrap" onClick={(e) => e.stopPropagation()}>
                         <Button
                         variant="outline"
                           size="sm"
@@ -174,7 +174,8 @@ export function SceneList({
                           onClick={(e) => handleOpenEditor(scene.id, e)}
                         title="Editor"
                         >
-                        <span className="text-xs">Editor</span>
+                        <Pen className="h-3 w-3 sm:mr-1.5" />
+                        <span className="text-xs hidden sm:inline">Editor</span>
                         </Button>
                       <Button
                         variant="ghost"

@@ -110,7 +110,7 @@ export function CampaignTrackerTab({ campaignId, isDm }: CampaignTrackerTabProps
       planned_date: null,
       actual_date: null,
       order_index: orderIndex,
-      status: 'not_started',
+      status: 'planned',
       parent_entry_id: parentEntryId,
       branch_path_index: branchPathIndex,
       associated_location_ids: [],

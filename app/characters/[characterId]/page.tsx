@@ -16,7 +16,8 @@ import Link from "next/link";
 export default function CharacterPage() {
   const params = useParams();
   const router = useRouter();
-  const characterId = params.characterId as string;
+  const { characterId: characterIdParam } = params;
+  const characterId = characterIdParam as string;
   const [user, setUser] = useState<any>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [isOwner, setIsOwner] = useState(false);
