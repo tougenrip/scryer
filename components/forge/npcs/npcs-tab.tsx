@@ -15,7 +15,10 @@ import { useClasses, useRaces } from "@/hooks/useDndContent";
 import { NPCFormDialog } from "@/components/campaign/npc-form-dialog";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
-import { Plus, User, Edit, Trash2, EyeOff } from "lucide-react";
+import { Plus, User, Edit, Trash2, EyeOff, Sparkles } from "lucide-react";
+import { AIGenerationDialog } from "@/components/ai/ai-generation-dialog";
+import { useOllamaSafe } from "@/contexts/ollama-context";
+import { parseNPCContent, type ParsedNPCData } from "@/lib/utils/ai-content-parser";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -37,13 +40,18 @@ export function NPCsTab({ campaignId, isDm }: NPCsTabProps) {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editingNPC, setEditingNPC] = useState<NPC | null>(null);
   const [deletingNPCId, setDeletingNPCId] = useState<string | null>(null);
+  const [aiDialogOpen, setAiDialogOpen] = useState(false);
+  const [aiGeneratedData, setAiGeneratedData] = useState<ParsedNPCData | null>(null);
+  
+  const ollama = useOllamaSafe();
+  const canUseAI = ollama?.settings.enabled && ollama?.isConnected;
 
   const { npcs, loading, refetch } = useCampaignNPCs(campaignId, isDm);
   const { classes } = useClasses(campaignId, null);
   const { races } = useRaces(campaignId, null);
   const { createNPC } = useCreateNPC();
   const { updateNPC } = useUpdateNPC();
-  const { deleteNPC, deleting } = useDeleteNPC();
+  const { deleteNPC, loading: deleting } = useDeleteNPC();
 
   // Helper function to get class name from NPC
   const getNPCClassName = (npc: NPC): string | null => {
@@ -165,10 +173,18 @@ export function NPCsTab({ campaignId, isDm }: NPCsTabProps) {
           </p>
         </div>
         {isDm && userId && (
-          <Button onClick={() => setCreateDialogOpen(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Create NPC
-          </Button>
+          <div className="flex items-center gap-2">
+            {canUseAI && (
+              <Button variant="outline" onClick={() => setAiDialogOpen(true)}>
+                <Sparkles className="h-4 w-4 mr-2" />
+                Generate with AI
+              </Button>
+            )}
+            <Button onClick={() => setCreateDialogOpen(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Create NPC
+            </Button>
+          </div>
         )}
       </div>
 
@@ -258,12 +274,14 @@ export function NPCsTab({ campaignId, isDm }: NPCsTabProps) {
             if (!open) {
               setCreateDialogOpen(false);
               setEditingNPC(null);
+              setAiGeneratedData(null);
             }
           }}
           campaignId={campaignId}
           userId={userId}
           npc={editingNPC}
           isDm={isDm}
+          initialData={aiGeneratedData}
           onCreate={handleCreate}
           onUpdate={handleUpdate}
         />
@@ -292,6 +310,30 @@ export function NPCsTab({ campaignId, isDm }: NPCsTabProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* AI Generation Dialog */}
+      <AIGenerationDialog
+        open={aiDialogOpen}
+        onOpenChange={setAiDialogOpen}
+        generatorType="npc"
+        title="Generate NPC with AI"
+        description="Create a detailed NPC with personality, backstory, and plot hooks"
+        campaignId={campaignId}
+        onGenerated={(content) => {
+          console.log('[NPCsTab] Received AI content, length:', content.length);
+          // Parse the AI-generated content and pre-fill the form
+          const parsedData = parseNPCContent(content);
+          console.log('[NPCsTab] Parsed NPC data:', parsedData);
+          
+          setAiGeneratedData(parsedData);
+          setAiDialogOpen(false);
+          
+          // Small timeout to ensure state updates propagate before opening the dialog
+          setTimeout(() => {
+            setCreateDialogOpen(true);
+          }, 50);
+        }}
+      />
     </div>
   );
 }

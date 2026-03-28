@@ -3,6 +3,8 @@ import { Inter, Cinzel, Kalam } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 import { Toaster } from "@/components/ui/sonner";
 import { DiceRollerProvider } from "@/components/dice/dice-roller-provider";
+import { OllamaProvider } from "@/contexts/ollama-context";
+import { DisplayProvider } from "@/contexts/display-context";
 import "./globals.css";
 
 const defaultUrl = process.env.VERCEL_URL
@@ -48,15 +50,19 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={`${inter.variable} ${cinzel.variable} ${kalam.variable} font-sans antialiased`}>
         <ThemeProvider
-          attribute="class"
+          attribute="data-theme"
           defaultTheme="dark"
-          enableSystem
+          enableSystem={false}
           disableTransitionOnChange
         >
-          <DiceRollerProvider>
-            {children}
-            <Toaster position="bottom-right" />
-          </DiceRollerProvider>
+          <DisplayProvider>
+            <OllamaProvider>
+              <DiceRollerProvider>
+                {children}
+                <Toaster position="bottom-right" />
+              </DiceRollerProvider>
+            </OllamaProvider>
+          </DisplayProvider>
         </ThemeProvider>
       </body>
     </html>

@@ -15,7 +15,9 @@ import { QuestNote } from "@/components/campaign/quest-note";
 import { QuestFormDialog } from "@/components/campaign/quest-form-dialog";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
-import { Plus, ScrollText } from "lucide-react";
+import { Plus, ScrollText, Sparkles } from "lucide-react";
+import { AIGenerationDialog } from "@/components/ai/ai-generation-dialog";
+import { useOllamaSafe } from "@/contexts/ollama-context";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -37,6 +39,10 @@ export function QuestBoardTab({ campaignId, isDm }: QuestBoardTabProps) {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editingQuest, setEditingQuest] = useState<Quest | null>(null);
   const [deletingQuestId, setDeletingQuestId] = useState<string | null>(null);
+  const [aiDialogOpen, setAiDialogOpen] = useState(false);
+
+  const ollama = useOllamaSafe();
+  const canUseAI = ollama?.settings.enabled && ollama?.isConnected;
 
   const { quests, loading, refetch } = useCampaignQuests(campaignId);
   const { createQuest } = useCreateQuest();
@@ -142,10 +148,18 @@ export function QuestBoardTab({ campaignId, isDm }: QuestBoardTabProps) {
           </p>
         </div>
         {isDm && userId && (
-          <Button onClick={() => setCreateDialogOpen(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Quest
-          </Button>
+          <div className="flex items-center gap-2">
+            {canUseAI && (
+              <Button variant="outline" onClick={() => setAiDialogOpen(true)}>
+                <Sparkles className="h-4 w-4 mr-2" />
+                Generate with AI
+              </Button>
+            )}
+            <Button onClick={() => setCreateDialogOpen(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Quest
+            </Button>
+          </div>
         )}
       </div>
 
@@ -214,6 +228,19 @@ export function QuestBoardTab({ campaignId, isDm }: QuestBoardTabProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* AI Generation Dialog */}
+      <AIGenerationDialog
+        open={aiDialogOpen}
+        onOpenChange={setAiDialogOpen}
+        generatorType="quest"
+        title="Generate Quest with AI"
+        description="Create a quest with hooks, objectives, complications, and rewards"
+        onGenerated={(content) => {
+          setAiDialogOpen(false);
+          setCreateDialogOpen(true);
+        }}
+      />
     </div>
   );
 }

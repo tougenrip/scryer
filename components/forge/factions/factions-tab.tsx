@@ -5,7 +5,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
-import { Plus, Users, Edit, Trash2, Search } from "lucide-react";
+import { Plus, Users, Edit, Trash2, Search, Sparkles } from "lucide-react";
+import { AIGenerationDialog } from "@/components/ai/ai-generation-dialog";
+import { useOllamaSafe } from "@/contexts/ollama-context";
 import {
   useFactions,
   useCreateFaction,
@@ -41,6 +43,10 @@ export function FactionsTab({ campaignId, isDm }: FactionsTabProps) {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editingFaction, setEditingFaction] = useState<Faction | null>(null);
   const [deletingFactionId, setDeletingFactionId] = useState<string | null>(null);
+  const [aiDialogOpen, setAiDialogOpen] = useState(false);
+
+  const ollama = useOllamaSafe();
+  const canUseAI = ollama?.settings.enabled && ollama?.isConnected;
 
   const handleCreate = async (data: {
     name: string;
@@ -149,10 +155,18 @@ export function FactionsTab({ campaignId, isDm }: FactionsTabProps) {
           </p>
         </div>
         {isDm && (
-          <Button onClick={() => setCreateDialogOpen(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Faction
-          </Button>
+          <div className="flex items-center gap-2">
+            {canUseAI && (
+              <Button variant="outline" onClick={() => setAiDialogOpen(true)}>
+                <Sparkles className="h-4 w-4 mr-2" />
+                Generate with AI
+              </Button>
+            )}
+            <Button onClick={() => setCreateDialogOpen(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Faction
+            </Button>
+          </div>
         )}
       </div>
 
@@ -281,6 +295,19 @@ export function FactionsTab({ campaignId, isDm }: FactionsTabProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* AI Generation Dialog */}
+      <AIGenerationDialog
+        open={aiDialogOpen}
+        onOpenChange={setAiDialogOpen}
+        generatorType="faction"
+        title="Generate Faction with AI"
+        description="Create a faction with structure, goals, and political influence"
+        onGenerated={(content) => {
+          setAiDialogOpen(false);
+          setCreateDialogOpen(true);
+        }}
+      />
     </div>
   );
 }

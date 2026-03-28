@@ -91,7 +91,7 @@ export default function SceneEditorPage() {
   const { locations, loading: locationsLoading, refetch: refetchLocations } = useWorldLocations(campaignId);
   const { floors, loading: floorsLoading, refetch: refetchFloors } = useFloors(sceneId);
   const { scenes, loading: scenesLoading } = useScenes(campaignId);
-  const { markers, loading: markersLoading, refetch: refetchMarkers } = useLocationMarkers(
+  const { markers, loading: markersLoading, refetch: refetchMarkers, addMarker, updateMarkerInList, removeMarker } = useLocationMarkers(
     campaignId,
     sceneId,
     undefined,
@@ -151,6 +151,7 @@ export default function SceneEditorPage() {
 
   const handleMarkerSave = async (data: {
     location_id?: string | null;
+    background_shape?: LocationMarker['background_shape'];
     icon_type?: LocationMarker['icon_type'];
     status_icon?: LocationMarker['status_icon'];
     name: string;
@@ -164,6 +165,7 @@ export default function SceneEditorPage() {
       // Update existing marker
       const result = await updateMarker(editingMarker.id, {
         location_id: data.location_id !== undefined ? data.location_id : null,
+        background_shape: data.background_shape !== undefined ? data.background_shape : null,
         icon_type: data.icon_type,
         status_icon: finalStatus,
         name: data.name,
@@ -172,26 +174,29 @@ export default function SceneEditorPage() {
         size: data.size,
       });
 
-      if (result.success) {
+      if (result.success && result.data) {
+        // Optimistically update marker in list
+        updateMarkerInList(editingMarker.id, result.data as LocationMarker);
+        
         // If marker is linked to a location, sync status to location
         const linkedLocationId = data.location_id || editingMarker.location_id;
         if (linkedLocationId) {
           await updateLocation(linkedLocationId, {
             status: finalStatus,
           });
+          refetchLocations();
         } else if (editingMarker.location_id) {
           // If location link was removed, clear location status
           await updateLocation(editingMarker.location_id, {
             status: null,
           });
+          refetchLocations();
         }
 
         toast.success("Marker updated");
         setMarkerDialogOpen(false);
         setEditingMarker(null);
         setClickedPosition(null);
-        refetchMarkers();
-        refetchLocations();
       } else {
         toast.error("Failed to update marker");
       }
@@ -205,6 +210,7 @@ export default function SceneEditorPage() {
         floor_id: selectedFloorId,
         x: Math.round(clickedPosition.x),
         y: Math.round(clickedPosition.y),
+        background_shape: data.background_shape || null,
         icon_type: data.icon_type || 'landmark',
         status_icon: finalStatus,
         name: data.name,
@@ -214,7 +220,10 @@ export default function SceneEditorPage() {
         visible: true,
       });
 
-      if (result.success) {
+      if (result.success && result.data) {
+        // Optimistically add marker to list
+        addMarker(result.data as LocationMarker);
+        
         // If marker is linked to a location, sync status to location
         if (data.location_id) {
           await updateLocation(data.location_id, {
@@ -226,7 +235,6 @@ export default function SceneEditorPage() {
         toast.success("Marker created");
         setMarkerDialogOpen(false);
         setClickedPosition(null);
-        refetchMarkers();
       } else {
         toast.error("Failed to create marker");
       }
@@ -236,8 +244,9 @@ export default function SceneEditorPage() {
   const handleMarkerDelete = async (markerId: string) => {
     const result = await deleteMarker(markerId);
     if (result.success) {
+      // Optimistically remove marker from list
+      removeMarker(markerId);
       toast.success("Marker deleted");
-      refetchMarkers();
     } else {
       toast.error("Failed to delete marker");
     }

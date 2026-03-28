@@ -34,7 +34,10 @@ import {
   // Island,
   Waves,
   EyeOff,
+  Sparkles,
 } from "lucide-react";
+import { AIGenerationDialog } from "@/components/ai/ai-generation-dialog";
+import { useOllamaSafe } from "@/contexts/ollama-context";
 import {
   useWorldLocations,
   useCreateWorldLocation,
@@ -119,6 +122,10 @@ export function LocationsTab({ campaignId, isDm }: LocationsTabProps) {
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
   const [locationToDelete, setLocationToDelete] = useState<WorldLocation | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [aiDialogOpen, setAiDialogOpen] = useState(false);
+
+  const ollama = useOllamaSafe();
+  const canUseAI = ollama?.settings.enabled && ollama?.isConnected;
 
   // Build hierarchical structure
   const locationTree = useMemo(() => {
@@ -366,10 +373,18 @@ export function LocationsTab({ campaignId, isDm }: LocationsTabProps) {
           </p>
         </div>
         {isDm && (
-          <Button onClick={handleCreate} disabled={creating}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Location
-          </Button>
+          <div className="flex items-center gap-2">
+            {canUseAI && (
+              <Button variant="outline" onClick={() => setAiDialogOpen(true)}>
+                <Sparkles className="h-4 w-4 mr-2" />
+                Generate with AI
+              </Button>
+            )}
+            <Button onClick={handleCreate} disabled={creating}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Location
+            </Button>
+          </div>
         )}
       </div>
 
@@ -571,7 +586,7 @@ export function LocationsTab({ campaignId, isDm }: LocationsTabProps) {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Location</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete "{locationToDelete?.name}"? This will also delete all child locations. This action cannot be undone.
+              Are you sure you want to delete &quot;{locationToDelete?.name}&quot;? This will also delete all child locations. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -586,6 +601,19 @@ export function LocationsTab({ campaignId, isDm }: LocationsTabProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* AI Generation Dialog */}
+      <AIGenerationDialog
+        open={aiDialogOpen}
+        onOpenChange={setAiDialogOpen}
+        generatorType="location"
+        title="Generate Location with AI"
+        description="Create a detailed location with atmosphere, features, and secrets"
+        onGenerated={() => {
+          setAiDialogOpen(false);
+          handleCreate();
+        }}
+      />
     </div>
   );
 }

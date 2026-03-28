@@ -74,7 +74,7 @@ export interface LocationMarker {
   floor_id: string | null;
   x: number;
   y: number;
-  background_shape: 'circle' | 'diamond' | 'square' | 'triangle' | null; // Optional background
+  background_shape: 'circle' | 'diamond' | 'square' | 'triangle' | 'bookmark' | null; // Optional background
   icon_type: 'city' | 'village' | 'fort' | 'tavern' | 'shop' | 'temple' | 'dungeon' | 'cave' | 'landmark' | 'port' | 'border' | 'axe' | 'potion' | 'moon_star' | 'star' | 'sword' | 'flag' | 'castle' | 'house' | 'globe' | 'sphere' | 'shape_square' | 'shape_diamond' | null; // Mandatory icon
   status_icon: string | null; // Can be predefined or custom text
   name: string | null;
@@ -449,7 +449,20 @@ export function useLocationMarkers(campaignId: string | null, sceneId?: string |
     fetchMarkers();
   }, [fetchMarkers]);
 
-  return { markers, loading, error, refetch: fetchMarkers };
+  // Optimistic update methods - update state without refetching
+  const addMarker = useCallback((marker: LocationMarker) => {
+    setMarkers(prev => [...prev, marker]);
+  }, []);
+
+  const updateMarkerInList = useCallback((markerId: string, updates: Partial<LocationMarker>) => {
+    setMarkers(prev => prev.map(m => m.id === markerId ? { ...m, ...updates } : m));
+  }, []);
+
+  const removeMarker = useCallback((markerId: string) => {
+    setMarkers(prev => prev.filter(m => m.id !== markerId));
+  }, []);
+
+  return { markers, loading, error, refetch: fetchMarkers, addMarker, updateMarkerInList, removeMarker };
 }
 
 export function useCreateLocationMarker() {
@@ -477,10 +490,16 @@ export function useCreateLocationMarker() {
       setLoading(true);
       const supabase = createClient();
 
+      // Ensure background_shape is null if undefined, empty string, or falsy
+      const backgroundShape = markerData.background_shape && ['circle', 'diamond', 'square', 'triangle', 'bookmark'].includes(markerData.background_shape)
+        ? markerData.background_shape
+        : null;
+
       const { data, error: insertError } = await supabase
         .from('location_markers')
         .insert({
           ...markerData,
+          background_shape: backgroundShape,
           color: markerData.color || '#c9b882',
           size: markerData.size || 'medium',
           visible: markerData.visible ?? true,

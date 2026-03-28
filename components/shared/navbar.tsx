@@ -22,6 +22,7 @@ export function Navbar({ user }: NavbarProps) {
   const navLinks = [
     { href: "/campaigns", label: "Campaigns" },
     { href: "/characters", label: "Characters" },
+    { href: "/generators", label: "Generators" },
   ];
 
   return (

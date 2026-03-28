@@ -6,116 +6,6 @@
 @tailwind utilities;
 
 @layer base {
-  :root {
-    --background: rgb(236, 231, 223);
-    --foreground: rgb(46, 37, 31);
-    --card: rgb(226, 218, 207);
-    --card-foreground: rgb(61, 49, 41);
-    --popover: rgb(230, 223, 214);
-    --popover-foreground: rgb(46, 37, 31);
-    --primary: rgb(134, 112, 45);
-    --primary-foreground: rgb(245, 243, 239);
-    --secondary: rgb(198, 198, 185);
-    --secondary-foreground: rgb(77, 62, 51);
-    --muted: rgb(212, 207, 196);
-    --muted-foreground: rgb(112, 102, 92);
-    --accent: rgb(194, 184, 163);
-    --accent-foreground: rgb(77, 62, 51);
-    --destructive: rgb(195, 61, 34);
-    --destructive-foreground: rgb(245, 243, 239);
-    --border: rgb(179, 170, 152);
-    --input: rgb(222, 213, 201);
-    --ring: rgb(134, 112, 45);
-    --chart-1: rgb(134, 112, 45);
-    --chart-2: rgb(82, 122, 82);
-    --chart-3: rgb(92, 74, 61);
-    --chart-4: rgb(103, 115, 126);
-    --chart-5: rgb(186, 140, 94);
-    --sidebar: rgb(220, 212, 203);
-    --sidebar-foreground: rgb(46, 37, 31);
-    --sidebar-primary: rgb(134, 112, 45);
-    --sidebar-primary-foreground: rgb(245, 243, 239);
-    --sidebar-accent: rgb(194, 184, 163);
-    --sidebar-accent-foreground: rgb(77, 62, 51);
-    --sidebar-border: rgb(179, 170, 152);
-    --sidebar-ring: rgb(134, 112, 45);
-    --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
-    --font-serif: var(--font-cinzel), "Palatino Linotype", serif;
-    --font-mono: "Fira Code", ui-monospace, monospace;
-    --radius: 0.375rem;
-    --shadow-x: 0rem;
-    --shadow-y: 0.3rem;
-    --shadow-blur: 0.6rem;
-    --shadow-spread: 0.15rem;
-    --shadow-opacity: 0.15;
-    --shadow-color: hsl(25 20% 15%);
-    --shadow-2xs: 0rem 0.3rem 0.6rem 0.15rem hsl(25 20% 15% / 0.07);
-    --shadow-xs: 0rem 0.3rem 0.6rem 0.15rem hsl(25 20% 15% / 0.07);
-    --shadow-sm: 0rem 0.3rem 0.6rem 0.15rem hsl(25 20% 15% / 0.15), 0rem 1px 2px -0.85px hsl(25 20% 15% / 0.15);
-    --shadow: 0rem 0.3rem 0.6rem 0.15rem hsl(25 20% 15% / 0.15), 0rem 1px 2px -0.85px hsl(25 20% 15% / 0.15);
-    --shadow-md: 0rem 0.3rem 0.6rem 0.15rem hsl(25 20% 15% / 0.15), 0rem 2px 4px -0.85px hsl(25 20% 15% / 0.15);
-    --shadow-lg: 0rem 0.3rem 0.6rem 0.15rem hsl(25 20% 15% / 0.15), 0rem 4px 6px -0.85px hsl(25 20% 15% / 0.15);
-    --shadow-xl: 0rem 0.3rem 0.6rem 0.15rem hsl(25 20% 15% / 0.15), 0rem 8px 10px -0.85px hsl(25 20% 15% / 0.15);
-    --shadow-2xl: 0rem 0.3rem 0.6rem 0.15rem hsl(25 20% 15% / 0.38);
-    --tracking-normal: 0em;
-    --spacing: 0.25rem;
-  }
-
-  .dark {
-    --background: rgb(35, 29, 26);
-    --foreground: rgb(245, 243, 240);
-    --card: rgb(44, 36, 33);
-    --card-foreground: rgb(249, 248, 246);
-    --popover: rgb(50, 41, 37);
-    --popover-foreground: rgb(245, 243, 240);
-    --primary: rgb(201, 184, 130);
-    --primary-foreground: rgb(23, 19, 17);
-    --secondary: rgb(84, 84, 69);
-    --secondary-foreground: rgb(251, 250, 249);
-    --muted: rgb(56, 51, 46);
-    --muted-foreground: rgb(179, 166, 152);
-    --accent: rgb(132, 118, 98);
-    --accent-foreground: rgb(251, 250, 249);
-    --destructive: rgb(228, 124, 103);
-    --destructive-foreground: rgb(23, 19, 17);
-    --border: rgb(70, 64, 57);
-    --input: rgb(56, 46, 41);
-    --ring: rgb(201, 184, 130);
-    --chart-1: rgb(201, 184, 130);
-    --chart-2: rgb(133, 173, 133);
-    --chart-3: rgb(210, 188, 172);
-    --chart-4: rgb(148, 166, 184);
-    --chart-5: rgb(236, 217, 198);
-    --sidebar: rgb(29, 24, 22);
-    --sidebar-foreground: rgb(245, 243, 240);
-    --sidebar-primary: rgb(201, 184, 130);
-    --sidebar-primary-foreground: rgb(23, 19, 17);
-    --sidebar-accent: rgb(132, 118, 98);
-    --sidebar-accent-foreground: rgb(251, 250, 249);
-    --sidebar-border: rgb(70, 64, 57);
-    --sidebar-ring: rgb(201, 184, 130);
-    --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
-    --font-serif: var(--font-cinzel), "Palatino Linotype", serif;
-    --font-mono: "Fira Code", ui-monospace, monospace;
-    --radius: 0.375rem;
-    --shadow-x: 0rem;
-    --shadow-y: 0.55rem;
-    --shadow-blur: 0.8rem;
-    --shadow-spread: 0.28rem;
-    --shadow-opacity: 0.45;
-    --shadow-color: hsl(20 15% 8%);
-    --shadow-2xs: 0rem 0.55rem 0.8rem 0.28rem hsl(20 15% 8% / 0.23);
-    --shadow-xs: 0rem 0.55rem 0.8rem 0.28rem hsl(20 15% 8% / 0.23);
-    --shadow-sm: 0rem 0.55rem 0.8rem 0.28rem hsl(20 15% 8% / 0.45), 0rem 1px 2px -0.72px hsl(20 15% 8% / 0.45);
-    --shadow: 0rem 0.55rem 0.8rem 0.28rem hsl(20 15% 8% / 0.45), 0rem 1px 2px -0.72px hsl(20 15% 8% / 0.45);
-    --shadow-md: 0rem 0.55rem 0.8rem 0.28rem hsl(20 15% 8% / 0.45), 0rem 2px 4px -0.72px hsl(20 15% 8% / 0.45);
-    --shadow-lg: 0rem 0.55rem 0.8rem 0.28rem hsl(20 15% 8% / 0.45), 0rem 4px 6px -0.72px hsl(20 15% 8% / 0.45);
-    --shadow-xl: 0rem 0.55rem 0.8rem 0.28rem hsl(20 15% 8% / 0.45), 0rem 8px 10px -0.72px hsl(20 15% 8% / 0.45);
-    --shadow-2xl: 0rem 0.55rem 0.8rem 0.28rem hsl(20 15% 8% / 1.13);
-  }
-}
-
-@layer base {
   * {
     @apply border-border;
   }
@@ -124,43 +14,260 @@
   }
 }
 
-/* 3D Flip Card Utilities */
-.perspective-1000 {
-  perspective: 1000px;
+/* ============================================
+   THEME DEFINITIONS
+   These are intentionally OUTSIDE @layer base
+   so they have higher specificity and aren't
+   overridden by the :root fallback.
+   ============================================ */
+
+/* ────────────────────────────────────────────
+   OBSIDIAN — Near-black with warm gold accents
+   (The "AMOLED dark" theme)
+   ──────────────────────────────────────────── */
+:root.theme-obsidian,
+.theme-obsidian {
+  --background: rgb(17, 17, 17);
+  --foreground: rgb(235, 232, 225);
+  --card: rgb(26, 26, 26);
+  --card-foreground: rgb(240, 238, 232);
+  --popover: rgb(30, 30, 30);
+  --popover-foreground: rgb(235, 232, 225);
+  --primary: rgb(201, 168, 76);
+  --primary-foreground: rgb(17, 15, 10);
+  --secondary: rgb(42, 40, 36);
+  --secondary-foreground: rgb(220, 215, 205);
+  --muted: rgb(35, 34, 32);
+  --muted-foreground: rgb(156, 150, 138);
+  --accent: rgb(50, 47, 42);
+  --accent-foreground: rgb(220, 215, 205);
+  --destructive: rgb(220, 80, 60);
+  --destructive-foreground: rgb(17, 15, 10);
+  --border: rgb(45, 43, 40);
+  --input: rgb(32, 31, 29);
+  --ring: rgb(201, 168, 76);
+  --chart-1: rgb(201, 168, 76);
+  --chart-2: rgb(120, 160, 120);
+  --chart-3: rgb(180, 140, 100);
+  --chart-4: rgb(130, 150, 170);
+  --chart-5: rgb(175, 125, 90);
+  --sidebar: rgb(12, 12, 12);
+  --sidebar-foreground: rgb(235, 232, 225);
+  --sidebar-primary: rgb(201, 168, 76);
+  --sidebar-primary-foreground: rgb(17, 15, 10);
+  --sidebar-accent: rgb(40, 38, 35);
+  --sidebar-accent-foreground: rgb(220, 215, 205);
+  --sidebar-border: rgb(38, 36, 33);
+  --sidebar-ring: rgb(201, 168, 76);
 }
 
-.transform-style-preserve-3d {
-  transform-style: preserve-3d;
+/* ────────────────────────────────────────────
+   SHADOWFORGE — Charcoal and ember orange
+   ──────────────────────────────────────────── */
+:root.theme-shadowforge,
+.theme-shadowforge {
+  --background: rgb(28, 25, 23);
+  --foreground: rgb(245, 240, 235);
+  --card: rgb(41, 37, 36);
+  --card-foreground: rgb(248, 244, 240);
+  --popover: rgb(48, 43, 40);
+  --popover-foreground: rgb(245, 240, 235);
+  --primary: rgb(234, 88, 12);
+  --primary-foreground: rgb(255, 247, 237);
+  --secondary: rgb(68, 60, 52);
+  --secondary-foreground: rgb(240, 232, 222);
+  --muted: rgb(55, 50, 46);
+  --muted-foreground: rgb(168, 155, 140);
+  --accent: rgb(78, 68, 58);
+  --accent-foreground: rgb(240, 232, 222);
+  --destructive: rgb(239, 68, 68);
+  --destructive-foreground: rgb(28, 20, 18);
+  --border: rgb(65, 58, 52);
+  --input: rgb(48, 43, 38);
+  --ring: rgb(234, 88, 12);
+  --chart-1: rgb(234, 88, 12);
+  --chart-2: rgb(245, 158, 11);
+  --chart-3: rgb(220, 120, 60);
+  --chart-4: rgb(168, 85, 50);
+  --chart-5: rgb(255, 180, 100);
+  --sidebar: rgb(22, 20, 18);
+  --sidebar-foreground: rgb(245, 240, 235);
+  --sidebar-primary: rgb(234, 88, 12);
+  --sidebar-primary-foreground: rgb(255, 247, 237);
+  --sidebar-accent: rgb(68, 58, 48);
+  --sidebar-accent-foreground: rgb(240, 232, 222);
+  --sidebar-border: rgb(55, 48, 42);
+  --sidebar-ring: rgb(234, 88, 12);
 }
 
-.backface-hidden {
-  backface-visibility: hidden;
+/* ────────────────────────────────────────────
+   NIGHTFALL — Midnight blue and cyan
+   ──────────────────────────────────────────── */
+:root.theme-nightfall,
+.theme-nightfall {
+  --background: rgb(15, 23, 42);
+  --foreground: rgb(226, 232, 240);
+  --card: rgb(30, 41, 59);
+  --card-foreground: rgb(235, 240, 248);
+  --popover: rgb(36, 48, 68);
+  --popover-foreground: rgb(226, 232, 240);
+  --primary: rgb(56, 189, 248);
+  --primary-foreground: rgb(8, 15, 28);
+  --secondary: rgb(51, 65, 85);
+  --secondary-foreground: rgb(226, 232, 240);
+  --muted: rgb(40, 52, 72);
+  --muted-foreground: rgb(148, 163, 184);
+  --accent: rgb(55, 72, 98);
+  --accent-foreground: rgb(226, 232, 240);
+  --destructive: rgb(248, 113, 113);
+  --destructive-foreground: rgb(15, 20, 35);
+  --border: rgb(52, 68, 92);
+  --input: rgb(38, 50, 70);
+  --ring: rgb(56, 189, 248);
+  --chart-1: rgb(56, 189, 248);
+  --chart-2: rgb(45, 212, 191);
+  --chart-3: rgb(99, 102, 241);
+  --chart-4: rgb(132, 204, 22);
+  --chart-5: rgb(167, 139, 250);
+  --sidebar: rgb(10, 18, 35);
+  --sidebar-foreground: rgb(226, 232, 240);
+  --sidebar-primary: rgb(56, 189, 248);
+  --sidebar-primary-foreground: rgb(8, 15, 28);
+  --sidebar-accent: rgb(45, 60, 82);
+  --sidebar-accent-foreground: rgb(226, 232, 240);
+  --sidebar-border: rgb(42, 55, 78);
+  --sidebar-ring: rgb(56, 189, 248);
 }
 
-.rotate-y-180 {
-  transform: rotateY(180deg);
+/* ────────────────────────────────────────────
+   GRIMOIRE — Violet and mystic gold
+   ──────────────────────────────────────────── */
+:root.theme-grimoire,
+.theme-grimoire {
+  --background: rgb(26, 20, 37);
+  --foreground: rgb(237, 233, 245);
+  --card: rgb(38, 30, 53);
+  --card-foreground: rgb(242, 238, 250);
+  --popover: rgb(44, 35, 62);
+  --popover-foreground: rgb(237, 233, 245);
+  --primary: rgb(192, 132, 252);
+  --primary-foreground: rgb(18, 12, 28);
+  --secondary: rgb(58, 45, 78);
+  --secondary-foreground: rgb(235, 230, 248);
+  --muted: rgb(48, 38, 65);
+  --muted-foreground: rgb(162, 148, 185);
+  --accent: rgb(65, 50, 88);
+  --accent-foreground: rgb(235, 230, 248);
+  --destructive: rgb(251, 113, 133);
+  --destructive-foreground: rgb(20, 14, 30);
+  --border: rgb(62, 50, 85);
+  --input: rgb(42, 34, 58);
+  --ring: rgb(192, 132, 252);
+  --chart-1: rgb(192, 132, 252);
+  --chart-2: rgb(232, 121, 249);
+  --chart-3: rgb(139, 92, 246);
+  --chart-4: rgb(251, 191, 36);
+  --chart-5: rgb(167, 139, 250);
+  --sidebar: rgb(20, 15, 30);
+  --sidebar-foreground: rgb(237, 233, 245);
+  --sidebar-primary: rgb(192, 132, 252);
+  --sidebar-primary-foreground: rgb(18, 12, 28);
+  --sidebar-accent: rgb(55, 42, 75);
+  --sidebar-accent-foreground: rgb(235, 230, 248);
+  --sidebar-border: rgb(52, 42, 72);
+  --sidebar-ring: rgb(192, 132, 252);
 }
 
+/* ────────────────────────────────────────────
+   PARCHMENT — Warm ivory and ink (light)
+   ──────────────────────────────────────────── */
+:root.theme-parchment,
+.theme-parchment {
+  --background: rgb(245, 240, 232);
+  --foreground: rgb(42, 35, 28);
+  --card: rgb(235, 228, 214);
+  --card-foreground: rgb(52, 44, 35);
+  --popover: rgb(238, 232, 220);
+  --popover-foreground: rgb(42, 35, 28);
+  --primary: rgb(146, 116, 45);
+  --primary-foreground: rgb(252, 250, 245);
+  --secondary: rgb(210, 200, 182);
+  --secondary-foreground: rgb(65, 55, 42);
+  --muted: rgb(222, 215, 200);
+  --muted-foreground: rgb(115, 105, 88);
+  --accent: rgb(200, 190, 168);
+  --accent-foreground: rgb(65, 55, 42);
+  --destructive: rgb(190, 55, 35);
+  --destructive-foreground: rgb(252, 250, 245);
+  --border: rgb(195, 185, 165);
+  --input: rgb(230, 222, 208);
+  --ring: rgb(146, 116, 45);
+  --chart-1: rgb(146, 116, 45);
+  --chart-2: rgb(82, 130, 82);
+  --chart-3: rgb(95, 78, 62);
+  --chart-4: rgb(108, 120, 132);
+  --chart-5: rgb(186, 140, 94);
+  --sidebar: rgb(232, 225, 212);
+  --sidebar-foreground: rgb(42, 35, 28);
+  --sidebar-primary: rgb(146, 116, 45);
+  --sidebar-primary-foreground: rgb(252, 250, 245);
+  --sidebar-accent: rgb(200, 190, 168);
+  --sidebar-accent-foreground: rgb(65, 55, 42);
+  --sidebar-border: rgb(190, 180, 160);
+  --sidebar-ring: rgb(146, 116, 45);
+}
+
+/* ────────────────────────────────────────────
+   SILVERLIGHT — Clean white and cool indigo (light)
+   ──────────────────────────────────────────── */
+:root.theme-silverlight,
+.theme-silverlight {
+  --background: rgb(248, 250, 252);
+  --foreground: rgb(15, 23, 42);
+  --card: rgb(241, 245, 249);
+  --card-foreground: rgb(30, 41, 59);
+  --popover: rgb(244, 247, 250);
+  --popover-foreground: rgb(15, 23, 42);
+  --primary: rgb(99, 102, 241);
+  --primary-foreground: rgb(248, 250, 255);
+  --secondary: rgb(226, 232, 240);
+  --secondary-foreground: rgb(30, 41, 59);
+  --muted: rgb(226, 232, 240);
+  --muted-foreground: rgb(100, 116, 139);
+  --accent: rgb(214, 224, 238);
+  --accent-foreground: rgb(30, 41, 59);
+  --destructive: rgb(220, 38, 38);
+  --destructive-foreground: rgb(255, 250, 250);
+  --border: rgb(203, 213, 225);
+  --input: rgb(234, 238, 244);
+  --ring: rgb(99, 102, 241);
+  --chart-1: rgb(99, 102, 241);
+  --chart-2: rgb(16, 185, 129);
+  --chart-3: rgb(245, 158, 11);
+  --chart-4: rgb(236, 72, 153);
+  --chart-5: rgb(6, 182, 212);
+  --sidebar: rgb(241, 245, 249);
+  --sidebar-foreground: rgb(15, 23, 42);
+  --sidebar-primary: rgb(99, 102, 241);
+  --sidebar-primary-foreground: rgb(248, 250, 255);
+  --sidebar-accent: rgb(214, 224, 238);
+  --sidebar-accent-foreground: rgb(30, 41, 59);
+  --sidebar-border: rgb(203, 213, 225);
+  --sidebar-ring: rgb(99, 102, 241);
+}
+
+/* ============================================
+   SHARED DEFAULTS — font stacks, radius, spacing
+   Applied to :root so themes inherit them if
+   they don't override
+   ============================================ */
 :root {
-  --sidebar: hsl(0 0% 98%);
-  --sidebar-foreground: hsl(240 5.3% 26.1%);
-  --sidebar-primary: hsl(240 5.9% 10%);
-  --sidebar-primary-foreground: hsl(0 0% 98%);
-  --sidebar-accent: hsl(240 4.8% 95.9%);
-  --sidebar-accent-foreground: hsl(240 5.9% 10%);
-  --sidebar-border: hsl(220 13% 91%);
-  --sidebar-ring: hsl(217.2 91.2% 59.8%);
-}
-
-.dark {
-  --sidebar: hsl(240 5.9% 10%);
-  --sidebar-foreground: hsl(240 4.8% 95.9%);
-  --sidebar-primary: hsl(224.3 76.3% 48%);
-  --sidebar-primary-foreground: hsl(0 0% 100%);
-  --sidebar-accent: hsl(240 3.7% 15.9%);
-  --sidebar-accent-foreground: hsl(240 4.8% 95.9%);
-  --sidebar-border: hsl(240 3.7% 15.9%);
-  --sidebar-ring: hsl(217.2 91.2% 59.8%);
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-cinzel), "Palatino Linotype", serif;
+  --font-mono: "Fira Code", ui-monospace, monospace;
+  --radius: 0.375rem;
+  --tracking-normal: 0em;
+  --spacing: 0.25rem;
 }
 
 @theme inline {
@@ -174,14 +281,9 @@
   --color-sidebar-ring: var(--sidebar-ring);
 }
 
-@layer base {
-  * {
-    @apply border-border;
-  }
-  body {
-    @apply bg-background text-foreground;
-  }
-}
+/* ============================================
+   UTILITY CLASSES
+   ============================================ */
 
 /* 3D Flip Card Utilities */
 .perspective-1000 {
@@ -198,4 +300,25 @@
 
 .rotate-y-180 {
   transform: rotateY(180deg);
+}
+
+/* Subtle pulse animation for streaming content */
+@keyframes pulse-subtle {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+
+.animate-pulse-subtle {
+  animation: pulse-subtle 1.5s ease-in-out infinite;
+}
+
+/* Prose customizations for markdown content */
+.prose-generated h1:first-child,
+.prose-generated h2:first-child,
+.prose-generated h3:first-child {
+  margin-top: 0;
 }

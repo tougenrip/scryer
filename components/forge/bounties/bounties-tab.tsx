@@ -15,7 +15,9 @@ import { BountyCard } from "@/components/forge/bounties/bounty-card";
 import { BountyFormDialog } from "@/components/forge/bounties/bounty-form-dialog";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
-import { Plus, Target } from "lucide-react";
+import { Plus, Target, Sparkles } from "lucide-react";
+import { AIGenerationDialog } from "@/components/ai/ai-generation-dialog";
+import { useOllamaSafe } from "@/contexts/ollama-context";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -37,6 +39,10 @@ export function BountiesTab({ campaignId, isDm }: BountiesTabProps) {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editingBounty, setEditingBounty] = useState<Bounty | null>(null);
   const [deletingBountyId, setDeletingBountyId] = useState<string | null>(null);
+  const [aiDialogOpen, setAiDialogOpen] = useState(false);
+
+  const ollama = useOllamaSafe();
+  const canUseAI = ollama?.settings.enabled && ollama?.isConnected;
 
   const { bounties, loading, refetch } = useCampaignBounties(campaignId, isDm);
   const { createBounty } = useCreateBounty();
@@ -148,10 +154,18 @@ export function BountiesTab({ campaignId, isDm }: BountiesTabProps) {
           </p>
         </div>
         {isDm && userId && (
-          <Button onClick={() => setCreateDialogOpen(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Bounty
-          </Button>
+          <div className="flex items-center gap-2">
+            {canUseAI && (
+              <Button variant="outline" onClick={() => setAiDialogOpen(true)}>
+                <Sparkles className="h-4 w-4 mr-2" />
+                Generate with AI
+              </Button>
+            )}
+            <Button onClick={() => setCreateDialogOpen(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Bounty
+            </Button>
+          </div>
         )}
       </div>
 
@@ -266,6 +280,19 @@ export function BountiesTab({ campaignId, isDm }: BountiesTabProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* AI Generation Dialog */}
+      <AIGenerationDialog
+        open={aiDialogOpen}
+        onOpenChange={setAiDialogOpen}
+        generatorType="bounty"
+        title="Generate Bounty with AI"
+        description="Create a bounty posting with target, reward, and complications"
+        onGenerated={(content) => {
+          setAiDialogOpen(false);
+          setCreateDialogOpen(true);
+        }}
+      />
     </div>
   );
 }

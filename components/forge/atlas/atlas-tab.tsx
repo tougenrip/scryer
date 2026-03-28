@@ -35,7 +35,7 @@ export function AtlasTab({ campaignId, isDm }: AtlasTabProps) {
   const [clickedPosition, setClickedPosition] = useState<{ x: number; y: number } | null>(null);
 
   const { locations, loading: locationsLoading, refetch: refetchLocations } = useWorldLocations(campaignId);
-  const { markers, loading: markersLoading, refetch: refetchMarkers } = useLocationMarkers(campaignId, null);
+  const { markers, loading: markersLoading, refetch: refetchMarkers, addMarker, updateMarkerInList, removeMarker } = useLocationMarkers(campaignId, null);
   const { createMarker, loading: creatingMarker } = useCreateLocationMarker();
   const { updateMarker } = useUpdateLocationMarker();
   const { deleteMarker, loading: deletingMarker } = useDeleteLocationMarker();
@@ -163,6 +163,7 @@ export function AtlasTab({ campaignId, isDm }: AtlasTabProps) {
 
   const handleMarkerSave = async (data: {
     location_id?: string | null;
+    background_shape?: LocationMarker['background_shape'];
     icon_type?: LocationMarker['icon_type'];
     status_icon?: LocationMarker['status_icon'];
     name: string;
@@ -176,6 +177,7 @@ export function AtlasTab({ campaignId, isDm }: AtlasTabProps) {
       // Update existing marker
       const result = await updateMarker(editingMarker.id, {
         location_id: data.location_id !== undefined ? data.location_id : null,
+        background_shape: data.background_shape !== undefined ? data.background_shape : null,
         icon_type: data.icon_type,
         status_icon: finalStatus,
         name: data.name,
@@ -184,26 +186,29 @@ export function AtlasTab({ campaignId, isDm }: AtlasTabProps) {
         size: data.size,
       });
 
-      if (result.success) {
+      if (result.success && result.data) {
+        // Optimistically update marker in list
+        updateMarkerInList(editingMarker.id, result.data as LocationMarker);
+        
         // If marker is linked to a location, sync status to location
         const linkedLocationId = data.location_id || editingMarker.location_id;
         if (linkedLocationId) {
           await updateLocation(linkedLocationId, {
             status: finalStatus,
           });
+          refetchLocations();
         } else if (editingMarker.location_id) {
           // If location link was removed, clear location status
           await updateLocation(editingMarker.location_id, {
             status: null,
           });
+          refetchLocations();
         }
 
         toast.success("Marker updated");
         setMarkerDialogOpen(false);
         setEditingMarker(null);
         setClickedPosition(null);
-        refetchMarkers();
-        refetchLocations();
       } else {
         toast.error("Failed to update marker");
       }
@@ -215,6 +220,7 @@ export function AtlasTab({ campaignId, isDm }: AtlasTabProps) {
           map_id: null,
           x: Math.round(clickedPosition.x),
           y: Math.round(clickedPosition.y),
+          background_shape: data.background_shape || null,
           icon_type: data.icon_type || 'landmark',
           status_icon: finalStatus,
           name: data.name,
@@ -224,7 +230,10 @@ export function AtlasTab({ campaignId, isDm }: AtlasTabProps) {
           visible: true,
         });
 
-      if (result.success) {
+      if (result.success && result.data) {
+        // Optimistically add marker to list
+        addMarker(result.data as LocationMarker);
+        
         // If marker is linked to a location, sync status to location
         if (data.location_id) {
           await updateLocation(data.location_id, {
@@ -236,7 +245,6 @@ export function AtlasTab({ campaignId, isDm }: AtlasTabProps) {
         toast.success("Marker created");
         setMarkerDialogOpen(false);
         setClickedPosition(null);
-        refetchMarkers();
       } else {
         toast.error("Failed to create marker");
       }
@@ -246,8 +254,9 @@ export function AtlasTab({ campaignId, isDm }: AtlasTabProps) {
   const handleMarkerDelete = async (markerId: string) => {
     const result = await deleteMarker(markerId);
     if (result.success) {
+      // Optimistically remove marker from list
+      removeMarker(markerId);
       toast.success("Marker deleted");
-      refetchMarkers();
     } else {
       toast.error("Failed to delete marker");
     }

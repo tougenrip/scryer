@@ -25,6 +25,7 @@ import { useClasses, useRaces } from "@/hooks/useDndContent";
 import { MapImageUpload } from "./map-image-upload";
 import { Checkbox } from "@/components/ui/checkbox";
 import { NameGeneratorButton } from "@/components/shared/name-generator-button";
+import type { ParsedNPCData } from "@/lib/utils/ai-content-parser";
 
 interface NPCFormDialogProps {
   open: boolean;
@@ -33,6 +34,7 @@ interface NPCFormDialogProps {
   userId: string;
   npc?: NPC | null;
   isDm?: boolean;
+  initialData?: ParsedNPCData | null;
   onCreate: (data: {
     campaign_id: string;
     name: string;
@@ -81,6 +83,7 @@ export function NPCFormDialog({
   userId,
   npc,
   isDm = false,
+  initialData,
   onCreate,
   onUpdate,
 }: NPCFormDialogProps) {
@@ -112,6 +115,8 @@ export function NPCFormDialog({
   const { races, loading: racesLoading } = useRaces(campaignId, null);
 
   useEffect(() => {
+    console.log('[NPCFormDialog] useEffect triggered - npc:', !!npc, 'initialData:', initialData, 'open:', open);
+    
     if (npc) {
       setName(npc.name);
       setDescription(npc.description || "");
@@ -148,6 +153,44 @@ export function NPCFormDialog({
         setSpeciesSource(npc.species_source || null);
         setSpeciesIndex(npc.species_index || null);
       }
+    } else if (initialData) {
+      // Pre-fill from AI-generated content
+      console.log('[NPCFormDialog] Pre-filling from initialData:', initialData);
+      setName(initialData.name || "");
+      setDescription(initialData.description || "");
+      setAppearance(initialData.appearance || "");
+      setPersonality(initialData.personality || "");
+      setBackground(initialData.background || "");
+      setLocation("");
+      setNotes(initialData.notes || "");
+      setImageUrl(null);
+      setHiddenFromPlayers(true);
+      
+      // Set custom class if provided
+      if (initialData.customClass) {
+        setIsCustomClass(true);
+        setCustomClass(initialData.customClass);
+        setClassSource(null);
+        setClassIndex(null);
+      } else {
+        setIsCustomClass(false);
+        setCustomClass("");
+        setClassSource(null);
+        setClassIndex(null);
+      }
+      
+      // Set custom species if provided
+      if (initialData.customSpecies) {
+        setIsCustomSpecies(true);
+        setCustomSpecies(initialData.customSpecies);
+        setSpeciesSource(null);
+        setSpeciesIndex(null);
+      } else {
+        setIsCustomSpecies(false);
+        setCustomSpecies("");
+        setSpeciesSource(null);
+        setSpeciesIndex(null);
+      }
     } else {
       setName("");
       setDescription("");
@@ -168,7 +211,7 @@ export function NPCFormDialog({
       setCustomSpecies("");
       setHiddenFromPlayers(true);
     }
-  }, [npc, open]);
+  }, [npc, initialData, open]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

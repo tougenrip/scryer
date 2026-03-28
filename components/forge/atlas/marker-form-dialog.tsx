@@ -60,6 +60,7 @@ import {
   DiamondIcon,
   SquareIcon,
   TriangleIcon,
+  BookmarkIcon,
   AxeIcon,
   PotionIcon,
   MoonStarIcon,
@@ -70,11 +71,6 @@ import {
   HouseIcon,
   GlobeIcon
 } from "./marker-icons";
-
-// Re-export shape icons for use as marker icons
-const SphereIcon = CircleIcon;
-const ShapeSquareIcon = SquareIcon;
-const ShapeDiamondIcon = DiamondIcon;
 
 interface MarkerFormDialogProps {
   open: boolean;
@@ -130,14 +126,11 @@ const backgroundShapes: Record<LocationMarker['background_shape'], { icon: React
   diamond: { icon: DiamondIcon, label: 'Diamond' },
   square: { icon: SquareIcon, label: 'Square' },
   triangle: { icon: TriangleIcon, label: 'Triangle' },
+  bookmark: { icon: BookmarkIcon, label: 'Bookmark' },
 };
 
 // Icon type definitions for marker icons - using filled, outlined style
 const markerIcons: Record<NonNullable<LocationMarker['icon_type']>, { icon: React.ComponentType<{ className?: string }>, label: string }> = {
-  // Basic Shapes
-  sphere: { icon: SphereIcon, label: 'Sphere' },
-  shape_square: { icon: ShapeSquareIcon, label: 'Square' },
-  shape_diamond: { icon: ShapeDiamondIcon, label: 'Diamond' },
   // Fantasy Icons
   axe: { icon: AxeIcon, label: 'Axe' },
   potion: { icon: PotionIcon, label: 'Potion' },
@@ -170,10 +163,10 @@ interface BackgroundShapeSelectorProps {
 }
 
 function BackgroundShapeSelector({ value, onChange, disabled }: BackgroundShapeSelectorProps) {
-  const shapeOrder: LocationMarker['background_shape'][] = ['circle', 'diamond', 'square', 'triangle'];
+  const shapeOrder: LocationMarker['background_shape'][] = ['circle', 'diamond', 'square', 'triangle', 'bookmark'];
 
   return (
-    <div className="flex gap-1">
+    <div className="flex gap-1.5">
       <button
         type="button"
         onClick={() => !disabled && onChange(null)}
@@ -214,8 +207,8 @@ function BackgroundShapeSelector({ value, onChange, disabled }: BackgroundShapeS
               style={{ 
                 color: '#000000',
                 fill: '#ffffff',
-                stroke: '#000000',
-                strokeWidth: 2.5,
+                stroke: '#ffffff',
+                strokeWidth: 1.5,
                 strokeLinejoin: 'round',
                 strokeLinecap: 'round'
               }}
@@ -234,12 +227,10 @@ interface IconTypeSelectorProps {
 }
 
 function IconTypeSelector({ value, onChange, disabled }: IconTypeSelectorProps) {
-  // Order icons: basic shapes first, then fantasy icons, then location icons, then legacy
+  // Order icons: fantasy icons first, then location icons, then legacy
   const iconOrder: NonNullable<LocationMarker['icon_type']>[] = [
-    // Basic Shapes
-    'sphere', 'shape_square', 'shape_diamond', 'star',
     // Fantasy Icons
-    'axe', 'potion', 'moon_star', 'sword', 'flag',
+    'axe', 'potion', 'moon_star', 'star', 'sword', 'flag',
     // Location Icons
     'castle', 'house', 'globe',
     // Legacy icons
@@ -272,10 +263,10 @@ function IconTypeSelector({ value, onChange, disabled }: IconTypeSelectorProps) 
               <IconComponent 
                 className="h-6 w-6"
                 style={{ 
-                  color: '#000000', // Black outline/stroke
+                  color: '#000000', // Black icon color
                   fill: '#ffffff', // White fill
-                  stroke: '#000000', // Ensure black stroke
-                  strokeWidth: 2.5,
+                  stroke: '#ffffff', // White stroke for contrast
+                  strokeWidth: 1.5,
                   strokeLinejoin: 'round',
                   strokeLinecap: 'round'
                 }}
@@ -291,12 +282,10 @@ interface MarkerPreviewProps {
   backgroundShape: LocationMarker['background_shape'];
   iconType: LocationMarker['icon_type'];
   color: string;
-  outlineColor: string;
-  iconColor: string;
   size: LocationMarker['size'];
 }
 
-function MarkerPreview({ backgroundShape, iconType, color, outlineColor, iconColor, size }: MarkerPreviewProps) {
+function MarkerPreview({ backgroundShape, iconType, color, size }: MarkerPreviewProps) {
   const sizePixels = {
     small: 48,
     medium: 64,
@@ -304,15 +293,13 @@ function MarkerPreview({ backgroundShape, iconType, color, outlineColor, iconCol
   };
 
   const iconSizePixels = {
-    small: 24,
-    medium: 32,
-    large: 40,
+    small: 14,
+    medium: 18,
+    large: 22,
   };
 
   const containerSize = sizePixels[size];
   const iconSize = iconSizePixels[size];
-  // Make background shape bigger to avoid collision with icons (1.3x multiplier)
-  const backgroundSize = Math.round(containerSize * 1.3);
 
   const BackgroundComponent = backgroundShape ? backgroundShapes[backgroundShape].icon : null;
   const IconComponent = iconType ? markerIcons[iconType].icon : null;
@@ -321,22 +308,37 @@ function MarkerPreview({ backgroundShape, iconType, color, outlineColor, iconCol
     <div className="flex items-center justify-center p-4 bg-muted rounded-lg border min-h-[120px]">
       <div className="relative flex items-center justify-center" style={{ width: containerSize, height: containerSize }}>
         {/* Background shape */}
-        {BackgroundComponent && (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <BackgroundComponent
+        {BackgroundComponent && (() => {
+          // Adjust vertical position based on shape type
+          let verticalOffset = 0;
+          if (backgroundShape === 'triangle') {
+            verticalOffset = -4; // Move triangle higher
+          } else if (backgroundShape === 'bookmark') {
+            verticalOffset = 4; // Move bookmark lower
+          }
+          
+          return (
+            <div 
+              className="absolute inset-0 flex items-center justify-center"
               style={{
-                width: backgroundSize,
-                height: backgroundSize,
-                fill: color,
-                stroke: outlineColor,
-                strokeWidth: 2.5,
-                strokeLinejoin: 'round',
-                strokeLinecap: 'round',
-                color: color,
+                transform: verticalOffset !== 0 ? `translateY(${verticalOffset}px)` : undefined
               }}
-            />
-          </div>
-        )}
+            >
+              <BackgroundComponent
+                style={{
+                  width: containerSize,
+                  height: containerSize,
+                  fill: color,
+                  stroke: '#ffffff',
+                  strokeWidth: 1.5,
+                  strokeLinejoin: 'round',
+                  strokeLinecap: 'round',
+                  color: color,
+                }}
+              />
+            </div>
+          );
+        })()}
         {/* Icon */}
         {IconComponent ? (
           <div className="relative z-10 flex items-center justify-center">
@@ -344,12 +346,13 @@ function MarkerPreview({ backgroundShape, iconType, color, outlineColor, iconCol
               style={{
                 width: iconSize,
                 height: iconSize,
-                fill: iconColor,
-                stroke: outlineColor,
-                strokeWidth: 2.5,
+                // Use white for icon when there's a background shape for contrast, otherwise use the selected color
+                color: BackgroundComponent ? '#ffffff' : color,
+                fill: BackgroundComponent ? '#ffffff' : color,
+                stroke: '#ffffff',
+                strokeWidth: 1.5,
                 strokeLinejoin: 'round',
                 strokeLinecap: 'round',
-                color: iconColor,
               }}
             />
           </div>
@@ -381,8 +384,6 @@ export function MarkerFormDialog({
   const [name, setName] = useState(marker?.name || '');
   const [description, setDescription] = useState(marker?.description || '');
   const [color, setColor] = useState(marker?.color || '#c9b882');
-  const [outlineColor, setOutlineColor] = useState('#000000');
-  const [iconColor, setIconColor] = useState(marker?.color || '#c9b882');
   const [size, setSize] = useState<LocationMarker['size']>(marker?.size || 'medium');
   const [locationId, setLocationId] = useState<string | null>(marker?.location_id || null);
   const [locationSearch, setLocationSearch] = useState("");
@@ -441,25 +442,7 @@ export function MarkerFormDialog({
       setCustomStatusText(predefinedStatuses.includes(statusToUse) ? '' : statusToUse);
       setName(marker.name || '');
       setDescription(marker.description || '');
-      
-      // Parse color - support both JSON format and plain string (backward compatibility)
-      let parsedColor: { fill: string; outline: string; icon: string } | null = null;
-      try {
-        parsedColor = JSON.parse(marker.color || '{}');
-      } catch {
-        // If not JSON, treat as plain color string (backward compatibility)
-        const defaultColor = marker.color || '#c9b882';
-        setColor(defaultColor);
-        setOutlineColor('#000000');
-        setIconColor(defaultColor);
-      }
-      
-      if (parsedColor && parsedColor.fill) {
-        setColor(parsedColor.fill);
-        setOutlineColor(parsedColor.outline || '#000000');
-        setIconColor(parsedColor.icon || parsedColor.fill);
-      }
-      
+      setColor(marker.color || '#c9b882');
       setSize(marker.size || 'medium');
       setLocationId(marker.location_id || null);
     } else {
@@ -471,8 +454,6 @@ export function MarkerFormDialog({
       setName('');
       setDescription('');
       setColor('#c9b882');
-      setOutlineColor('#000000');
-      setIconColor('#c9b882');
       setSize('medium');
       setLocationId(null);
     }
@@ -488,12 +469,6 @@ export function MarkerFormDialog({
     }
 
     const finalStatus = isCustomStatus ? customStatusText : statusIcon;
-    // Store colors as JSON to support fill, outline, and icon colors
-    const colorData = {
-      fill: color,
-      outline: outlineColor,
-      icon: iconColor,
-    };
     onSave({
       location_id: locationId,
       background_shape: backgroundShape,
@@ -501,7 +476,7 @@ export function MarkerFormDialog({
       status_icon: finalStatus || null,
       name: name.trim(),
       description: description.trim() || null,
-      color: JSON.stringify(colorData),
+      color,
       size,
     });
   };
@@ -687,8 +662,6 @@ export function MarkerFormDialog({
                   backgroundShape={backgroundShape}
                   iconType={iconType}
                   color={color}
-                  outlineColor={outlineColor}
-                  iconColor={iconColor}
                   size={size}
                 />
               </div>
@@ -713,42 +686,26 @@ export function MarkerFormDialog({
                 />
               </div>
 
-              {/* Color, Outline Color, and Icon Color */}
+              {/* Color */}
               <div className="space-y-2">
-                <div className="flex items-center gap-4">
-                  <div className="flex-1 space-y-2">
-                    <Label htmlFor="color">Color</Label>
-                    <Input
-                      id="color"
-                      type="color"
-                      value={color}
-                      onChange={(e) => setColor(e.target.value)}
-                      className="h-10 w-full cursor-pointer"
-                      disabled={!isDm && !!marker}
-                    />
-                  </div>
-                  <div className="flex-1 space-y-2">
-                    <Label htmlFor="outline-color">Outline Color</Label>
-                    <Input
-                      id="outline-color"
-                      type="color"
-                      value={outlineColor}
-                      onChange={(e) => setOutlineColor(e.target.value)}
-                      className="h-10 w-full cursor-pointer"
-                      disabled={!isDm && !!marker}
-                    />
-                  </div>
-                  <div className="flex-1 space-y-2">
-                    <Label htmlFor="icon-color">Icon Color</Label>
-                    <Input
-                      id="icon-color"
-                      type="color"
-                      value={iconColor}
-                      onChange={(e) => setIconColor(e.target.value)}
-                      className="h-10 w-full cursor-pointer"
-                      disabled={!isDm && !!marker}
-                    />
-                  </div>
+                <Label htmlFor="color">Color</Label>
+                <div className="flex items-center gap-3">
+                  <Input
+                    id="color"
+                    type="color"
+                    value={color}
+                    onChange={(e) => setColor(e.target.value)}
+                    className="h-10 w-20 cursor-pointer"
+                    disabled={!isDm && !!marker}
+                  />
+                  <Input
+                    type="text"
+                    value={color}
+                    onChange={(e) => setColor(e.target.value)}
+                    placeholder="#c9b882"
+                    className="flex-1"
+                    disabled={!isDm && !!marker}
+                  />
                 </div>
               </div>
 

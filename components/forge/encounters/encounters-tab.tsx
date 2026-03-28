@@ -20,7 +20,9 @@ import {
   type Difficulty,
 } from "@/lib/utils/encounter-calculator";
 import { toast } from "sonner";
-import { Plus, Swords, Edit, Trash2 } from "lucide-react";
+import { Plus, Swords, Edit, Trash2, Sparkles } from "lucide-react";
+import { AIGenerationDialog } from "@/components/ai/ai-generation-dialog";
+import { useOllamaSafe } from "@/contexts/ollama-context";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -41,6 +43,10 @@ export function EncountersTab({ campaignId, isDm }: EncountersTabProps) {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editingEncounter, setEditingEncounter] = useState<Encounter | null>(null);
   const [deletingEncounterId, setDeletingEncounterId] = useState<string | null>(null);
+  const [aiDialogOpen, setAiDialogOpen] = useState(false);
+
+  const ollama = useOllamaSafe();
+  const canUseAI = ollama?.settings.enabled && ollama?.isConnected;
 
   const { encounters, loading, refetch } = useCampaignEncounters(campaignId);
   const { monsters } = useMonsters(campaignId);
@@ -146,10 +152,18 @@ export function EncountersTab({ campaignId, isDm }: EncountersTabProps) {
           </p>
         </div>
         {isDm && (
-          <Button onClick={() => setCreateDialogOpen(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Create Encounter
-          </Button>
+          <div className="flex items-center gap-2">
+            {canUseAI && (
+              <Button variant="outline" onClick={() => setAiDialogOpen(true)}>
+                <Sparkles className="h-4 w-4 mr-2" />
+                Generate with AI
+              </Button>
+            )}
+            <Button onClick={() => setCreateDialogOpen(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Create Encounter
+            </Button>
+          </div>
         )}
       </div>
 
@@ -332,6 +346,19 @@ export function EncountersTab({ campaignId, isDm }: EncountersTabProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* AI Generation Dialog */}
+      <AIGenerationDialog
+        open={aiDialogOpen}
+        onOpenChange={setAiDialogOpen}
+        generatorType="encounter"
+        title="Generate Encounter with AI"
+        description="Create a balanced combat encounter with monsters, terrain, and tactics"
+        onGenerated={(content) => {
+          setAiDialogOpen(false);
+          setCreateDialogOpen(true);
+        }}
+      />
     </div>
   );
 }

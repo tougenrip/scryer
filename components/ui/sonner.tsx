@@ -7,11 +7,16 @@ import {
   OctagonXIcon,
   TriangleAlertIcon,
 } from "lucide-react"
-import { useTheme } from "next-themes"
+import { useDisplaySafe, COLOR_THEMES } from "@/contexts/display-context"
 import { Toaster as Sonner, type ToasterProps } from "sonner"
 
 const Toaster = ({ ...props }: ToasterProps) => {
-  const { theme = "system" } = useTheme()
+  const displayCtx = useDisplaySafe()
+  const theme = displayCtx
+    ? COLOR_THEMES[displayCtx.settings.colorTheme].mode === "dark"
+      ? "dark"
+      : "light"
+    : "dark"
 
   return (
     <Sonner

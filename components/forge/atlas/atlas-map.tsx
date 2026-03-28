@@ -28,6 +28,7 @@ import {
   DiamondIcon,
   SquareIcon,
   TriangleIcon,
+  BookmarkIcon,
   AxeIcon,
   PotionIcon,
   MoonStarIcon,
@@ -169,14 +170,12 @@ export function AtlasMap({
 
   // Handle zoom with mouse wheel
   useEffect(() => {
-    if (!containerRef.current || !isDm || !imageUrl) return;
+    if (!containerRef.current || !imageUrl) return;
 
     const container = containerRef.current;
     
     const handleWheel = (e: WheelEvent) => {
-      // Only zoom with Ctrl/Cmd + wheel, or just wheel when holding shift
-      if (!e.ctrlKey && !e.metaKey && !e.shiftKey) return;
-      
+      // Allow zoom with just mouse wheel (no modifier key required)
       e.preventDefault();
       e.stopPropagation();
       
@@ -210,7 +209,7 @@ export function AtlasMap({
 
     container.addEventListener('wheel', handleWheel, { passive: false });
     return () => container.removeEventListener('wheel', handleWheel);
-  }, [zoom, pan, isDm, imageUrl, containerSize]);
+  }, [zoom, pan, imageUrl, containerSize]);
 
   // Reset zoom and pan (center image)
   const handleResetZoom = (e?: React.MouseEvent) => {
@@ -437,6 +436,7 @@ export function AtlasMap({
     diamond: DiamondIcon,
     square: SquareIcon,
     triangle: TriangleIcon,
+    bookmark: BookmarkIcon,
   };
 
   // Icon type definitions matching marker-form-dialog.tsx
@@ -504,25 +504,27 @@ export function AtlasMap({
     
     // Parse color - support both JSON format and plain string (backward compatibility)
     let color = defaultColors[iconType || 'landmark'] || '#c9b882';
-    let outlineColor = '#000000';
-    let iconColor = color;
+    let outlineColor = '#ffffff'; // White outline for better contrast
+    // Icons should always be filled with the selected color
+    let iconColor = defaultColors[iconType || 'landmark'] || '#c9b882';
     
     if (markerColor) {
       try {
         const parsedColor = JSON.parse(markerColor);
         if (parsedColor.fill) {
           color = parsedColor.fill;
-          outlineColor = parsedColor.outline || '#000000';
-          iconColor = parsedColor.icon || parsedColor.fill;
+          outlineColor = parsedColor.outline || '#ffffff'; // Default to white for contrast
+          // Use explicit icon color, or default to white for contrast with background
+          iconColor = parsedColor.icon || '#ffffff'; // White icon for visibility
         } else {
           // If JSON but no fill, treat as plain string
           color = markerColor;
-          iconColor = markerColor;
+          iconColor = '#ffffff'; // Use white for icon to contrast with background
         }
       } catch {
         // If not JSON, treat as plain color string (backward compatibility)
         color = markerColor;
-        iconColor = markerColor;
+        iconColor = '#ffffff'; // Use white for icon to contrast with background
       }
     }
     
@@ -656,9 +658,9 @@ export function AtlasMap({
                 const tooltipDescription = marker.description;
 
                 const sizePixels = {
-                  small: { container: 24, icon: 14, background: 31 }, // Smaller icon only
-                  medium: { container: 32, icon: 20, background: 42 }, // Smaller icon only
-                  large: { container: 40, icon: 26, background: 52 }, // Smaller icon only
+                  small: { container: 20, icon: 12, background: 26 }, // Smaller markers
+                  medium: { container: 28, icon: 16, background: 36 }, // Smaller markers
+                  large: { container: 36, icon: 20, background: 46 }, // Smaller markers
                 };
                 const sizes = sizePixels[marker.size];
                 const sizeClasses = {
@@ -687,39 +689,71 @@ export function AtlasMap({
                           e.stopPropagation();
                         }}
                       >
-                        <div className="relative flex items-center justify-center" style={{ width: sizes.container, height: sizes.container }}>
-                          {/* Background shape - made bigger to avoid collision with icons */}
-                          {BackgroundComponent && (
-                            <div className="absolute inset-0 flex items-center justify-center">
-                              <BackgroundComponent
-                                style={{
-                                  width: sizes.background,
-                                  height: sizes.background,
-                                  fill: color,
-                                  stroke: outlineColor,
-                                  strokeWidth: 2.5,
-                                  strokeLinejoin: 'round',
-                                  strokeLinecap: 'round',
-                                  color: color,
-                                }}
-                              />
+                        {(() => {
+                          // Bookmark and triangle need larger container to accommodate their preview-sized backgrounds
+                          const isBookmarkOrTriangle = marker.background_shape === 'bookmark' || marker.background_shape === 'triangle';
+                          const containerWidth = isBookmarkOrTriangle 
+                            ? { small: 40, medium: 56, large: 72 }[marker.size] // Match preview container sizes (reduced)
+                            : sizes.container;
+                          
+                          return (
+                            <div className="relative flex items-center justify-center" style={{ width: containerWidth, height: containerWidth }}>
+                              {/* Background shape - made bigger to avoid collision with icons */}
+                              {BackgroundComponent && (() => {
+                                // Adjust vertical position based on shape type
+                                let verticalOffset = 0;
+                                if (marker.background_shape === 'triangle') {
+                                  verticalOffset = -4; // Move triangle higher
+                                } else if (marker.background_shape === 'bookmark') {
+                                  verticalOffset = 4; // Move bookmark lower
+                                }
+                                
+                                // Bookmark and triangle use same size as container to match preview (1:1 ratio)
+                                const backgroundSize = isBookmarkOrTriangle
+                                  ? containerWidth  // Same as container for bookmark/triangle to match preview
+                                  : sizes.background;
+                                
+                                return (
+                                  <div 
+                                    className="absolute inset-0 flex items-center justify-center"
+                                    style={{
+                                      transform: verticalOffset !== 0 ? `translateY(${verticalOffset}px)` : undefined
+                                    }}
+                                  >
+                                    <BackgroundComponent
+                                      style={{
+                                        width: backgroundSize,
+                                        height: backgroundSize,
+                                        fill: color,
+                                        stroke: outlineColor,
+                                        strokeWidth: 1.5,
+                                        strokeLinejoin: 'round',
+                                        strokeLinecap: 'round',
+                                        color: color,
+                                      }}
+                                    />
+                                  </div>
+                                );
+                              })()}
+                              {/* Icon */}
+                              <div className="relative z-10 flex items-center justify-center">
+                                <IconComponent
+                                  className={cn("drop-shadow-lg", sizeClassNames.icon)}
+                                  style={{ 
+                                    width: sizes.icon,
+                                    height: sizes.icon,
+                                    color: iconColor, // Icon color
+                                    fill: iconColor, // Icon color fill
+                                    stroke: outlineColor, // Outline color
+                                    strokeWidth: 1.5,
+                                    strokeLinejoin: 'round',
+                                    strokeLinecap: 'round'
+                                  }}
+                                />
+                              </div>
                             </div>
-                          )}
-                          {/* Icon */}
-                          <div className="relative z-10 flex items-center justify-center">
-                            <IconComponent
-                              className={cn("drop-shadow-lg", sizeClassNames.icon)}
-                              style={{ 
-                                color: iconColor, // Icon color
-                                fill: iconColor, // Icon color fill
-                                stroke: outlineColor, // Outline color
-                                strokeWidth: 2.5,
-                                strokeLinejoin: 'round',
-                                strokeLinecap: 'round'
-                              }}
-                            />
-                          </div>
-                        </div>
+                          );
+                        })()}
                       </div>
                     </TooltipTrigger>
                     {(tooltipText || tooltipDescription) && (
