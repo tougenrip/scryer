@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { ThemeSwitcher } from "@/components/theme-switcher";
 import { UserMenu } from "@/components/shared/user-menu";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
-import { Menu, Sparkles } from "lucide-react";
+import { Menu, Palette } from "lucide-react";
 import { useState } from "react";
 import { Logo } from "./logo";
+import { TweaksPanel } from "./tweaks-panel";
+import { useRole } from "@/contexts/role-context";
 
 interface NavbarProps {
   user?: {
@@ -18,6 +19,8 @@ interface NavbarProps {
 
 export function Navbar({ user }: NavbarProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [tweaksOpen, setTweaksOpen] = useState(false);
+  const { isDM } = useRole();
 
   const navLinks = [
     { href: "/campaigns", label: "Campaigns" },
@@ -48,8 +51,23 @@ export function Navbar({ user }: NavbarProps) {
 
         {/* Right Side Actions */}
         <div className="flex items-center gap-2">
-          <ThemeSwitcher />
-          
+          {user && (
+            <span
+              className={`sc-badge${isDM ? " sc-badge-dm" : ""}`}
+              title={isDM ? "DM view" : "Player view"}
+            >
+              {isDM ? "DM view" : "Player view"}
+            </span>
+          )}
+          <button
+            className="sc-btn sc-btn-ghost sc-btn-icon"
+            onClick={() => setTweaksOpen((v) => !v)}
+            aria-label="Open tweaks"
+            title="Tweaks"
+          >
+            <Palette size={16} />
+          </button>
+
           {/* Desktop Auth/User */}
           <div className="hidden md:flex items-center gap-2">
             {user ? (
@@ -112,6 +130,7 @@ export function Navbar({ user }: NavbarProps) {
           </Sheet>
         </div>
       </div>
+      <TweaksPanel open={tweaksOpen} onClose={() => setTweaksOpen(false)} />
     </header>
   );
 }

@@ -1,8 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   useCampaignQuests,
@@ -126,54 +124,97 @@ export function QuestBoardTab({ campaignId, isDm }: QuestBoardTabProps) {
 
   if (loading) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {[1, 2, 3].map((i) => (
-          <Card key={i} className="h-64">
-            <CardContent className="p-0">
-              <Skeleton className="h-full w-full" />
-            </CardContent>
-          </Card>
-        ))}
+      <div style={{ padding: "16px 20px" }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
+            gap: 12,
+          }}
+        >
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="sc-card" style={{ padding: 14 }}>
+              <Skeleton className="h-6 w-32 mb-2" />
+              <Skeleton className="h-4 w-full mb-2" />
+              <Skeleton className="h-4 w-5/6" />
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div style={{ padding: "16px 20px" }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: 14,
+          flexWrap: "wrap",
+          gap: 10,
+        }}
+      >
         <div>
-          <h2 className="font-serif text-2xl font-semibold">Quest Board</h2>
-          <p className="text-muted-foreground text-sm">
-            Quests and side quests available in the campaign
-          </p>
+          <div className="font-serif" style={{ fontSize: 20 }}>
+            Quest Board
+          </div>
+          <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
+            {quests.length} quest{quests.length === 1 ? "" : "s"} — hooks, side
+            quests, and long-term arcs
+          </div>
         </div>
         {isDm && userId && (
-          <div className="flex items-center gap-2">
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
             {canUseAI && (
-              <Button variant="outline" onClick={() => setAiDialogOpen(true)}>
-                <Sparkles className="h-4 w-4 mr-2" />
-                Generate with AI
-              </Button>
+              <button
+                type="button"
+                className="sc-btn sc-btn-sm"
+                onClick={() => setAiDialogOpen(true)}
+              >
+                <Sparkles size={12} />
+                AI
+              </button>
             )}
-            <Button onClick={() => setCreateDialogOpen(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Quest
-            </Button>
+            <button
+              type="button"
+              className="sc-btn sc-btn-primary sc-btn-sm"
+              onClick={() => setCreateDialogOpen(true)}
+            >
+              <Plus size={12} />
+              New quest
+            </button>
           </div>
         )}
       </div>
 
       {quests.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <ScrollText className="h-16 w-16 text-muted-foreground/50 mb-4" />
-            <p className="text-muted-foreground text-center">
-              No quests yet. {isDm && "Add your first quest to get started."}
-            </p>
-          </CardContent>
-        </Card>
+        <div className="sc-card" style={{ padding: 40 }}>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              textAlign: "center",
+              color: "var(--muted-foreground)",
+            }}
+          >
+            <ScrollText size={48} style={{ opacity: 0.5, marginBottom: 10 }} />
+            <div>
+              No quests yet.
+              {isDm && " Add your first quest to get started."}
+            </div>
+          </div>
+        </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
+            gap: 12,
+          }}
+        >
           {quests.map((quest) => (
             <QuestNote
               key={quest.id}

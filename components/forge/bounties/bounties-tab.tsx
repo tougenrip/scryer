@@ -1,8 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   useCampaignBounties,
@@ -127,115 +125,153 @@ export function BountiesTab({ campaignId, isDm }: BountiesTabProps) {
 
   if (loading) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {[1, 2, 3].map((i) => (
-          <Card key={i} className="h-64">
-            <CardContent className="p-0">
-              <Skeleton className="h-full w-full" />
-            </CardContent>
-          </Card>
-        ))}
+      <div style={{ padding: "16px 20px" }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
+            gap: 12,
+          }}
+        >
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="sc-card" style={{ padding: 14 }}>
+              <Skeleton className="h-48 w-full" />
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
 
-  // Filter bounties by status for display
-  const availableBounties = bounties.filter(b => b.status === 'available');
-  const claimedBounties = bounties.filter(b => b.status === 'claimed');
-  const completedBounties = bounties.filter(b => b.status === 'completed');
+  const availableBounties = bounties.filter((b) => b.status === "available");
+  const claimedBounties = bounties.filter((b) => b.status === "claimed");
+  const completedBounties = bounties.filter((b) => b.status === "completed");
+
+  const renderSection = (title: string, list: typeof bounties, accent: string) => (
+    <div style={{ marginBottom: 24 }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          marginBottom: 10,
+        }}
+      >
+        <span
+          style={{
+            width: 6,
+            height: 6,
+            borderRadius: 99,
+            background: accent,
+          }}
+        />
+        <div className="sc-label">{title}</div>
+        <div
+          style={{
+            fontSize: 11,
+            color: "var(--muted-foreground)",
+            fontVariantNumeric: "tabular-nums",
+          }}
+        >
+          {list.length}
+        </div>
+      </div>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
+          gap: 12,
+        }}
+      >
+        {list.map((bounty) => (
+          <BountyCard
+            key={bounty.id}
+            bounty={bounty}
+            isDm={isDm}
+            onEdit={isDm ? (b) => setEditingBounty(b) : undefined}
+            onDelete={isDm ? (id) => setDeletingBountyId(id) : undefined}
+            onStatusChange={
+              isDm
+                ? (id, status) => handleUpdate(id, { status })
+                : undefined
+            }
+          />
+        ))}
+      </div>
+    </div>
+  );
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div style={{ padding: "16px 20px" }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: 14,
+          flexWrap: "wrap",
+          gap: 10,
+        }}
+      >
         <div>
-          <h2 className="font-serif text-2xl font-semibold">Bounty Board</h2>
-          <p className="text-muted-foreground text-sm">
-            Track bounties on NPCs, monsters, and other targets
-          </p>
+          <div className="font-serif" style={{ fontSize: 20 }}>
+            The Bounty Board
+          </div>
+          <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
+            {bounties.length} posting{bounties.length === 1 ? "" : "s"} — track
+            targets, rewards, and claims
+          </div>
         </div>
         {isDm && userId && (
-          <div className="flex items-center gap-2">
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
             {canUseAI && (
-              <Button variant="outline" onClick={() => setAiDialogOpen(true)}>
-                <Sparkles className="h-4 w-4 mr-2" />
-                Generate with AI
-              </Button>
+              <button
+                type="button"
+                className="sc-btn sc-btn-sm"
+                onClick={() => setAiDialogOpen(true)}
+              >
+                <Sparkles size={12} />
+                AI
+              </button>
             )}
-            <Button onClick={() => setCreateDialogOpen(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Bounty
-            </Button>
+            <button
+              type="button"
+              className="sc-btn sc-btn-primary sc-btn-sm"
+              onClick={() => setCreateDialogOpen(true)}
+            >
+              <Plus size={12} />
+              Post bounty
+            </button>
           </div>
         )}
       </div>
 
       {bounties.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <Target className="h-16 w-16 text-muted-foreground/50 mb-4" />
-            <p className="text-muted-foreground text-center">
-              No bounties yet. {isDm && "Add your first bounty to get started."}
-            </p>
-          </CardContent>
-        </Card>
+        <div className="sc-card" style={{ padding: 40 }}>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              textAlign: "center",
+              color: "var(--muted-foreground)",
+            }}
+          >
+            <Target size={48} style={{ opacity: 0.5, marginBottom: 10 }} />
+            <div>
+              No bounties yet.
+              {isDm && " Add your first bounty to get started."}
+            </div>
+          </div>
+        </div>
       ) : (
-        <div className="space-y-8">
-          {/* Available Bounties */}
-          {availableBounties.length > 0 && (
-            <div>
-              <h3 className="text-lg font-semibold mb-4">Available</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {availableBounties.map((bounty) => (
-                  <BountyCard
-                    key={bounty.id}
-                    bounty={bounty}
-                    isDm={isDm}
-                    onEdit={isDm ? (b) => setEditingBounty(b) : undefined}
-                    onDelete={isDm ? (id) => setDeletingBountyId(id) : undefined}
-                    onStatusChange={isDm ? (id, status) => handleUpdate(id, { status }) : undefined}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Claimed Bounties */}
-          {claimedBounties.length > 0 && (
-            <div>
-              <h3 className="text-lg font-semibold mb-4">Claimed</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {claimedBounties.map((bounty) => (
-                  <BountyCard
-                    key={bounty.id}
-                    bounty={bounty}
-                    isDm={isDm}
-                    onEdit={isDm ? (b) => setEditingBounty(b) : undefined}
-                    onDelete={isDm ? (id) => setDeletingBountyId(id) : undefined}
-                    onStatusChange={isDm ? (id, status) => handleUpdate(id, { status }) : undefined}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Completed Bounties */}
-          {completedBounties.length > 0 && (
-            <div>
-              <h3 className="text-lg font-semibold mb-4">Completed</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {completedBounties.map((bounty) => (
-                  <BountyCard
-                    key={bounty.id}
-                    bounty={bounty}
-                    isDm={isDm}
-                    onEdit={isDm ? (b) => setEditingBounty(b) : undefined}
-                    onDelete={isDm ? (id) => setDeletingBountyId(id) : undefined}
-                    onStatusChange={isDm ? (id, status) => handleUpdate(id, { status }) : undefined}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
+        <div>
+          {availableBounties.length > 0 &&
+            renderSection("Available", availableBounties, "#d6a85a")}
+          {claimedBounties.length > 0 &&
+            renderSection("Claimed", claimedBounties, "var(--primary)")}
+          {completedBounties.length > 0 &&
+            renderSection("Completed", completedBounties, "var(--muted-foreground)")}
         </div>
       )}
 

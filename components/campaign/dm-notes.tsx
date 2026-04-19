@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Textarea } from "@/components/ui/textarea";
+import { RichTextEditor } from "@/components/shared/rich-text-editor";
 import { Button } from "@/components/ui/button";
 import { Save, Lock, Globe } from "lucide-react";
 import { toast } from "sonner";
@@ -92,12 +92,13 @@ export function DmNotes({
                 Public notes are visible to all campaign members. Use this for shared information,
                 reminders, or campaign updates.
               </p>
-              <Textarea
+              <RichTextEditor
                 value={publicNotesValue}
-                onChange={(e) => setPublicNotesValue(e.target.value)}
+                onChange={setPublicNotesValue}
                 placeholder="Enter public notes that all players can see..."
-                className="min-h-[300px] font-mono text-sm"
+                campaignId={campaignId}
                 disabled={saving || loading}
+                minHeight="300px"
               />
             </div>
           </TabsContent>
@@ -107,12 +108,13 @@ export function DmNotes({
                 Private notes are only visible to you (the DM). Use this for plot secrets,
                 NPC motivations, encounter planning, or personal reminders.
               </p>
-              <Textarea
+              <RichTextEditor
                 value={privateNotesValue}
-                onChange={(e) => setPrivateNotesValue(e.target.value)}
+                onChange={setPrivateNotesValue}
                 placeholder="Enter private notes only you can see..."
-                className="min-h-[300px] font-mono text-sm"
+                campaignId={campaignId}
                 disabled={saving || loading}
+                minHeight="300px"
               />
             </div>
           </TabsContent>

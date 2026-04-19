@@ -26,6 +26,12 @@
     "paths": {
       "@/*": [
         "./*"
+      ],
+      "dnd-icons": [
+        "./lib/stubs/dnd-icons/index.ts"
+      ],
+      "dnd-icons/*": [
+        "./lib/stubs/dnd-icons/*"
       ]
     }
   },

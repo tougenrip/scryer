@@ -257,11 +257,47 @@
 }
 
 /* ============================================
-   SHARED DEFAULTS — font stacks, radius, spacing
-   Applied to :root so themes inherit them if
-   they don't override
+   SHARED DEFAULTS + FALLBACK COLORS
+   :root sets Obsidian colors as fallback before
+   DisplayProvider applies a theme class.
+   Theme classes use :root.theme-* which has
+   higher specificity and overrides these.
    ============================================ */
 :root {
+  /* Fallback colors (Obsidian) */
+  --background: rgb(17, 17, 17);
+  --foreground: rgb(235, 232, 225);
+  --card: rgb(26, 26, 26);
+  --card-foreground: rgb(240, 238, 232);
+  --popover: rgb(30, 30, 30);
+  --popover-foreground: rgb(235, 232, 225);
+  --primary: rgb(201, 168, 76);
+  --primary-foreground: rgb(17, 15, 10);
+  --secondary: rgb(42, 40, 36);
+  --secondary-foreground: rgb(220, 215, 205);
+  --muted: rgb(35, 34, 32);
+  --muted-foreground: rgb(156, 150, 138);
+  --accent: rgb(50, 47, 42);
+  --accent-foreground: rgb(220, 215, 205);
+  --destructive: rgb(220, 80, 60);
+  --destructive-foreground: rgb(17, 15, 10);
+  --border: rgb(45, 43, 40);
+  --input: rgb(32, 31, 29);
+  --ring: rgb(201, 168, 76);
+  --chart-1: rgb(201, 168, 76);
+  --chart-2: rgb(120, 160, 120);
+  --chart-3: rgb(180, 140, 100);
+  --chart-4: rgb(130, 150, 170);
+  --chart-5: rgb(175, 125, 90);
+  --sidebar: rgb(12, 12, 12);
+  --sidebar-foreground: rgb(235, 232, 225);
+  --sidebar-primary: rgb(201, 168, 76);
+  --sidebar-primary-foreground: rgb(17, 15, 10);
+  --sidebar-accent: rgb(40, 38, 35);
+  --sidebar-accent-foreground: rgb(220, 215, 205);
+  --sidebar-border: rgb(38, 36, 33);
+  --sidebar-ring: rgb(201, 168, 76);
+  /* Shared defaults */
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --font-serif: var(--font-cinzel), "Palatino Linotype", serif;
   --font-mono: "Fira Code", ui-monospace, monospace;
@@ -321,4 +357,747 @@
 .prose-generated h2:first-child,
 .prose-generated h3:first-child {
   margin-top: 0;
+}
+
+/* ============================================
+   ENTITY PAGE PROSE SYSTEM
+   A clean, readable typography system for
+   rendered markdown in entity detail pages.
+   Inspired by LegendKeeper's content layout.
+   ============================================ */
+
+.prose-entity {
+  max-width: none;
+  color: var(--foreground);
+  font-size: 0.9375rem;
+  line-height: 1.75;
+}
+
+.prose-entity h1 {
+  font-family: var(--font-serif);
+  font-size: 1.75rem;
+  font-weight: 700;
+  margin-top: 2.5rem;
+  margin-bottom: 1rem;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+}
+
+.prose-entity h2 {
+  font-family: var(--font-serif);
+  font-size: 1.375rem;
+  font-weight: 700;
+  margin-top: 2rem;
+  margin-bottom: 0.75rem;
+  line-height: 1.35;
+  letter-spacing: -0.005em;
+}
+
+.prose-entity h3 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin-top: 1.5rem;
+  margin-bottom: 0.5rem;
+  line-height: 1.4;
+}
+
+.prose-entity h4 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-top: 1.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.prose-entity h1:first-child,
+.prose-entity h2:first-child,
+.prose-entity h3:first-child,
+.prose-entity h4:first-child {
+  margin-top: 0;
+}
+
+.prose-entity p {
+  margin-bottom: 1.25rem;
+  line-height: 1.75;
+}
+
+.prose-entity p:last-child {
+  margin-bottom: 0;
+}
+
+.prose-entity strong {
+  font-weight: 700;
+  color: var(--foreground);
+}
+
+.prose-entity em {
+  font-style: italic;
+}
+
+.prose-entity ul {
+  list-style-type: disc;
+  padding-left: 1.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.prose-entity ol {
+  list-style-type: decimal;
+  padding-left: 1.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.prose-entity li {
+  margin-bottom: 0.375rem;
+  line-height: 1.65;
+}
+
+.prose-entity blockquote {
+  border-left: 3px solid var(--primary);
+  padding: 0.75rem 1.25rem;
+  margin: 1.5rem 0;
+  background: color-mix(in srgb, var(--primary) 5%, transparent);
+  border-radius: 0 0.375rem 0.375rem 0;
+  font-style: italic;
+  color: var(--foreground);
+}
+
+.prose-entity blockquote p {
+  margin-bottom: 0;
+}
+
+.prose-entity a {
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  transition: opacity 0.15s;
+}
+
+.prose-entity a:hover {
+  opacity: 0.8;
+}
+
+.prose-entity hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 2rem 0;
+}
+
+.prose-entity code {
+  background: var(--muted);
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.25rem;
+  font-size: 0.875em;
+  font-family: var(--font-mono);
+}
+
+.prose-entity pre {
+  background: var(--muted);
+  padding: 1rem;
+  border-radius: 0.5rem;
+  overflow-x: auto;
+  margin: 1.25rem 0;
+}
+
+.prose-entity pre code {
+  background: none;
+  padding: 0;
+}
+
+/* ────────────────────────────────────────────
+   SECRET CALLOUT
+   Dashed-border block for DM secrets,
+   matching LegendKeeper's style.
+   ──────────────────────────────────────────── */
+
+.secret-callout {
+  border: 2px dashed color-mix(in srgb, var(--primary) 40%, transparent);
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+  background: color-mix(in srgb, var(--primary) 4%, transparent);
+  position: relative;
+}
+
+.secret-callout .secret-label {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--primary);
+  margin-bottom: 0.5rem;
+  letter-spacing: 0.025em;
+}
+
+.secret-callout p {
+  color: var(--muted-foreground);
+  font-size: 0.9375rem;
+  line-height: 1.65;
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+/* ────────────────────────────────────────────
+   FEATURE GRID
+   3-column layout for sub-entities/features,
+   like LegendKeeper's item cards.
+   ──────────────────────────────────────────── */
+
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(1, 1fr);
+  gap: 1.5rem;
+}
+
+@media (min-width: 640px) {
+  .feature-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  .feature-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.feature-card {
+  padding: 1.25rem;
+  border-radius: 0.75rem;
+  background: color-mix(in srgb, var(--muted) 50%, transparent);
+  transition: background-color 0.2s, transform 0.15s;
+}
+
+.feature-card:hover {
+  background: var(--muted);
+  transform: translateY(-1px);
+}
+
+.feature-card .feature-icon {
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 0.75rem;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--primary) 15%, transparent), color-mix(in srgb, var(--primary) 8%, transparent));
+}
+
+.feature-card h4 {
+  font-weight: 600;
+  font-size: 1rem;
+  margin-bottom: 0.375rem;
+}
+
+.feature-card p {
+  font-size: 0.8125rem;
+  color: var(--muted-foreground);
+  line-height: 1.55;
+}
+
+/* ────────────────────────────────────────────
+   ENTITY PAGE LAYOUT UTILITIES
+   ──────────────────────────────────────────── */
+
+/* Hero header gradient overlay */
+.entity-hero-gradient {
+  background: linear-gradient(
+    to top,
+    var(--background) 0%,
+    color-mix(in srgb, var(--background) 85%, transparent) 30%,
+    color-mix(in srgb, var(--background) 40%, transparent) 60%,
+    transparent 100%
+  );
+}
+
+/* Right sidebar section label */
+.sidebar-section-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted-foreground);
+  margin-bottom: 0.75rem;
+}
+
+/* Right sidebar section divider */
+.sidebar-divider {
+  border: none;
+  border-top: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+  margin: 0;
+}
+
+/* Entity tab bar styling */
+.entity-tabs [role="tablist"] {
+  background: color-mix(in srgb, var(--background) 80%, transparent);
+  backdrop-filter: blur(8px);
+  border-radius: 0.5rem;
+  padding: 0.1875rem;
+}
+
+.entity-tabs [role="tab"] {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  padding: 0.375rem 0.75rem;
+  border-radius: 0.375rem;
+  transition: all 0.15s;
+}
+
+/* Right sidebar portrait */
+.entity-portrait {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 0.75rem;
+  object-fit: cover;
+  border: 2px solid var(--border);
+}
+
+/* Tag chip styling */
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.625rem;
+  border-radius: 9999px;
+  background: var(--secondary);
+  color: var(--secondary-foreground);
+  font-size: 0.75rem;
+  font-weight: 500;
+  transition: background-color 0.15s;
+}
+
+.tag-chip:hover {
+  background: var(--accent);
+}
+
+.tag-chip .tag-remove {
+  opacity: 0.6;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.tag-chip .tag-remove:hover {
+  opacity: 1;
+}
+
+/* Backlink item styling */
+.backlink-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 0;
+  font-size: 0.8125rem;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.backlink-item:hover {
+  color: var(--foreground);
+}
+
+.backlink-item .backlink-icon {
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+
+/* Section spacing for entity pages */
+.entity-section + .entity-section {
+  margin-top: 2.5rem;
+}
+
+/* ============================================
+   SCRYER DESIGN-SYSTEM PRIMITIVES (sc-*)
+   Ported from the design handoff. Use these to
+   build reference-document-dense UI that still
+   respects the active theme tokens.
+   ============================================ */
+
+.sc-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--card-foreground);
+}
+.sc-card-hover:hover { border-color: color-mix(in srgb, var(--primary) 40%, var(--border)); }
+
+/* Collapsible details helper — rotate chevron when open, hide default marker */
+details > summary { list-style: none; }
+details > summary::-webkit-details-marker { display: none; }
+details[open] > summary .sc-details-chev { transform: rotate(90deg); }
+
+.sc-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border-radius: 6px;
+  font-weight: 500;
+  font-size: 13px;
+  border: 1px solid var(--border);
+  background: var(--secondary);
+  color: var(--secondary-foreground);
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, transform 0.06s;
+  white-space: nowrap;
+}
+.sc-btn:hover { background: var(--accent); }
+.sc-btn:active { transform: translateY(1px); }
+.sc-btn-primary {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--primary-foreground);
+}
+.sc-btn-primary:hover { background: color-mix(in srgb, var(--primary) 85%, black); }
+.sc-btn-ghost { background: transparent; border-color: transparent; }
+.sc-btn-ghost:hover { background: var(--accent); }
+.sc-btn-sm { padding: 4px 8px; font-size: 12px; }
+.sc-btn-icon { padding: 6px; }
+
+.sc-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 500;
+  background: var(--secondary);
+  color: var(--secondary-foreground);
+  border: 1px solid var(--border);
+}
+.sc-badge-primary,
+.sc-badge-dm {
+  background: color-mix(in srgb, var(--primary) 18%, transparent);
+  color: var(--primary);
+  border-color: color-mix(in srgb, var(--primary) 40%, transparent);
+}
+.sc-badge-dot::before {
+  content: '';
+  width: 6px; height: 6px; border-radius: 999px;
+  background: currentColor;
+  display: inline-block;
+}
+
+.sc-input {
+  background: var(--input);
+  border: 1px solid var(--border);
+  color: var(--foreground);
+  border-radius: 6px;
+  padding: 7px 10px;
+  font-size: 13px;
+  width: 100%;
+  outline: none;
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+.sc-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 20%, transparent); }
+
+.sc-label {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+
+.sc-divider { height: 1px; background: var(--border); border: none; margin: 0; }
+
+.sc-link { color: var(--primary); cursor: pointer; text-decoration: none; }
+.sc-link:hover { text-decoration: underline; }
+
+.sc-kbd {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--muted);
+  border: 1px solid var(--border);
+  color: var(--muted-foreground);
+}
+
+.sc-statblock { font-size: 13px; }
+.sc-statblock .stat-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 0;
+  border-bottom: 1px dashed color-mix(in srgb, var(--border) 60%, transparent);
+}
+.sc-statblock .stat-row:last-child { border-bottom: none; }
+.sc-statblock .stat-label { color: var(--muted-foreground); }
+
+.ability-tile {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  text-align: center;
+  position: relative;
+}
+.ability-tile .score { font-family: var(--font-serif); font-size: 28px; font-weight: 600; line-height: 1; }
+.ability-tile .mod { font-size: 14px; color: var(--primary); font-weight: 600; margin-top: 4px; }
+.ability-tile .label { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted-foreground); margin-bottom: 6px; }
+
+.dm-secret {
+  border: 1px dashed color-mix(in srgb, var(--primary) 45%, transparent);
+  border-radius: 8px;
+  padding: 12px 14px;
+  background: color-mix(in srgb, var(--primary) 5%, transparent);
+}
+.dm-secret .dm-secret-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--primary);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.bg-grid {
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--foreground) 4%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--foreground) 4%, transparent) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+.bg-dot {
+  background-image: radial-gradient(color-mix(in srgb, var(--foreground) 8%, transparent) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+.ph-img {
+  background:
+    repeating-linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--muted-foreground) 15%, transparent) 0 2px,
+      transparent 2px 14px
+    ),
+    color-mix(in srgb, var(--muted) 60%, var(--background));
+  display: flex; align-items: center; justify-content: center;
+  color: var(--muted-foreground);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  text-align: center;
+}
+
+.sc-tabs {
+  display: flex;
+  gap: 2px;
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.sc-tab {
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: color 0.12s, border-color 0.12s;
+}
+.sc-tab:hover { color: var(--foreground); }
+.sc-tab.active {
+  color: var(--foreground);
+  border-bottom-color: var(--primary);
+}
+
+/* Reskin shadcn Tabs to match sc-tabs pattern when wrapped in .sc-tabs-theme */
+.sc-tabs-theme [data-slot="tabs-list"] {
+  background: transparent !important;
+  height: auto !important;
+  width: 100% !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: flex-start;
+  gap: 0;
+  flex-wrap: wrap;
+}
+.sc-tabs-theme [data-slot="tabs-trigger"] {
+  background: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+  border-bottom: 2px solid transparent !important;
+  border-radius: 0 !important;
+  height: auto !important;
+  padding: 8px 12px !important;
+  color: var(--muted-foreground) !important;
+  font-weight: 500 !important;
+  font-size: 12px !important;
+  flex: 0 0 auto !important;
+  transition: color 0.12s, border-color 0.12s !important;
+}
+.sc-tabs-theme [data-slot="tabs-trigger"]:hover {
+  color: var(--foreground) !important;
+}
+.sc-tabs-theme [data-slot="tabs-trigger"][data-state="active"] {
+  color: var(--foreground) !important;
+  border-bottom-color: var(--primary) !important;
+}
+
+.dm-only { position: relative; }
+.dm-only::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--primary) 6%, transparent);
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+@keyframes sc-fade-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+.sc-fade-in { animation: sc-fade-in 0.18s ease-out; }
+
+@keyframes sc-dice-pop {
+  0% { transform: scale(0.6) rotate(-20deg); opacity: 0; }
+  70% { transform: scale(1.1) rotate(6deg); opacity: 1; }
+  100% { transform: scale(1) rotate(0); }
+}
+.sc-dice-pop { animation: sc-dice-pop 0.35s cubic-bezier(.2,.9,.3,1.3); }
+
+@keyframes sc-pulse-ring {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--primary) 40%, transparent); }
+  100% { box-shadow: 0 0 0 12px color-mix(in srgb, var(--primary) 0%, transparent); }
+}
+.sc-pulse-ring { animation: sc-pulse-ring 1.6s ease-out infinite; }
+
+.sidebar-link {
+  display: flex; align-items: center; gap: 10px;
+  padding: 7px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--sidebar-foreground);
+  cursor: pointer;
+  opacity: 0.78;
+  background: transparent;
+  border: none;
+  width: 100%;
+  text-align: left;
+  font-family: inherit;
+  transition: background-color 0.12s, opacity 0.12s, color 0.12s;
+}
+.sidebar-link:hover { background: var(--sidebar-accent); opacity: 1; }
+.sidebar-link.active {
+  background: color-mix(in srgb, var(--sidebar-primary) 15%, transparent);
+  color: var(--sidebar-primary);
+  opacity: 1;
+}
+.sidebar-link.active svg { color: var(--sidebar-primary); }
+
+.sidebar-sublink {
+  padding: 5px 10px 5px 18px;
+  font-size: 12px;
+  gap: 8px;
+  opacity: 0.72;
+}
+.sidebar-sublink svg { opacity: 0.75; }
+.sidebar-sublink .truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex: 1;
+}
+
+.sidebar-section-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 10px;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: var(--sidebar-foreground);
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  opacity: 0.78;
+  transition: background-color 0.12s, opacity 0.12s;
+  font-family: inherit;
+}
+.sidebar-section-header:hover { background: var(--sidebar-accent); opacity: 1; }
+
+.sidebar-filter {
+  width: 100%;
+  padding: 6px 8px 6px 28px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--sidebar-accent) 60%, transparent);
+  border: 1px solid var(--sidebar-border);
+  color: var(--sidebar-foreground);
+  font-size: 12px;
+  outline: none;
+  font-family: inherit;
+  transition: border-color 0.12s, background-color 0.12s;
+}
+.sidebar-filter::placeholder { color: var(--muted-foreground); }
+.sidebar-filter:focus {
+  border-color: var(--sidebar-ring);
+  background: var(--sidebar-accent);
+}
+
+.sidebar-empty {
+  padding: 6px 10px 8px 30px;
+  font-size: 11.5px;
+  color: var(--muted-foreground);
+  font-style: italic;
+}
+
+.sidebar-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  color: var(--sidebar-foreground);
+  opacity: 0.72;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background-color 0.12s, opacity 0.12s, color 0.12s;
+  position: relative;
+}
+.sidebar-icon-btn:hover {
+  background: var(--sidebar-accent);
+  opacity: 1;
+}
+.sidebar-icon-btn.active {
+  color: var(--sidebar-primary);
+  background: color-mix(in srgb, var(--sidebar-primary) 15%, transparent);
+  opacity: 1;
+}
+.sidebar-icon-btn.active::after {
+  content: "";
+  position: absolute;
+  bottom: -3px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 14px;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--sidebar-primary);
+}
+
+/* Invisible scrollbar (still scrolls) */
+.sidebar-scroll {
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.sidebar-scroll::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
 }

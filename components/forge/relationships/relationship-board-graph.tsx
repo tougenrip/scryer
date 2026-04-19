@@ -34,6 +34,8 @@ export interface RelationshipBoardConnection {
   targetId: string;
   strength: number; // 0-5 (represented as hearts)
   type: RelationshipType;
+  description?: string | null;
+  isSecret?: boolean;
 }
 
 interface RelationshipBoardGraphProps {
@@ -51,6 +53,7 @@ interface RelationshipBoardGraphProps {
   onNodeSelect?: (nodeId: string | null) => void;
   onNodeDelete?: (nodeId: string) => void;
   onConnectionDelete?: (connectionId: string) => void;
+  onConnectionEdit?: (connectionId: string) => void;
   onNodeAdd?: (entityType: 'npc' | 'faction' | 'location' | 'pantheon', entityId: string, position: { x: number; y: number }) => void;
   selectedNodeId?: string | null;
   className?: string;
@@ -67,6 +70,7 @@ function RelationshipBoardGraphInner({
   onNodeSelect,
   onNodeDelete,
   onConnectionDelete,
+  onConnectionEdit,
   onNodeAdd,
   selectedNodeId,
   className,
@@ -213,7 +217,8 @@ function RelationshipBoardGraphInner({
         data: {
           type: conn.type,
           strength,
-          isSecret: false,
+          isSecret: conn.isSecret || false,
+          description: conn.description || null,
           relationshipId: conn.id,
         } as RelationshipEdgeData,
       } as Edge<RelationshipEdgeData>;
@@ -311,6 +316,8 @@ function RelationshipBoardGraphInner({
       targetId: connection.target,
       strength: 3, // Default to 3 hearts
       type: 'neutral',
+      description: null,
+      isSecret: false,
     };
 
     onConnectionsChange([...boardConnections, newConnection]);
@@ -364,17 +371,22 @@ function RelationshipBoardGraphInner({
   }, [onConnectionDelete]);
 
   // Update edge data to include strength change handler and delete handler
-  const edgesWithHandlers = useMemo(() => {
+  const edgesWithHandlers = useMemo<Edge<RelationshipEdgeData>[]>(() => {
     return reactFlowEdges.map((edge) => ({
       ...edge,
       data: {
-        ...edge.data,
+        type: edge.data?.type || 'neutral' as RelationshipType,
+        strength: edge.data?.strength ?? 50,
+        isSecret: edge.data?.isSecret ?? false,
+        description: edge.data?.description || null,
+        relationshipId: edge.data?.relationshipId,
         onStrengthChange: (newStrength: number) => handleEdgeStrengthChange(edge.id, newStrength),
         onDelete: onConnectionDelete ? () => handleEdgeDelete(edge.id) : undefined,
+        onEdit: onConnectionEdit ? () => onConnectionEdit(edge.id) : undefined,
         isDm,
       },
     }));
-  }, [reactFlowEdges, handleEdgeStrengthChange, handleEdgeDelete, onConnectionDelete, isDm]);
+  }, [reactFlowEdges, handleEdgeStrengthChange, handleEdgeDelete, onConnectionDelete, onConnectionEdit, isDm]);
 
   useEffect(() => {
     setEdges(edgesWithHandlers);

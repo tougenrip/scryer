@@ -74,8 +74,39 @@ export interface LocationMarker {
   floor_id: string | null;
   x: number;
   y: number;
-  background_shape: 'circle' | 'diamond' | 'square' | 'triangle' | 'bookmark' | null; // Optional background
-  icon_type: 'city' | 'village' | 'fort' | 'tavern' | 'shop' | 'temple' | 'dungeon' | 'cave' | 'landmark' | 'port' | 'border' | 'axe' | 'potion' | 'moon_star' | 'star' | 'sword' | 'flag' | 'castle' | 'house' | 'globe' | 'sphere' | 'shape_square' | 'shape_diamond' | null; // Mandatory icon
+  background_shape: 'circle' | 'diamond' | 'square' | 'triangle' | 'bookmark' | 'teardrop' | null; // Optional background
+  icon_type:
+    | 'city'
+    | 'village'
+    | 'fort'
+    | 'tavern'
+    | 'shop'
+    | 'temple'
+    | 'dungeon'
+    | 'cave'
+    | 'landmark'
+    | 'port'
+    | 'border'
+    | 'axe'
+    | 'potion'
+    | 'moon_star'
+    | 'star'
+    | 'sword'
+    | 'flag'
+    | 'castle'
+    | 'house'
+    | 'globe'
+    | 'sphere'
+    | 'shape_square'
+    | 'shape_diamond'
+    | 'magic_shop'
+    | 'butcher'
+    | 'school'
+    | 'enemy'
+    | 'loot'
+    | 'quest'
+    | 'side_quest'
+    | null; // Mandatory icon
   status_icon: string | null; // Can be predefined or custom text
   name: string | null;
   description: string | null;
@@ -491,9 +522,13 @@ export function useCreateLocationMarker() {
       const supabase = createClient();
 
       // Ensure background_shape is null if undefined, empty string, or falsy
-      const backgroundShape = markerData.background_shape && ['circle', 'diamond', 'square', 'triangle', 'bookmark'].includes(markerData.background_shape)
-        ? markerData.background_shape
-        : null;
+      const backgroundShape =
+        markerData.background_shape &&
+        ['circle', 'diamond', 'square', 'triangle', 'bookmark', 'teardrop'].includes(
+          markerData.background_shape
+        )
+          ? markerData.background_shape
+          : null;
 
       const { data, error: insertError } = await supabase
         .from('location_markers')

@@ -12,7 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import { RichTextEditor } from "@/components/shared/rich-text-editor";
 import {
   Select,
   SelectContent,
@@ -25,6 +25,7 @@ import { Separator } from "@/components/ui/separator";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { WorldLocation, useFactions } from "@/hooks/useForgeContent";
+import { ParsedLocationData } from "@/lib/utils/ai-content-parser";
 import { useCampaignNPCs } from "@/hooks/useCampaignContent";
 import { useRaces } from "@/hooks/useDndContent";
 import { LocationImageUpload } from "./location-image-upload";
@@ -37,6 +38,7 @@ interface LocationFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   location: WorldLocation | null;
+  initialData?: ParsedLocationData | null;
   locations: WorldLocation[];
   campaignId: string;
   isDm?: boolean;
@@ -78,7 +80,7 @@ const getValidParentTypes = (childType: WorldLocation['type']): WorldLocation['t
     case 'poi':
       return ['world', 'continent', 'city', 'village', 'settlement', 'region', 'kingdom', 'biome', 'island'];
     case 'archipelago':
-      return ['ocean', 'sea', 'continent'];
+      return ['world', 'continent'];
     default:
       return []; // Allow any parent for unknown types
   }
@@ -88,6 +90,7 @@ export function LocationFormDialog({
   open,
   onOpenChange,
   location,
+  initialData,
   locations,
   campaignId,
   isDm = false,
@@ -165,10 +168,10 @@ export function LocationFormDialog({
       setHiddenFromPlayers(location.hidden_from_players ?? false);
       setDmNotes(location.dm_notes || "");
     } else {
-      setName("");
+      setName(initialData?.name || "");
       setType("poi");
       setParentId(null);
-      setDescription("");
+      setDescription(initialData?.description || "");
       setImageUrl(null);
       setMarkerColor("#c9b882");
       setStatus('normal');
@@ -179,13 +182,13 @@ export function LocationFormDialog({
       setDemographics([]);
       setFactionIds([]);
       setHiddenFromPlayers(true);
-      setDmNotes("");
+      setDmNotes(initialData?.dmNotes || "");
     }
     // Reset searches when dialog opens/closes
     setNpcSearch("");
     setFactionSearch("");
     setRaceSearch("");
-  }, [location, open]);
+  }, [location, initialData, open]);
 
   // Filter NPCs and Factions based on search
   const filteredNPCs = useMemo(() => {
@@ -369,12 +372,14 @@ export function LocationFormDialog({
 
             <div className="space-y-2">
               <Label htmlFor="description">Description</Label>
-              <Textarea
+              <RichTextEditor
                 id="description"
                 value={description}
-                onChange={(e) => setDescription(e.target.value)}
+                onChange={setDescription}
                 placeholder="Location description, history, notable features..."
-                rows={4}
+                campaignId={campaignId}
+                disabled={loading}
+                minHeight="120px"
               />
             </div>
 
@@ -704,13 +709,14 @@ export function LocationFormDialog({
                 
                 <div className="space-y-2">
                   <Label htmlFor="dm-notes">DM Notes</Label>
-                  <Textarea
+                  <RichTextEditor
                     id="dm-notes"
                     value={dmNotes}
-                    onChange={(e) => setDmNotes(e.target.value)}
+                    onChange={setDmNotes}
                     placeholder="Private notes for the DM only..."
-                    rows={4}
+                    campaignId={campaignId}
                     disabled={loading}
+                    minHeight="100px"
                   />
                   <p className="text-xs text-muted-foreground">
                     These notes are only visible to you and will not be shown to players.

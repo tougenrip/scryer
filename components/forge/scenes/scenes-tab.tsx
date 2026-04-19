@@ -456,6 +456,7 @@ export function ScenesTab({ campaignId, isDm }: ScenesTabProps) {
         onSave={handleMarkerSave}
         onDelete={isDm ? handleMarkerDelete : undefined}
         isDm={isDm}
+        campaignId={campaignId}
       />
 
       {/* Delete Confirmation Dialog */}

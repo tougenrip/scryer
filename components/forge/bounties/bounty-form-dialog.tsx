@@ -12,7 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { RichTextEditor } from "@/components/shared/rich-text-editor";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Bounty } from "@/hooks/useCampaignContent";
 import {
@@ -269,12 +269,14 @@ export function BountyFormDialog({
 
           <div className="space-y-2">
             <Label htmlFor="description">Description</Label>
-            <Textarea
+            <RichTextEditor
               id="description"
               value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              onChange={(value) => setFormData({ ...formData, description: value })}
               placeholder="Why is this target wanted? What did they do?"
-              rows={4}
+              campaignId={campaignId}
+              disabled={loading}
+              minHeight="120px"
             />
           </div>
 
@@ -327,12 +329,14 @@ export function BountyFormDialog({
 
               <div className="space-y-2">
                 <Label htmlFor="dm_notes">DM Notes</Label>
-                <Textarea
+                <RichTextEditor
                   id="dm_notes"
                   value={formData.dm_notes}
-                  onChange={(e) => setFormData({ ...formData, dm_notes: e.target.value })}
+                  onChange={(value) => setFormData({ ...formData, dm_notes: value })}
                   placeholder="Private notes only visible to the DM"
-                  rows={3}
+                  campaignId={campaignId}
+                  disabled={loading}
+                  minHeight="100px"
                 />
               </div>
             </div>

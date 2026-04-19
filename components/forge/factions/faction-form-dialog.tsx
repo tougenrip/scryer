@@ -12,7 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import { RichTextEditor } from "@/components/shared/rich-text-editor";
 import {
   Select,
   SelectContent,
@@ -321,12 +321,14 @@ export function FactionFormDialog({
 
               <div className="space-y-2">
                 <Label htmlFor="public-agenda">Public Agenda</Label>
-                <Textarea
+                <RichTextEditor
                   id="public-agenda"
                   value={publicAgenda}
-                  onChange={(e) => setPublicAgenda(e.target.value)}
+                  onChange={setPublicAgenda}
                   placeholder="What the faction says they want"
-                  rows={3}
+                  campaignId={campaignId}
+                  disabled={loading}
+                  minHeight="100px"
                 />
               </div>
 
@@ -335,24 +337,28 @@ export function FactionFormDialog({
                   <Label htmlFor="secret-agenda">
                     Secret Agenda <span className="text-xs text-muted-foreground">(GM Only)</span>
                   </Label>
-                  <Textarea
+                  <RichTextEditor
                     id="secret-agenda"
                     value={secretAgenda}
-                    onChange={(e) => setSecretAgenda(e.target.value)}
+                    onChange={setSecretAgenda}
                     placeholder="What the faction actually wants"
-                    rows={3}
+                    campaignId={campaignId}
+                    disabled={loading}
+                    minHeight="100px"
                   />
                 </div>
               )}
 
               <div className="space-y-2">
                 <Label htmlFor="description">Description</Label>
-                <Textarea
+                <RichTextEditor
                   id="description"
                   value={description}
-                  onChange={(e) => setDescription(e.target.value)}
+                  onChange={setDescription}
                   placeholder="General description of the faction"
-                  rows={4}
+                  campaignId={campaignId}
+                  disabled={loading}
+                  minHeight="120px"
                 />
               </div>
             </div>

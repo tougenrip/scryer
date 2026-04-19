@@ -16,7 +16,7 @@ interface SceneListProps {
   onSelectScene: (sceneId: string | null) => void;
   onCreateScene: () => void;
   onEditScene: (scene: Scene) => void;
-  onDeleteScene: (sceneId: string) => void;
+  onDeleteScene: (scene: Scene) => void;
   loading?: boolean;
   isDm: boolean;
   campaignId: string;
@@ -181,7 +181,10 @@ export function SceneList({
                         variant="ghost"
                         size="sm"
                         className="h-8 w-8 p-0"
-                        onClick={() => onEditScene(scene)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onEditScene(scene);
+                        }}
                         title="Edit scene"
                       >
                         <Edit2 className="h-3 w-3" />
@@ -190,7 +193,10 @@ export function SceneList({
                         variant="ghost"
                         size="sm"
                         className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                        onClick={() => onDeleteScene(scene.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onDeleteScene(scene);
+                        }}
                         title="Delete scene"
                       >
                         <Trash2 className="h-3 w-3" />

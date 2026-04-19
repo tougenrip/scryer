@@ -12,7 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { RichTextEditor } from "@/components/shared/rich-text-editor";
 import {
   Select,
   SelectContent,
@@ -24,6 +24,8 @@ import { NPC } from "@/hooks/useCampaignContent";
 import { useClasses, useRaces } from "@/hooks/useDndContent";
 import { MapImageUpload } from "./map-image-upload";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { CombatStatBlockEditor, CombatStats } from "./combat-stat-block-editor";
 import { NameGeneratorButton } from "@/components/shared/name-generator-button";
 import type { ParsedNPCData } from "@/lib/utils/ai-content-parser";
 
@@ -109,6 +111,8 @@ export function NPCFormDialog({
   const [speciesIndex, setSpeciesIndex] = useState<string | null>(null);
   const [isCustomSpecies, setIsCustomSpecies] = useState(false);
   const [customSpecies, setCustomSpecies] = useState("");
+
+  const [combatStats, setCombatStats] = useState<CombatStats | null>(null);
   
   // Fetch classes and races
   const { classes, loading: classesLoading } = useClasses(campaignId, null);
@@ -127,6 +131,7 @@ export function NPCFormDialog({
       setNotes(npc.notes || "");
       setImageUrl(npc.image_url || null);
       setHiddenFromPlayers(npc.hidden_from_players ?? false);
+      setCombatStats(npc.metadata?.combatStats || null);
       
       // Initialize class fields
       if (npc.custom_class) {
@@ -165,6 +170,7 @@ export function NPCFormDialog({
       setNotes(initialData.notes || "");
       setImageUrl(null);
       setHiddenFromPlayers(true);
+      setCombatStats(initialData.combatStats || null);
       
       // Set custom class if provided
       if (initialData.customClass) {
@@ -210,6 +216,7 @@ export function NPCFormDialog({
       setIsCustomSpecies(false);
       setCustomSpecies("");
       setHiddenFromPlayers(true);
+      setCombatStats(null);
     }
   }, [npc, initialData, open]);
 
@@ -238,6 +245,7 @@ export function NPCFormDialog({
         species_index: isCustomSpecies ? null : speciesIndex || null,
         custom_species: isCustomSpecies ? customSpecies.trim() || null : null,
         hidden_from_players: hiddenFromPlayers,
+        metadata: combatStats ? { ...npc?.metadata, combatStats } : npc?.metadata || {},
       };
 
       let result;
@@ -273,8 +281,15 @@ export function NPCFormDialog({
                 : "Create a new non-player character for your campaign."}
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
+          
+          <Tabs defaultValue="details" className="w-full py-4">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="details">Details & Lore</TabsTrigger>
+              <TabsTrigger value="combat">Combat Stats</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="details" className="space-y-4 mt-4 pr-1">
+              <div className="grid gap-2">
               <Label htmlFor="name">
                 Name <span className="text-destructive">*</span>
               </Label>
@@ -439,58 +454,67 @@ export function NPCFormDialog({
             </div>
             <div className="grid gap-2">
               <Label htmlFor="description">Description</Label>
-              <Textarea
+              <RichTextEditor
                 id="description"
                 value={description}
-                onChange={(e) => setDescription(e.target.value)}
+                onChange={setDescription}
                 placeholder="General description of the NPC"
-                rows={3}
+                campaignId={campaignId}
                 disabled={loading}
+                compact
+                minHeight="80px"
               />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="appearance">Appearance</Label>
-              <Textarea
+              <RichTextEditor
                 id="appearance"
                 value={appearance}
-                onChange={(e) => setAppearance(e.target.value)}
+                onChange={setAppearance}
                 placeholder="Physical appearance and notable features"
-                rows={3}
+                campaignId={campaignId}
                 disabled={loading}
+                compact
+                minHeight="80px"
               />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="personality">Personality</Label>
-              <Textarea
+              <RichTextEditor
                 id="personality"
                 value={personality}
-                onChange={(e) => setPersonality(e.target.value)}
+                onChange={setPersonality}
                 placeholder="Personality traits, quirks, and behaviors"
-                rows={3}
+                campaignId={campaignId}
                 disabled={loading}
+                compact
+                minHeight="80px"
               />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="background">Background</Label>
-              <Textarea
+              <RichTextEditor
                 id="background"
                 value={background}
-                onChange={(e) => setBackground(e.target.value)}
+                onChange={setBackground}
                 placeholder="NPC's history and backstory"
-                rows={3}
+                campaignId={campaignId}
                 disabled={loading}
+                compact
+                minHeight="80px"
               />
             </div>
             {isDm && (
               <div className="grid gap-2">
                 <Label htmlFor="notes">DM Notes</Label>
-                <Textarea
+                <RichTextEditor
                   id="notes"
                   value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
+                  onChange={setNotes}
                   placeholder="Private notes for the DM..."
-                  rows={3}
+                  campaignId={campaignId}
                   disabled={loading}
+                  minHeight="100px"
                 />
               </div>
             )}
@@ -512,7 +536,17 @@ export function NPCFormDialog({
                 </p>
               </div>
             )}
-          </div>
+            </TabsContent>
+
+            <TabsContent value="combat" className="mt-4">
+              <CombatStatBlockEditor 
+                stats={combatStats} 
+                onChange={setCombatStats} 
+                campaignId={campaignId} 
+              />
+            </TabsContent>
+          </Tabs>
+          
           <DialogFooter>
             <Button
               type="button"

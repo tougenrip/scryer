@@ -392,6 +392,7 @@ export function useCreateNPC() {
     custom_class?: string | null;
     custom_species?: string | null;
     hidden_from_players?: boolean;
+    metadata?: Record<string, any> | null;
     created_by: string;
   }) => {
     try {
@@ -442,6 +443,7 @@ export function useUpdateNPC() {
       custom_species?: string | null;
       hidden_from_players?: boolean;
       scene_id?: string | null;
+      metadata?: Record<string, any> | null;
     }
   ) => {
     try {
@@ -771,6 +773,7 @@ export function useCreateQuest() {
         name?: string | null;
         goal: string;
         status?: 'pending' | 'success' | 'failure';
+        is_hidden?: boolean;
       }>;
     }>;
   }) => {
@@ -867,6 +870,7 @@ export function useUpdateQuest() {
           name?: string | null;
           goal: string;
           status?: 'pending' | 'success' | 'failure';
+          is_hidden?: boolean;
         }>;
       }>;
     }
@@ -1088,6 +1092,7 @@ export function useCreateQuestStep() {
       objective_order: number;
       goal: string;
       status?: 'pending' | 'success' | 'failure';
+      is_hidden?: boolean;
     }>;
   }) => {
     try {
@@ -1215,6 +1220,7 @@ export function useCreateQuestObjective() {
     objective_order: number;
     goal: string;
     status?: 'pending' | 'success' | 'failure';
+    is_hidden?: boolean;
   }) => {
     try {
       setLoading(true);

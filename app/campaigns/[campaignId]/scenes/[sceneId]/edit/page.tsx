@@ -66,6 +66,11 @@ import { MarkerFormDialog } from "@/components/forge/atlas/marker-form-dialog";
 import { toast } from "sonner";
 import { useCampaign } from "@/hooks/useCampaigns";
 import { createClient } from "@/lib/supabase/client";
+import { RichTextDisplay } from "@/components/shared/rich-text-display";
+import {
+  isRichTextHtmlVisuallyEmpty,
+  richTextHtmlToPlainText,
+} from "@/lib/utils/rich-text-html";
 
 export default function SceneEditorPage() {
   const params = useParams();
@@ -341,9 +346,9 @@ export default function SceneEditorPage() {
                     }`}
                   >
                     <div className="font-medium">{s.name}</div>
-                    {s.description && (
+                    {!isRichTextHtmlVisuallyEmpty(s.description) && (
                       <div className="text-xs opacity-80 mt-1 line-clamp-2">
-                        {s.description}
+                        {richTextHtmlToPlainText(s.description ?? "")}
                       </div>
                     )}
                   </button>
@@ -381,9 +386,10 @@ export default function SceneEditorPage() {
           </Button>
           <div>
             <h1 className="font-serif text-xl font-semibold">{scene.name}</h1>
-            {scene.description && (
-              <p className="text-sm text-muted-foreground">{scene.description}</p>
-            )}
+            <RichTextDisplay
+              content={scene.description ?? ""}
+              className="text-sm text-muted-foreground prose-p:text-muted-foreground prose-headings:text-foreground max-w-2xl"
+            />
           </div>
         </div>
         <div className="flex items-center gap-2">

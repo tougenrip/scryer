@@ -1,8 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   useCampaignNPCs,
@@ -13,9 +11,10 @@ import {
 } from "@/hooks/useCampaignContent";
 import { useClasses, useRaces } from "@/hooks/useDndContent";
 import { NPCFormDialog } from "@/components/campaign/npc-form-dialog";
+import { NPCDetailsDialog } from "@/components/forge/npcs/npc-details-dialog";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
-import { Plus, User, Edit, Trash2, EyeOff, Sparkles } from "lucide-react";
+import { Plus, User, Edit, Trash2, EyeOff, Sparkles, Search } from "lucide-react";
 import { AIGenerationDialog } from "@/components/ai/ai-generation-dialog";
 import { useOllamaSafe } from "@/contexts/ollama-context";
 import { parseNPCContent, type ParsedNPCData } from "@/lib/utils/ai-content-parser";
@@ -39,10 +38,12 @@ export function NPCsTab({ campaignId, isDm }: NPCsTabProps) {
   const [userId, setUserId] = useState<string | null>(null);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editingNPC, setEditingNPC] = useState<NPC | null>(null);
+  const [viewingNPC, setViewingNPC] = useState<NPC | null>(null);
   const [deletingNPCId, setDeletingNPCId] = useState<string | null>(null);
   const [aiDialogOpen, setAiDialogOpen] = useState(false);
   const [aiGeneratedData, setAiGeneratedData] = useState<ParsedNPCData | null>(null);
-  
+  const [q, setQ] = useState("");
+
   const ollama = useOllamaSafe();
   const canUseAI = ollama?.settings.enabled && ollama?.isConnected;
 
@@ -151,119 +152,307 @@ export function NPCsTab({ campaignId, isDm }: NPCsTabProps) {
 
   if (loading) {
     return (
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
-        {[1, 2, 3, 4, 5, 6].map((i) => (
-          <Card key={i} className="h-48">
-            <CardContent className="p-0">
-              <Skeleton className="h-full w-full" />
-            </CardContent>
-          </Card>
-        ))}
+      <div style={{ padding: "16px 20px" }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+            gap: 10,
+          }}
+        >
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <div key={i} className="sc-card" style={{ padding: 0, overflow: "hidden" }}>
+              <Skeleton className="h-32 w-full" />
+              <div style={{ padding: 10 }}>
+                <Skeleton className="h-4 w-24 mb-2" />
+                <Skeleton className="h-3 w-full" />
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
 
+  const filteredNpcs = q
+    ? npcs.filter((n) => {
+        const blob = `${n.name} ${n.description || ""} ${n.location || ""}`.toLowerCase();
+        return blob.includes(q.toLowerCase());
+      })
+    : npcs;
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div style={{ padding: "16px 20px" }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: 14,
+          flexWrap: "wrap",
+          gap: 10,
+        }}
+      >
         <div>
-          <h2 className="font-serif text-2xl font-semibold">NPCs</h2>
-          <p className="text-muted-foreground text-sm">
-            Manage non-player characters for your campaign
-          </p>
+          <div className="font-serif" style={{ fontSize: 20 }}>
+            NPC Roster
+          </div>
+          <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
+            {npcs.length} character{npcs.length === 1 ? "" : "s"} — the living
+            cast of your world
+          </div>
         </div>
         {isDm && userId && (
-          <div className="flex items-center gap-2">
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
             {canUseAI && (
-              <Button variant="outline" onClick={() => setAiDialogOpen(true)}>
-                <Sparkles className="h-4 w-4 mr-2" />
-                Generate with AI
-              </Button>
+              <button
+                type="button"
+                className="sc-btn sc-btn-sm"
+                onClick={() => setAiDialogOpen(true)}
+              >
+                <Sparkles size={12} />
+                AI
+              </button>
             )}
-            <Button onClick={() => setCreateDialogOpen(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Create NPC
-            </Button>
+            <button
+              type="button"
+              className="sc-btn sc-btn-primary sc-btn-sm"
+              onClick={() => setCreateDialogOpen(true)}
+            >
+              <Plus size={12} />
+              New NPC
+            </button>
           </div>
         )}
       </div>
 
+      {npcs.length > 0 && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            marginBottom: 14,
+          }}
+        >
+          <div
+            className="sc-input"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "6px 10px",
+              flex: 1,
+              maxWidth: 360,
+            }}
+          >
+            <Search size={13} style={{ color: "var(--muted-foreground)" }} />
+            <input
+              type="text"
+              placeholder="Search NPCs..."
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              style={{
+                border: "none",
+                background: "transparent",
+                outline: "none",
+                fontSize: 12.5,
+                flex: 1,
+                color: "var(--foreground)",
+              }}
+            />
+          </div>
+        </div>
+      )}
+
       {npcs.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <User className="h-16 w-16 text-muted-foreground/50 mb-4" />
-            <p className="text-muted-foreground text-center">
-              No NPCs yet. {isDm && "Create your first NPC to get started."}
-            </p>
-          </CardContent>
-        </Card>
+        <div className="sc-card" style={{ padding: 40 }}>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              textAlign: "center",
+              color: "var(--muted-foreground)",
+            }}
+          >
+            <User size={48} style={{ opacity: 0.5, marginBottom: 10 }} />
+            <div>
+              No NPCs yet.
+              {isDm && " Create your first NPC to get started."}
+            </div>
+          </div>
+        </div>
       ) : (
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
-          {npcs.map((npc) => (
-            <Card key={npc.id} className="overflow-hidden flex flex-col h-full">
-              <CardContent className="p-0 flex flex-col h-full">
-                <div className="w-full aspect-square bg-muted overflow-hidden flex-shrink-0">
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+            gap: 10,
+          }}
+        >
+          {filteredNpcs.map((npc) => {
+            const className = getNPCClassName(npc);
+            const speciesName = getNPCSpeciesName(npc);
+            return (
+              <div
+                key={npc.id}
+                className="sc-card sc-card-hover"
+                style={{
+                  padding: 0,
+                  overflow: "hidden",
+                  cursor: "pointer",
+                  display: "flex",
+                  flexDirection: "column",
+                }}
+                onClick={() => setViewingNPC(npc)}
+              >
+                <div
+                  style={{
+                    width: "100%",
+                    aspectRatio: "1 / 1",
+                    background: "var(--muted)",
+                    overflow: "hidden",
+                    flexShrink: 0,
+                    position: "relative",
+                  }}
+                >
                   {npc.image_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={npc.image_url}
                       alt={npc.name}
-                      className="w-full h-full object-cover"
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "cover",
+                      }}
                     />
                   ) : (
-                    <div className="w-full h-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
-                      <User className="h-8 w-8 text-primary/40" />
+                    <div
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        background:
+                          "linear-gradient(135deg, color-mix(in srgb, var(--primary) 20%, var(--card)), var(--card))",
+                        display: "grid",
+                        placeItems: "center",
+                      }}
+                    >
+                      <User
+                        size={36}
+                        style={{
+                          color:
+                            "color-mix(in srgb, var(--primary) 55%, transparent)",
+                        }}
+                      />
+                    </div>
+                  )}
+                  {isDm && npc.hidden_from_players && (
+                    <div
+                      style={{
+                        position: "absolute",
+                        top: 6,
+                        right: 6,
+                        background: "rgba(0,0,0,0.6)",
+                        borderRadius: 4,
+                        padding: 4,
+                      }}
+                      title="Hidden from players"
+                    >
+                      <EyeOff size={12} style={{ color: "#facc15" }} />
                     </div>
                   )}
                 </div>
-                <div className="p-3 flex flex-col flex-1 min-h-0">
-                  <div className="space-y-2 flex-1">
-                    <div className="flex items-center justify-between">
-                      <h3 className="font-semibold text-sm leading-tight">{npc.name}</h3>
-                      {isDm && npc.hidden_from_players && (
-                        <EyeOff className="h-4 w-4 text-yellow-400" />
+                <div
+                  style={{
+                    padding: 10,
+                    display: "flex",
+                    flexDirection: "column",
+                    flex: 1,
+                    gap: 6,
+                  }}
+                >
+                  <div
+                    className="font-serif truncate"
+                    style={{ fontSize: 14 }}
+                    title={npc.name}
+                  >
+                    {npc.name}
+                  </div>
+                  {(className || speciesName) && (
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: 4,
+                        flexWrap: "wrap",
+                      }}
+                    >
+                      {speciesName && (
+                        <span className="sc-badge" style={{ fontSize: 9 }}>
+                          {speciesName}
+                        </span>
+                      )}
+                      {className && (
+                        <span className="sc-badge" style={{ fontSize: 9 }}>
+                          {className}
+                        </span>
                       )}
                     </div>
-                    {npc.description && (
-                      <p className="text-xs text-muted-foreground line-clamp-2">
-                        {npc.description}
-                      </p>
-                    )}
-                    {getNPCClassName(npc) && (
-                      <p className="text-xs text-muted-foreground">
-                        <span className="font-medium">Class:</span> {getNPCClassName(npc)}
-                      </p>
-                    )}
-                    {getNPCSpeciesName(npc) && (
-                      <p className="text-xs text-muted-foreground">
-                        <span className="font-medium">Species:</span> {getNPCSpeciesName(npc)}
-                      </p>
-                    )}
-                  </div>
+                  )}
+                  {npc.description && (
+                    <div
+                      style={{
+                        fontSize: 11,
+                        color: "var(--muted-foreground)",
+                        lineHeight: 1.45,
+                        display: "-webkit-box",
+                        WebkitBoxOrient: "vertical",
+                        WebkitLineClamp: 2,
+                        overflow: "hidden",
+                      }}
+                    >
+                      {npc.description}
+                    </div>
+                  )}
                   {isDm && (
-                    <div className="flex items-center gap-1.5 pt-2 mt-auto">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setEditingNPC(npc)}
-                        className="flex-1 h-7 text-xs px-2"
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: 4,
+                        marginTop: "auto",
+                        paddingTop: 6,
+                      }}
+                    >
+                      <button
+                        type="button"
+                        className="sc-btn sc-btn-sm sc-btn-ghost"
+                        style={{ flex: 1, justifyContent: "center" }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingNPC(npc);
+                        }}
                       >
-                        <Edit className="h-3 w-3 mr-1" />
+                        <Edit size={11} />
                         Edit
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setDeletingNPCId(npc.id)}
-                        className="text-destructive hover:text-destructive h-7 w-7 p-0"
+                      </button>
+                      <button
+                        type="button"
+                        className="sc-btn sc-btn-sm sc-btn-ghost"
+                        style={{ color: "var(--destructive)" }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeletingNPCId(npc.id);
+                        }}
                       >
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
+                        <Trash2 size={11} />
+                      </button>
                     </div>
                   )}
                 </div>
-              </CardContent>
-            </Card>
-          ))}
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -310,6 +499,14 @@ export function NPCsTab({ campaignId, isDm }: NPCsTabProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <NPCDetailsDialog
+        npc={viewingNPC}
+        open={viewingNPC !== null}
+        onOpenChange={(open) => !open && setViewingNPC(null)}
+        classNameLabel={viewingNPC ? getNPCClassName(viewingNPC) || undefined : undefined}
+        speciesLabel={viewingNPC ? getNPCSpeciesName(viewingNPC) || undefined : undefined}
+      />
 
       {/* AI Generation Dialog */}
       <AIGenerationDialog

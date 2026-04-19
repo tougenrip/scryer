@@ -12,7 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import { RichTextEditor } from "@/components/shared/rich-text-editor";
 import { Scene } from "@/hooks/useForgeContent";
 import { MapImageUpload } from "@/components/campaign/map-image-upload";
 
@@ -95,13 +95,15 @@ export function SceneFormDialog({
 
           <div className="space-y-2">
             <Label htmlFor="description">Description (Optional)</Label>
-            <Textarea
+            <RichTextEditor
               id="description"
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              onChange={setDescription}
               placeholder="Scene description or notes"
-              rows={3}
+              campaignId={campaignId}
               disabled={loading}
+              minHeight="100px"
+              compact
             />
           </div>
 

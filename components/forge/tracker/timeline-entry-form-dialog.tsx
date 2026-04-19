@@ -12,7 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import { RichTextEditor } from "@/components/shared/rich-text-editor";
 import {
   Select,
   SelectContent,
@@ -328,23 +328,25 @@ export function TimelineEntryFormDialog({
 
           <div className="space-y-2">
             <Label htmlFor="description">Description</Label>
-            <Textarea
+            <RichTextEditor
               id="description"
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              onChange={setDescription}
               placeholder="Session details, quest information, or event description..."
-              rows={6}
+              campaignId={campaignId}
+              minHeight="160px"
             />
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="notes">DM Notes</Label>
-            <Textarea
+            <RichTextEditor
               id="notes"
               value={notes}
-              onChange={(e) => setNotes(e.target.value)}
+              onChange={setNotes}
               placeholder="Private notes for the DM..."
-              rows={4}
+              campaignId={campaignId}
+              minHeight="100px"
             />
           </div>
 

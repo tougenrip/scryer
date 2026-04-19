@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Navbar } from "@/components/shared/navbar";
+import { CampaignSidebar } from "@/components/shared/sidebar";
 import { useParams, usePathname } from "next/navigation";
 import { useCampaign } from "@/hooks/useCampaigns";
 import { createClient } from "@/lib/supabase/client";
@@ -38,11 +39,17 @@ export default function CampaignLayout({
     getUser();
   }, []);
 
+  const showSidebar = !isSceneEditorPage && !isCharacterSheetPage;
+
   return (
     <div className="flex h-screen flex-col">
       {!isSceneEditorPage && <Navbar user={user} />}
 
       <div className="flex flex-1 overflow-hidden">
+        {showSidebar && (
+          <CampaignSidebar campaignId={campaignId} campaignName={campaignName} />
+        )}
+
         {/* Main Content */}
         <main className={cn(
           "flex-1 overflow-y-auto bg-background",

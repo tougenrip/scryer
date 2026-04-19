@@ -117,6 +117,7 @@ export function generateNPCPrompt(options: GeneratorOptions = {}): string {
 Respond ONLY with a valid JSON object. Do not include markdown formatting or code blocks. The JSON structure should be:
 {
   "name": "string",
+  "description": "string (1-2 sentences general overview)",
   "race": "string",
   "class": "string",
   "appearance": "string (2-3 sentences)",
@@ -126,7 +127,19 @@ Respond ONLY with a valid JSON object. Do not include markdown formatting or cod
   "secret": "string",
   "quote": "string",
   "plotHook": "string",
-  "stats": "string (suggested stat block or CR)"
+  "combatStats": {
+    "hp": "number",
+    "maxHp": "number",
+    "ac": "number",
+    "speed": "string (e.g. '30 ft.')",
+    "str": "number (1-30)",
+    "dex": "number (1-30)",
+    "con": "number (1-30)",
+    "int": "number (1-30)",
+    "wis": "number (1-30)",
+    "cha": "number (1-30)",
+    "challengeRating": "string (e.g. '1/4', '2')"
+  }
 }`);
 
   return parts.join('\n');

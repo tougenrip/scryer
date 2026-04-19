@@ -92,6 +92,33 @@ export const TriangleIcon: React.FC<IconProps> = ({ className, style }) => {
   );
 };
 
+/** Classic map pin — shared path for picker + atlas frame */
+export const TEARDROP_PIN_PATH =
+  "M12 2.8 C17 2.8 20.2 6.5 20.2 11.2 C20.2 15 18 18 12 22.8 C6 18 3.8 15 3.8 11.2 C3.8 6.5 7 2.8 12 2.8 Z";
+
+export const TeardropIcon: React.FC<IconProps> = ({ className, style }) => {
+  const fillColor = style?.fill || style?.color || 'currentColor';
+  const strokeColor = style?.stroke || '#ffffff';
+  const strokeWidth = style?.strokeWidth ? String(style.strokeWidth) : '1.5';
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+      style={style}
+    >
+      <path
+        d={TEARDROP_PIN_PATH}
+        fill={fillColor}
+        stroke={strokeColor}
+        strokeWidth={strokeWidth}
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+};
+
 export const BookmarkIcon: React.FC<IconProps> = ({ className, style }) => {
   const fillColor = style?.fill || style?.color || 'currentColor';
   const strokeColor = style?.stroke || '#ffffff';
@@ -323,6 +350,265 @@ export const GlobeIcon: React.FC<IconProps> = ({ className, style }) => {
       <path d="M2 12 L22 12" stroke={strokeColor} strokeWidth={strokeWidth} />
       <path d="M12 2 C8 4 6 8 6 12 C6 16 8 20 12 22" stroke={strokeColor} strokeWidth={strokeWidth} fill="none" />
       <path d="M12 2 C16 4 18 8 18 12 C18 16 16 20 12 22" stroke={strokeColor} strokeWidth={strokeWidth} fill="none" />
+    </svg>
+  );
+};
+
+/** Crystal ball + sparkles — arcane / magic shop */
+export const MagicShopIcon: React.FC<IconProps> = ({ className, style }) => {
+  const fillColor = style?.fill || style?.color || 'currentColor';
+  const strokeColor = style?.stroke || '#ffffff';
+  const strokeWidth = style?.strokeWidth ? String(style.strokeWidth) : '1.5';
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+      style={style}
+    >
+      <path
+        d="M6 19h12v1.5H6z M9 20.5h6"
+        fill={fillColor}
+        stroke={strokeColor}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <ellipse cx="12" cy="17" rx="5" ry="1.5" fill={fillColor} stroke={strokeColor} strokeWidth={strokeWidth} />
+      <circle cx="12" cy="10" r="5.5" fill={fillColor} stroke={strokeColor} strokeWidth={strokeWidth} />
+      <path
+        d="M10 7.5 L11 9 L10 10.5 M14 7.5 L13 9 L14 10.5 M12 6v2"
+        stroke={strokeColor}
+        strokeWidth={strokeWidth * 0.85}
+        strokeLinecap="round"
+        fill="none"
+      />
+      <path
+        d="M18 4l0.8 1.6L20.5 6l-1.7 0.4L18 8l-0.8-1.6L15.5 6l1.7-0.4z M5 3l0.5 1L6.5 4.5 5 5l-0.5-1L3.5 4.5z"
+        fill={strokeColor}
+        stroke={strokeColor}
+        strokeWidth={0.5}
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+};
+
+/** Cleaver — butcher */
+export const ButcherIcon: React.FC<IconProps> = ({ className, style }) => {
+  const fillColor = style?.fill || style?.color || 'currentColor';
+  const strokeColor = style?.stroke || '#ffffff';
+  const strokeWidth = style?.strokeWidth ? String(style.strokeWidth) : '1.5';
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+      style={style}
+    >
+      <path
+        d="M5 18 L5 14 L9 6 L11 6 L11 18 L9 18 Z"
+        fill={fillColor}
+        stroke={strokeColor}
+        strokeWidth={strokeWidth}
+        strokeLinejoin="round"
+      />
+      <circle cx="7" cy="16" r="1" fill={strokeColor} />
+      <path
+        d="M11 8 L19 4 L20 6 L12 11 Z"
+        fill={fillColor}
+        stroke={strokeColor}
+        strokeWidth={strokeWidth}
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+};
+
+/** Open book — school / academy */
+export const SchoolIcon: React.FC<IconProps> = ({ className, style }) => {
+  const fillColor = style?.fill || style?.color || 'currentColor';
+  const strokeColor = style?.stroke || '#ffffff';
+  const strokeWidth = style?.strokeWidth ? String(style.strokeWidth) : '1.5';
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+      style={style}
+    >
+      <path
+        d="M12 5 L5 8 L12 11 L19 8 Z"
+        fill={fillColor}
+        stroke={strokeColor}
+        strokeWidth={strokeWidth}
+        strokeLinejoin="round"
+      />
+      <path
+        d="M5 8 V17 L12 20 V11"
+        fill={fillColor}
+        stroke={strokeColor}
+        strokeWidth={strokeWidth}
+        strokeLinejoin="round"
+      />
+      <path
+        d="M19 8 V17 L12 20 V11"
+        fill={fillColor}
+        stroke={strokeColor}
+        strokeWidth={strokeWidth}
+        strokeLinejoin="round"
+      />
+      <line x1="12" y1="11" x2="12" y2="20" stroke={strokeColor} strokeWidth={strokeWidth} strokeLinecap="round" />
+    </svg>
+  );
+};
+
+/** Skull — enemy / danger */
+export const EnemyIcon: React.FC<IconProps> = ({ className, style }) => {
+  const fillColor = style?.fill || style?.color || 'currentColor';
+  const strokeColor = style?.stroke || '#ffffff';
+  const strokeWidth = style?.strokeWidth ? String(style.strokeWidth) : '1.5';
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+      style={style}
+    >
+      <path
+        d="M12 4 C8 4 5 7 5 11 V13 C5 14.5 5.8 15.8 7 16.5 L6.5 20 H9 L9.5 17 H14.5 L15 20 H17.5 L17 16.5 C18.2 15.8 19 14.5 19 13 V11 C19 7 16 4 12 4 Z"
+        fill={fillColor}
+        stroke={strokeColor}
+        strokeWidth={strokeWidth}
+        strokeLinejoin="round"
+      />
+      <circle cx="9" cy="11" r="1.3" fill={strokeColor} />
+      <circle cx="15" cy="11" r="1.3" fill={strokeColor} />
+      <path
+        d="M9 15 H15"
+        stroke={strokeColor}
+        strokeWidth={strokeWidth * 0.9}
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+};
+
+/** Treasure chest — loot */
+export const LootIcon: React.FC<IconProps> = ({ className, style }) => {
+  const fillColor = style?.fill || style?.color || 'currentColor';
+  const strokeColor = style?.stroke || '#ffffff';
+  const strokeWidth = style?.strokeWidth ? String(style.strokeWidth) : '1.5';
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+      style={style}
+    >
+      <path
+        d="M4 10 H20 V18 H4 Z"
+        fill={fillColor}
+        stroke={strokeColor}
+        strokeWidth={strokeWidth}
+        strokeLinejoin="round"
+      />
+      <path
+        d="M4 10 L6 6 H18 L20 10"
+        fill={fillColor}
+        stroke={strokeColor}
+        strokeWidth={strokeWidth}
+        strokeLinejoin="round"
+      />
+      <rect x="10" y="10" width="4" height="8" fill={strokeColor} opacity={0.35} />
+      <path d="M12 6 V10" stroke={strokeColor} strokeWidth={strokeWidth} strokeLinecap="round" />
+      <circle cx="12" cy="13" r="1" fill={strokeColor} />
+    </svg>
+  );
+};
+
+/** Sealed scroll — main quest */
+export const QuestIcon: React.FC<IconProps> = ({ className, style }) => {
+  const fillColor = style?.fill || style?.color || 'currentColor';
+  const strokeColor = style?.stroke || '#ffffff';
+  const strokeWidth = style?.strokeWidth ? String(style.strokeWidth) : '1.5';
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+      style={style}
+    >
+      <path
+        d="M8 3 H16 C17 3 18 4 18 5 V19 C18 20 17 21 16 21 H8 C7 21 6 20 6 19 V5 C6 4 7 3 8 3 Z"
+        fill={fillColor}
+        stroke={strokeColor}
+        strokeWidth={strokeWidth}
+        strokeLinejoin="round"
+      />
+      <path
+        d="M8 3 C8 3 9 4 12 4 C15 4 16 3 16 3"
+        fill="none"
+        stroke={strokeColor}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+      />
+      <circle cx="12" cy="12" r="3" fill="none" stroke={strokeColor} strokeWidth={strokeWidth} />
+      <path
+        d="M10.5 12 L11.5 13 L14 10.5"
+        stroke={strokeColor}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      />
+      <line x1="8" y1="16" x2="16" y2="16" stroke={strokeColor} strokeWidth={strokeWidth * 0.7} strokeLinecap="round" opacity={0.6} />
+    </svg>
+  );
+};
+
+/** Folded map with route — side quest */
+export const SideQuestIcon: React.FC<IconProps> = ({ className, style }) => {
+  const fillColor = style?.fill || style?.color || 'currentColor';
+  const strokeColor = style?.stroke || '#ffffff';
+  const strokeWidth = style?.strokeWidth ? String(style.strokeWidth) : '1.5';
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+      style={style}
+    >
+      <path
+        d="M4 6 L10 4 L14 6 L20 4 V17 L14 19 L10 17 L4 19 Z"
+        fill={fillColor}
+        stroke={strokeColor}
+        strokeWidth={strokeWidth}
+        strokeLinejoin="round"
+      />
+      <path
+        d="M10 4 V17 M14 6 V19"
+        stroke={strokeColor}
+        strokeWidth={strokeWidth * 0.85}
+        strokeLinecap="round"
+        opacity={0.5}
+      />
+      <path
+        d="M7 14 Q9 11 11 12 T15 9"
+        fill="none"
+        stroke={strokeColor}
+        strokeWidth={strokeWidth * 0.9}
+        strokeLinecap="round"
+      />
+      <circle cx="7" cy="14" r="1.2" fill={strokeColor} />
+      <circle cx="15" cy="9" r="1.2" fill={strokeColor} />
     </svg>
   );
 };

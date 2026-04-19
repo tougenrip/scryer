@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import type { Equipment } from "@/hooks/useDndContent";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -15,7 +15,50 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Navbar } from "@/components/shared/navbar";
-import { ChevronLeft, ChevronRight, Check, Upload, X, Loader2, Info, Star, Plus, Minus } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Check,
+  Upload,
+  X,
+  Loader2,
+  Info,
+  Star,
+  Plus,
+  Minus,
+  Sun,
+  Flame,
+  Hammer,
+  Leaf,
+  Wrench,
+  Mountain,
+  TreePine,
+  TreeDeciduous,
+  Home,
+  Axe,
+  User,
+  Zap,
+  Cat,
+  Bird,
+  Waves,
+  Droplets,
+  Cog,
+  Shell,
+  Snowflake,
+  Skull,
+  Sword,
+  Swords,
+  Shield,
+  Music,
+  Cross,
+  Wand2,
+  Sparkles,
+  Feather,
+  Crosshair,
+  Moon,
+  Eye,
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { useInfoSheet } from "@/hooks/useInfoSheet";
 import { InfoSheetDialog } from "@/components/shared/info-sheet-dialog";
 import { toast } from "sonner";
@@ -37,7 +80,11 @@ import {
   DND_SKILLS,
   getFullAbilityName,
 } from "@/lib/utils/character";
-import { checkMulticlassPrerequisites, getHitDiceBreakdown } from "@/lib/utils/multiclass";
+import {
+  checkMulticlassPrerequisites,
+  getHitDiceBreakdown,
+  getMulticlassPrerequisite,
+} from "@/lib/utils/multiclass";
 import type { Race, DndClass } from "@/hooks/useDndContent";
 import type { Character } from "@/hooks/useDndContent";
 
@@ -92,18 +139,40 @@ interface CharacterFormData {
     languages: string[]; // Selected language names
     tools: string[]; // Selected tool proficiencies
   };
+  description: {
+    personalityTraits: string;
+    ideals: string;
+    bonds: string;
+    flaws: string;
+    appearance: string;
+    backstory: string;
+    age: string;
+    gender: string;
+    pronouns: string;
+    eyes: string;
+    hair: string;
+    skin: string;
+    height: string;
+    weight: string;
+    faith: string;
+  };
 }
 
-const ALIGNMENTS = [
-  "Lawful Good",
-  "Neutral Good",
-  "Chaotic Good",
-  "Lawful Neutral",
-  "True Neutral",
-  "Chaotic Neutral",
-  "Lawful Evil",
-  "Neutral Evil",
-  "Chaotic Evil",
+// 3x3 alignment grid with short labels and flavor used by the picker
+const ALIGNMENT_GRID: Array<{
+  value: string;
+  abbr: string;
+  blurb: string;
+}> = [
+  { value: "Lawful Good",      abbr: "LG", blurb: "Honor & compassion" },
+  { value: "Neutral Good",     abbr: "NG", blurb: "Kindness above rules" },
+  { value: "Chaotic Good",     abbr: "CG", blurb: "Freedom & mercy" },
+  { value: "Lawful Neutral",   abbr: "LN", blurb: "Order & tradition" },
+  { value: "True Neutral",     abbr: "TN", blurb: "Balance & self" },
+  { value: "Chaotic Neutral",  abbr: "CN", blurb: "Personal liberty" },
+  { value: "Lawful Evil",      abbr: "LE", blurb: "Tyranny with rules" },
+  { value: "Neutral Evil",     abbr: "NE", blurb: "Selfish pragmatism" },
+  { value: "Chaotic Evil",     abbr: "CE", blurb: "Destructive whim" },
 ];
 
 // Standard D&D 5e languages
@@ -219,6 +288,149 @@ function parseBackgroundTools(toolStr: string | null): {
   return result;
 }
 
+// Map race index/name -> thematic lucide icon + tile accent hue.
+// Hue is a CSS hue angle used in an hsl() tile background so each race has
+// a recognizable color (e.g. Dragonborn = red, Elf = green, Tiefling = crimson).
+const RACE_VISUAL: Record<
+  string,
+  { Icon: LucideIcon; hue: number }
+> = {
+  aasimar: { Icon: Sun, hue: 48 },              // celestial light
+  dragonborn: { Icon: Flame, hue: 10 },         // dragon breath
+  dwarf: { Icon: Hammer, hue: 25 },             // smiths / miners
+  elf: { Icon: Leaf, hue: 130 },                // woodland
+  gnome: { Icon: Wrench, hue: 200 },            // tinkerer
+  goliath: { Icon: Mountain, hue: 220 },        // mountain folk
+  "half-elf": { Icon: TreePine, hue: 160 },
+  halfelf: { Icon: TreePine, hue: 160 },
+  halfling: { Icon: Home, hue: 90 },            // hobbit-holes
+  "half-orc": { Icon: Axe, hue: 100 },
+  halforc: { Icon: Axe, hue: 100 },
+  human: { Icon: User, hue: 35 },
+  tiefling: { Icon: Zap, hue: 350 },            // infernal lightning
+  firbolg: { Icon: TreeDeciduous, hue: 110 },
+  tabaxi: { Icon: Cat, hue: 30 },
+  kenku: { Icon: Bird, hue: 260 },
+  genasi: { Icon: Droplets, hue: 190 },
+  aarakocra: { Icon: Feather, hue: 205 },
+  triton: { Icon: Waves, hue: 195 },
+  tortle: { Icon: Shell, hue: 95 },
+  warforged: { Icon: Cog, hue: 0 },             // neutral (s=0)
+  bugbear: { Icon: Axe, hue: 15 },
+  goblin: { Icon: Eye, hue: 80 },
+  hobgoblin: { Icon: Swords, hue: 5 },
+  kobold: { Icon: Flame, hue: 320 },
+  lizardfolk: { Icon: Leaf, hue: 140 },
+  "yuan-ti": { Icon: Eye, hue: 150 },
+  yuanti: { Icon: Eye, hue: 150 },
+  centaur: { Icon: Crosshair, hue: 40 },
+  minotaur: { Icon: Axe, hue: 20 },
+  satyr: { Icon: Music, hue: 75 },
+  changeling: { Icon: Moon, hue: 290 },
+  kalashtar: { Icon: Sparkles, hue: 270 },
+  shifter: { Icon: Cat, hue: 50 },
+  orc: { Icon: Axe, hue: 115 },
+  "deep-gnome": { Icon: Wrench, hue: 240 },
+  deepgnome: { Icon: Wrench, hue: 240 },
+  "sea-elf": { Icon: Waves, hue: 180 },
+  seaelf: { Icon: Waves, hue: 180 },
+  "shadar-kai": { Icon: Moon, hue: 275 },
+  shadarkai: { Icon: Moon, hue: 275 },
+  eladrin: { Icon: Snowflake, hue: 205 },
+  drow: { Icon: Skull, hue: 280 },
+};
+
+// Normalize race.size (which may be stored as a numeric category code like
+// "3", "3-4", or a string like "medium") into a proper D&D size label.
+const SIZE_CATEGORY_NAMES: Record<string, string> = {
+  "1": "Tiny",
+  "2": "Small",
+  "3": "Medium",
+  "4": "Large",
+  "5": "Huge",
+  "6": "Gargantuan",
+  tiny: "Tiny",
+  small: "Small",
+  medium: "Medium",
+  large: "Large",
+  huge: "Huge",
+  gargantuan: "Gargantuan",
+  t: "Tiny",
+  s: "Small",
+  m: "Medium",
+  l: "Large",
+  h: "Huge",
+  g: "Gargantuan",
+};
+
+function formatSize(raw: string | null | undefined): string {
+  if (raw === null || raw === undefined) return "—";
+  const trimmed = String(raw).trim();
+  if (!trimmed) return "—";
+  const parts = trimmed
+    .split(/[\s/|,-]+|\bor\b/i)
+    .map((p) => p.trim())
+    .filter(Boolean);
+  const mapped = parts.map((p) => {
+    const key = p.toLowerCase();
+    return SIZE_CATEGORY_NAMES[key] || p.charAt(0).toUpperCase() + p.slice(1);
+  });
+  if (mapped.length <= 1) return mapped[0] || trimmed;
+  return mapped.join(" / ");
+}
+
+function getRaceVisual(race: Race): {
+  Icon: LucideIcon;
+  hue: number;
+  saturation: number;
+} {
+  const key = (race.index || race.name || "")
+    .toLowerCase()
+    .replace(/\s+/g, "-")
+    .replace(/[^a-z0-9-]/g, "");
+  const direct = RACE_VISUAL[key] || RACE_VISUAL[key.replace(/-/g, "")];
+  if (direct) {
+    return {
+      Icon: direct.Icon,
+      hue: direct.hue,
+      saturation: key === "warforged" ? 0 : 55,
+    };
+  }
+  let hash = 0;
+  for (let i = 0; i < key.length; i++) hash = (hash * 31 + key.charCodeAt(i)) | 0;
+  const hue = Math.abs(hash) % 360;
+  return { Icon: User, hue, saturation: 55 };
+}
+
+// Map class index -> lucide icon + accent hue so class cards get a themed avatar.
+const CLASS_VISUAL: Record<string, { Icon: LucideIcon; hue: number }> = {
+  artificer: { Icon: Wrench, hue: 35 },
+  barbarian: { Icon: Axe, hue: 10 },
+  bard: { Icon: Music, hue: 320 },
+  cleric: { Icon: Cross, hue: 48 },
+  druid: { Icon: Leaf, hue: 110 },
+  fighter: { Icon: Sword, hue: 220 },
+  monk: { Icon: Flame, hue: 180 },         // inner chi
+  paladin: { Icon: Shield, hue: 55 },
+  ranger: { Icon: Crosshair, hue: 95 },
+  rogue: { Icon: Eye, hue: 260 },
+  sorcerer: { Icon: Sparkles, hue: 350 },
+  warlock: { Icon: Skull, hue: 285 },
+  wizard: { Icon: Wand2, hue: 210 },
+};
+
+function getClassVisual(cls: DndClass): {
+  Icon: LucideIcon;
+  hue: number;
+} {
+  const key = (cls.index || cls.name || "").toLowerCase();
+  const direct = CLASS_VISUAL[key];
+  if (direct) return direct;
+  let hash = 0;
+  for (let i = 0; i < key.length; i++) hash = (hash * 31 + key.charCodeAt(i)) | 0;
+  return { Icon: Swords, hue: Math.abs(hash) % 360 };
+}
+
 export default function CharacterCreatorPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -226,14 +438,14 @@ export default function CharacterCreatorPage() {
   const editId = searchParams.get("editId");
   const isEditMode = !!editId;
 
-  const [step, setStep] = useState(isEditMode ? 2 : 0); // Start at step 0 for new characters, step 2 for edit mode
+  const [step, setStep] = useState(isEditMode ? 2 : 1); // Start at step 1 (Home) for new characters, step 2 for edit mode
   const [user, setUser] = useState<any>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [isLoadingCharacter, setIsLoadingCharacter] = useState(isEditMode);
 
   const [formData, setFormData] = useState<CharacterFormData>({
-    sourceVersion: null,
+    sourceVersion: "2024",
     characterType: campaignId ? "campaign" : null,
     campaignId: campaignId || null,
     raceSource: null,
@@ -266,6 +478,23 @@ export default function CharacterCreatorPage() {
     backgroundChoices: {
       languages: [],
       tools: [],
+    },
+    description: {
+      personalityTraits: "",
+      ideals: "",
+      bonds: "",
+      flaws: "",
+      appearance: "",
+      backstory: "",
+      age: "",
+      gender: "",
+      pronouns: "",
+      eyes: "",
+      hair: "",
+      skin: "",
+      height: "",
+      weight: "",
+      faith: "",
     },
   });
 
@@ -403,6 +632,29 @@ export default function CharacterCreatorPage() {
             backgroundTools.push(...extras.background_tools);
           }
         }
+
+        // Extract description fields from background_details
+        const bd = (char.background_details || {}) as any;
+        const bdCharacteristics = (bd.characteristics || {}) as any;
+        const arrayToLines = (v: any): string =>
+          Array.isArray(v) ? v.filter(Boolean).join("\n") : typeof v === "string" ? v : "";
+        const loadedDescription = {
+          personalityTraits: arrayToLines(bd.personality_traits),
+          ideals: arrayToLines(bd.ideals),
+          bonds: arrayToLines(bd.bonds),
+          flaws: arrayToLines(bd.flaws),
+          appearance: typeof bd.appearance === "string" ? bd.appearance : "",
+          backstory: typeof bd.backstory === "string" ? bd.backstory : "",
+          age: bdCharacteristics.age || "",
+          gender: bdCharacteristics.gender || "",
+          pronouns: bdCharacteristics.pronouns || "",
+          eyes: bdCharacteristics.eyes || "",
+          hair: bdCharacteristics.hair || "",
+          skin: bdCharacteristics.skin || "",
+          height: bdCharacteristics.height || "",
+          weight: bdCharacteristics.weight || "",
+          faith: bdCharacteristics.faith || "",
+        };
         
         // Load character classes if multiclass
         let loadedClasses: CharacterClassForm[] = [];
@@ -469,6 +721,7 @@ export default function CharacterCreatorPage() {
             languages: backgroundLanguages,
             tools: backgroundTools,
           },
+          description: loadedDescription,
         });
         setIsLoadingCharacter(false);
       }
@@ -532,12 +785,12 @@ export default function CharacterCreatorPage() {
     }
     
     // Validation for current step
-    if (step === 2 && (!formData.raceSource || !formData.raceIndex)) {
-      toast.error("Please select a race");
+    if (step === 2 && formData.classes.length === 0) {
+      toast.error("Please select at least one class");
       return;
     }
-    if (step === 3 && formData.classes.length === 0) {
-      toast.error("Please select at least one class");
+    if (step === 3 && (!formData.raceSource || !formData.raceIndex)) {
+      toast.error("Please select a species");
       return;
     }
     
@@ -548,7 +801,7 @@ export default function CharacterCreatorPage() {
   };
 
   const handleBack = () => {
-    const minStep = isEditMode ? 2 : 0; // In edit mode, don't go below step 2 (race selection)
+    const minStep = isEditMode ? 2 : 1; // In edit mode, don't go below step 2 (class selection); otherwise step 1 (Home)
     if (step > minStep) {
       setStep(step - 1);
     }
@@ -1169,23 +1422,30 @@ export default function CharacterCreatorPage() {
       }
 
       // Build background_details JSONB
+      const linesToArray = (s: string): string[] =>
+        s
+          .split("\n")
+          .map((line) => line.trim())
+          .filter(Boolean);
       const backgroundDetailsJsonb = {
-        personality_traits: [],
-        ideals: [],
-        bonds: [],
-        flaws: [],
-        appearance: "",
+        personality_traits: linesToArray(formData.description.personalityTraits),
+        ideals: linesToArray(formData.description.ideals),
+        bonds: linesToArray(formData.description.bonds),
+        flaws: linesToArray(formData.description.flaws),
+        appearance: formData.description.appearance || "",
+        backstory: formData.description.backstory || "",
         characteristics: {
           alignment: formData.alignment || null,
-          gender: "",
-          eyes: "",
+          gender: formData.description.gender || "",
+          pronouns: formData.description.pronouns || "",
+          eyes: formData.description.eyes || "",
           size: "",
-          height: "",
-          faith: "",
-          hair: "",
-          skin: "",
-          age: "",
-          weight: "",
+          height: formData.description.height || "",
+          faith: formData.description.faith || "",
+          hair: formData.description.hair || "",
+          skin: formData.description.skin || "",
+          age: formData.description.age || "",
+          weight: formData.description.weight || "",
         },
       };
 
@@ -1232,187 +1492,231 @@ export default function CharacterCreatorPage() {
   if (loading || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <Skeleton className="h-8 w-32" />
+        <div
+          className="sc-card"
+          style={{
+            padding: 40,
+            textAlign: "center",
+            color: "var(--muted-foreground)",
+          }}
+        >
+          Loading…
+        </div>
       </div>
     );
   }
 
+  const stepMeta: Array<{ label: string; Icon: React.ComponentType<{ size?: number }> }> = [
+    { label: "Source", Icon: Book },
+    { label: "Home", Icon: Campaign },
+    { label: "Class", Icon: Fighter },
+    { label: "Species", Icon: CharacterIcon },
+    { label: "Background", Icon: Book },
+    { label: "Abilities", Icon: Strength },
+    { label: "Description", Icon: Star },
+    { label: "Equipment", Icon: Weapon },
+    { label: "Review", Icon: Check },
+  ];
+
+  const stepNumbers = isEditMode ? [2, 3, 4, 5, 6, 7, 8] : [1, 2, 3, 4, 5, 6, 7, 8];
+  const currentStepMeta = stepMeta[step];
+  const StepTitleIcon = currentStepMeta?.Icon ?? Book;
+  const stepTitles: Record<number, string> = {
+    0: "Source Version",
+    1: "Home",
+    2: "Choose Class",
+    3: "Choose Species",
+    4: "Choose Background",
+    5: "Assign Ability Scores",
+    6: "Describe Your Character",
+    7: "Starting Equipment",
+    8: `Review & ${isEditMode ? "Update" : "Create"}`,
+  };
+
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar user={user} />
-      <main className="flex-1 container py-8 px-4 md:px-6 mx-auto">
-        <div className="mb-8">
-          <h1 className="font-serif text-3xl font-bold">Character Creator</h1>
-          <p className="text-muted-foreground mt-1">Create your D&D 5e character</p>
+      <main
+        className="flex-1 mx-auto w-full"
+        style={{ padding: "16px 20px", maxWidth: 1200 }}
+      >
+        {/* Title bar */}
+        <div style={{ marginBottom: 14 }}>
+          <div
+            className="font-serif"
+            style={{
+              fontSize: 22,
+              fontWeight: 600,
+              letterSpacing: "0.02em",
+            }}
+          >
+            Character Creator
+          </div>
+          <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
+            {isEditMode
+              ? "Update your character's details, one forge-warmed anvil at a time"
+              : "Forge a new hero through eight considered steps"}
+          </div>
         </div>
 
         {/* Step Progress */}
-        <div className="mb-6 flex items-center justify-between">
-          {Array.from({ length: isEditMode ? 8 : 10 }).map((_, s) => {
-            const stepNum = isEditMode ? s + 2 : s; // Edit mode starts at step 2 (skips source and campaign)
-            return (
-            <div key={s} className="flex items-center flex-1">
-              <div className="flex flex-col items-center flex-1">
+        <div
+          className="sc-card"
+          style={{ padding: 12, marginBottom: 14, overflowX: "auto" }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "flex-start",
+              gap: 0,
+              minWidth: "fit-content",
+            }}
+          >
+            {stepNumbers.map((stepNum, idx) => {
+              const meta = stepMeta[stepNum];
+              if (!meta) return null;
+              const Icon = meta.Icon;
+              const isActive = step === stepNum;
+              const isDone = step > stepNum;
+              const isLast = idx === stepNumbers.length - 1;
+              return (
                 <div
-                  className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                    step === stepNum
-                      ? "bg-primary text-primary-foreground"
-                      : step > stepNum
-                      ? "bg-primary/20 text-primary"
-                      : "bg-muted text-muted-foreground"
-                  }`}
+                  key={stepNum}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    flex: 1,
+                    minWidth: 0,
+                  }}
                 >
-                  {step > stepNum ? <Check className="h-5 w-5" /> : stepNum + 1}
+                  <button
+                    type="button"
+                    onClick={() => setStep(stepNum)}
+                    title={`Go to ${meta.label}`}
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      gap: 4,
+                      minWidth: 56,
+                      background: "transparent",
+                      border: "none",
+                      padding: 0,
+                      cursor: "pointer",
+                      fontFamily: "inherit",
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 32,
+                        height: 32,
+                        borderRadius: "50%",
+                        display: "grid",
+                        placeItems: "center",
+                        background: isActive
+                          ? "var(--primary)"
+                          : isDone
+                          ? "color-mix(in srgb, var(--primary) 18%, transparent)"
+                          : "var(--muted)",
+                        color: isActive
+                          ? "var(--primary-foreground)"
+                          : isDone
+                          ? "var(--primary)"
+                          : "var(--muted-foreground)",
+                        fontSize: 12,
+                        fontWeight: 600,
+                        fontVariantNumeric: "tabular-nums",
+                        transition: "all 0.15s",
+                        border: isActive
+                          ? "1px solid var(--primary)"
+                          : "1px solid var(--border)",
+                      }}
+                    >
+                      {isDone ? <Check size={14} /> : stepNum + 1}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 10,
+                        letterSpacing: "0.08em",
+                        textTransform: "uppercase",
+                        color: isActive
+                          ? "var(--foreground)"
+                          : "var(--muted-foreground)",
+                        fontWeight: isActive ? 600 : 400,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 3,
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      <Icon size={11} />
+                      {meta.label}
+                    </div>
+                  </button>
+                  {!isLast && (
+                    <div
+                      style={{
+                        height: 2,
+                        flex: 1,
+                        margin: "0 6px",
+                        marginTop: -18,
+                        background: isDone
+                          ? "var(--primary)"
+                          : "var(--border)",
+                        transition: "background 0.15s",
+                        minWidth: 16,
+                      }}
+                    />
+                  )}
                 </div>
-                <div className="text-xs mt-1 text-muted-foreground hidden sm:block flex items-center place-items-center gap-1">
-                  {!isEditMode && s === 0 && (
-                    <>
-                      <Book size={24} />
-                      Source
-                    </>
-                  )}
-                  {!isEditMode && s === 1 && (
-                    <>
-                      <Campaign size={24} />
-                      Campaign
-                    </>
-                  )}
-                  {stepNum === 2 && (
-                    <>
-                      <CharacterIcon size={24} />
-                      Race
-                    </>
-                  )}
-                  {stepNum === 3 && (
-                    <>
-                      <Fighter size={24} />
-                      Class
-                    </>
-                  )}
-                  {stepNum === 4 && (
-                    <>
-                      <Star size={24} />
-                      Subclass
-                    </>
-                  )}
-                  {stepNum === 5 && (
-                    <>
-                      <Star size={24} />
-                      Features
-                    </>
-                  )}
-                  {stepNum === 6 && (
-                    <>
-                      <Strength size={24} />
-                      Abilities
-                    </>
-                  )}
-                  {stepNum === 7 && (
-                    <>
-                      <Book size={24} />
-                      Background
-                    </>
-                  )}
-                  {stepNum === 8 && (
-                    <>
-                      <Weapon size={24} />
-                      Equipment
-                    </>
-                  )}
-                  {stepNum === 9 && (
-                    <>
-                      <Check size={24} />
-                      Review
-                    </>
-                  )}
-                </div>
-              </div>
-              {s !== (isEditMode ? 8 : 9) && <div className={`h-1 flex-1 mx-2 ${step > stepNum ? "bg-primary" : "bg-muted"}`} />}
-            </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              Step {step + 1}:{" "}
-              {step === 0 && (
-                <>
-                  <Book size={20} />
-                  Source Version
-                </>
-              )}
-              {step === 1 && (
-                <>
-                  <Campaign size={20} />
-                  Character Type
-                </>
-              )}
-                  {step === 2 && (
-                <>
-                  <CharacterIcon size={20} />
-                  Choose Race
-                </>
-              )}
-              {step === 3 && (
-                <>
-                  <Fighter size={20} />
-                  Choose Class
-                </>
-              )}
-              {step === 4 && (
-                <>
-                  <Star size={20} />
-                  Choose Subclass
-                </>
-              )}
-              {step === 5 && (
-                <>
-                  <Star size={20} />
-                  Feature Choices
-                </>
-              )}
-              {step === 6 && (
-                <>
-                  <Strength size={20} />
-                  Assign Ability Scores
-                </>
-              )}
-              {step === 7 && (
-                <>
-                  <Book size={20} />
-                  Background & Details
-                </>
-              )}
-              {step === 8 && (
-                <>
-                  <Weapon size={20} />
-                  Starting Equipment
-                </>
-              )}
-              {step === 9 && (
-                <>
-                  <Check size={20} />
-                  Review & {isEditMode ? "Update" : "Create"}
-                </>
-              )}
-            </CardTitle>
-            <CardDescription>
+        <div className="sc-card" style={{ padding: 0 }}>
+          <div
+            style={{
+              padding: "14px 16px",
+              borderBottom: "1px solid var(--border)",
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+            }}
+          >
+            <StepTitleIcon size={16} />
+            <div
+              className="font-serif"
+              style={{ fontSize: 16, fontWeight: 600 }}
+            >
+              Step {step + 1}: {stepTitles[step]}
+            </div>
+          </div>
+          <div
+            style={{
+              padding: 16,
+              display: "flex",
+              flexDirection: "column",
+              gap: 14,
+            }}
+          >
+            <div
+              style={{
+                fontSize: 12,
+                color: "var(--muted-foreground)",
+                marginTop: -4,
+              }}
+            >
               {step === 0 && "Choose between 2014 or 2024 SRD+PHB content"}
-              {step === 1 && "Create for a campaign or as a standalone character"}
-              {step === 2 && "Select your character's race"}
-              {step === 3 && "Select your character's class"}
-              {step === 4 && formData.classes.length > 1 && "Distribute levels among classes"}
-              {step === 4 && formData.classes.length === 1 && "Select your character's subclass (optional)"}
-              {step === 5 && "Choose skill proficiencies and other features"}
-              {step === 6 && "Assign your ability scores using your preferred method"}
-              {step === 7 && "Choose background and add character details"}
-              {step === 8 && "Select starting equipment"}
-              {step === 9 && `${isEditMode ? "Review and update" : "Review your character before creating"} your character`}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
+              {step === 1 && "Set up the basics: campaign, name, and starting level"}
+              {step === 2 && "Choose a class, its features, and (if applicable) a subclass"}
+              {step === 3 && "Select your character's species"}
+              {step === 4 && "Choose a background to shape your character's origin"}
+              {step === 5 && "Assign your ability scores using your preferred method"}
+              {step === 6 && "Alignment, personality, appearance, and backstory"}
+              {step === 7 && "Select starting equipment"}
+              {step === 8 && `${isEditMode ? "Review and update" : "Review your character before creating"} your character`}
+            </div>
             {/* Step 0: Source Version Selection */}
             {step === 0 && (
               <div className="space-y-4">
@@ -1447,68 +1751,164 @@ export default function CharacterCreatorPage() {
               </div>
             )}
 
-            {/* Step 1: Campaign Selection */}
+            {/* Step 1: Home (Campaign Type + Name + Starting Level) */}
             {step === 1 && (
-              <div className="space-y-4">
-                <Label>Character Type</Label>
-                <p className="text-sm text-muted-foreground">
-                  Choose whether to create this character for a specific campaign or as a standalone character.
-                </p>
-                <div className="space-y-3">
-                  <Card 
-                    className={`cursor-pointer transition-all ${formData.characterType === "standalone" ? "ring-2 ring-primary" : ""}`}
-                    onClick={() => setFormData({ ...formData, characterType: "standalone", campaignId: null })}
+              <HomeStep
+                formData={formData}
+                setFormData={setFormData}
+                campaigns={campaigns}
+                races={races}
+              />
+            )}
+
+            {/* Step 2: Class (selection + features + subclass merged) */}
+            {step === 2 && (
+              <div className="space-y-6">
+                <ClassSelectionStep
+                  classes={classes}
+                  loading={classesLoading}
+                  selectedClasses={formData.classes}
+                  error={classesError}
+                  infoSheet={infoSheet}
+                  abilityScores={formData.abilityScores}
+                  onAddClass={(cls: DndClass) => {
+                    if (
+                      formData.classes.some(
+                        (c) =>
+                          c.classSource === cls.source &&
+                          c.classIndex === cls.index
+                      )
+                    ) {
+                      return;
+                    }
+                    const prereqError = checkMulticlassPrerequisites(
+                      formData.abilityScores,
+                      cls.index
+                    );
+                    if (prereqError && formData.classes.length > 0) {
+                      toast.error(prereqError);
+                      return;
+                    }
+                    const isFirstClass = formData.classes.length === 0;
+                    const newClasses = [
+                      ...formData.classes,
+                      {
+                        classSource: cls.source,
+                        classIndex: cls.index,
+                        level: isFirstClass ? formData.level : 1,
+                        isPrimary: isFirstClass,
+                      },
+                    ];
+                    setFormData({
+                      ...formData,
+                      classes: newClasses,
+                      classSource: isFirstClass
+                        ? cls.source
+                        : formData.classSource,
+                      classIndex: isFirstClass
+                        ? cls.index
+                        : formData.classIndex,
+                    });
+                  }}
+                  onRemoveClass={(classSource, classIndex) => {
+                    const newClasses = formData.classes.filter(
+                      (c) =>
+                        !(
+                          c.classSource === classSource &&
+                          c.classIndex === classIndex
+                        )
+                    );
+                    if (
+                      newClasses.length > 0 &&
+                      formData.classes.find(
+                        (c) =>
+                          c.isPrimary &&
+                          c.classSource === classSource &&
+                          c.classIndex === classIndex
+                      )
+                    ) {
+                      newClasses[0].isPrimary = true;
+                    }
+                    setFormData({
+                      ...formData,
+                      classes: newClasses,
+                      classSource: newClasses[0]?.classSource || null,
+                      classIndex: newClasses[0]?.classIndex || null,
+                    });
+                  }}
+                  onSetPrimaryClass={(cls: DndClass) => {
+                    // Replace the primary class while preserving any other multiclass picks.
+                    // Avoid duplicating this class if it was already present as a multiclass.
+                    const existingMulticlasses = formData.classes.filter(
+                      (c) =>
+                        !c.isPrimary &&
+                        !(
+                          c.classSource === cls.source &&
+                          c.classIndex === cls.index
+                        )
+                    );
+                    const usedByMulticlasses = existingMulticlasses.reduce(
+                      (sum, c) => sum + c.level,
+                      0
+                    );
+                    const primaryLevel = Math.max(
+                      1,
+                      formData.level - usedByMulticlasses
+                    );
+                    // Preserve any existing subclass pick on this class if it was already selected
+                    const existingPickOfThisClass = formData.classes.find(
+                      (c) =>
+                        c.classSource === cls.source &&
+                        c.classIndex === cls.index
+                    );
+                    const newClasses: CharacterClassForm[] = [
+                      {
+                        classSource: cls.source,
+                        classIndex: cls.index,
+                        level: primaryLevel,
+                        isPrimary: true,
+                        subclassSource:
+                          existingPickOfThisClass?.subclassSource ?? null,
+                        subclassIndex:
+                          existingPickOfThisClass?.subclassIndex ?? null,
+                      },
+                      ...existingMulticlasses,
+                    ];
+                    setFormData({
+                      ...formData,
+                      classes: newClasses,
+                      classSource: cls.source,
+                      classIndex: cls.index,
+                      subclassSource:
+                        existingPickOfThisClass?.subclassSource ?? null,
+                      subclassIndex:
+                        existingPickOfThisClass?.subclassIndex ?? null,
+                    });
+                  }}
+                />
+                {formData.classes.length > 0 && (
+                  <div
+                    style={{
+                      paddingTop: 14,
+                      borderTop: "1px solid var(--border)",
+                    }}
                   >
-                    <CardContent className="pt-6">
-                      <div className="flex items-center gap-3">
-                        <Person size={24} />
-                        <div>
-                          <h3 className="font-semibold">Standalone Character</h3>
-                          <p className="text-sm text-muted-foreground">Create a character not tied to any campaign</p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                  <Card 
-                    className={`cursor-pointer transition-all ${formData.characterType === "campaign" ? "ring-2 ring-primary" : ""}`}
-                    onClick={() => setFormData({ ...formData, characterType: "campaign" })}
-                  >
-                    <CardContent className="pt-6">
-                      <div className="flex items-center gap-3">
-                        <Campaign size={24} />
-                        <div>
-                          <h3 className="font-semibold">Campaign Character</h3>
-                          <p className="text-sm text-muted-foreground">Create a character for a specific campaign</p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
-                {formData.characterType === "campaign" && (
-                  <div className="mt-4 space-y-2">
-                    <Label>Select Campaign</Label>
-                    <Select
-                      value={formData.campaignId || ""}
-                      onValueChange={(value) => setFormData({ ...formData, campaignId: value })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Choose a campaign" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {campaigns?.map((campaign) => (
-                          <SelectItem key={campaign.id} value={campaign.id}>
-                            {campaign.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <FeatureChoicesStep
+                      formData={formData}
+                      setFormData={setFormData}
+                      selectedClass={selectedClass}
+                      classes={classes}
+                      campaignId={formData.campaignId}
+                      sourceVersion={formData.sourceVersion}
+                      infoSheet={infoSheet}
+                    />
                   </div>
                 )}
               </div>
             )}
 
-            {/* Step 2: Race Selection */}
-            {step === 2 && (
+            {/* Step 3: Species (Race) */}
+            {step === 3 && (
               <RaceSelectionStep
                 races={races}
                 loading={racesLoading}
@@ -1525,100 +1925,19 @@ export default function CharacterCreatorPage() {
               />
             )}
 
-            {/* Step 3: Class Selection */}
-            {step === 3 && (
-              <ClassSelectionStep
-                classes={classes}
-                loading={classesLoading}
-                selectedClasses={formData.classes}
-                error={classesError}
-                infoSheet={infoSheet}
-                abilityScores={formData.abilityScores}
-                onAddClass={(cls: DndClass) => {
-                  // Check if already added
-                  if (formData.classes.some(c => c.classSource === cls.source && c.classIndex === cls.index)) {
-                    return;
-                  }
-                  
-                  // Check prerequisites
-                  const prereqError = checkMulticlassPrerequisites(formData.abilityScores, cls.index);
-                  if (prereqError && formData.classes.length > 0) {
-                    toast.error(prereqError);
-                    return;
-                  }
-                  
-                  const isFirstClass = formData.classes.length === 0;
-                  const newClasses = [
-                    ...formData.classes,
-                    {
-                      classSource: cls.source,
-                      classIndex: cls.index,
-                      level: isFirstClass ? formData.level : 1, // First class gets all levels initially
-                      isPrimary: isFirstClass,
-                    },
-                  ];
-                  
-                  setFormData({
-                    ...formData,
-                    classes: newClasses,
-                    // Keep backward compatibility
-                    classSource: isFirstClass ? cls.source : formData.classSource,
-                    classIndex: isFirstClass ? cls.index : formData.classIndex,
-                  });
-                }}
-                onRemoveClass={(classSource, classIndex) => {
-                  const newClasses = formData.classes.filter(
-                    c => !(c.classSource === classSource && c.classIndex === classIndex)
-                  );
-                  
-                  // Update primary class if removing primary
-                  if (newClasses.length > 0 && formData.classes.find(c => c.isPrimary && c.classSource === classSource && c.classIndex === classIndex)) {
-                    newClasses[0].isPrimary = true;
-                  }
-                  
-                  setFormData({
-                    ...formData,
-                    classes: newClasses,
-                    classSource: newClasses[0]?.classSource || null,
-                    classIndex: newClasses[0]?.classIndex || null,
-                  });
-                }}
-              />
-            )}
-
-            {/* Step 4: Level Distribution (Multiclass) or Subclass Selection */}
-            {step === 4 && !isEditMode && formData.classes.length > 1 && (
-              <LevelDistributionStep
+            {/* Step 4: Background */}
+            {step === 4 && (
+              <BackgroundStep
                 formData={formData}
                 setFormData={setFormData}
-                classes={classes}
+                backgrounds={backgrounds}
+                backgroundsLoading={backgroundsLoading}
+                section="background"
               />
             )}
 
-            {/* Step 4: Subclass Selection for all classes (when not multiclassing) */}
-            {step === 4 && !isEditMode && formData.classes.length === 1 && (
-              <MulticlassSubclassStep
-                formData={formData}
-                setFormData={setFormData}
-                classes={classes}
-                campaignId={formData.campaignId}
-                sourceVersion={formData.sourceVersion}
-                infoSheet={infoSheet}
-                onSkip={handleNext}
-              />
-            )}
-
-            {/* Step 5: Feature Choices */}
+            {/* Step 5: Ability Scores */}
             {step === 5 && (
-              <FeatureChoicesStep
-                formData={formData}
-                setFormData={setFormData}
-                selectedClass={selectedClass}
-              />
-            )}
-
-            {/* Step 6: Ability Scores */}
-            {step === 6 && (
               <AbilityScoresStep
                 formData={formData}
                 setFormData={setFormData}
@@ -1627,18 +1946,19 @@ export default function CharacterCreatorPage() {
               />
             )}
 
-            {/* Step 7: Background & Details */}
-            {step === 7 && (
+            {/* Step 6: Description (alignment + personality + physical + backstory) */}
+            {step === 6 && (
               <BackgroundStep
                 formData={formData}
                 setFormData={setFormData}
                 backgrounds={backgrounds}
                 backgroundsLoading={backgroundsLoading}
+                section="description"
               />
             )}
 
-            {/* Step 8: Equipment */}
-            {step === 8 && (
+            {/* Step 7: Equipment */}
+            {step === 7 && (
               <EquipmentStep
                 selectedClass={selectedClass}
                 formData={formData}
@@ -1649,8 +1969,8 @@ export default function CharacterCreatorPage() {
               />
             )}
 
-            {/* Step 9: Review */}
-            {step === 9 && (
+            {/* Step 8: Review */}
+            {step === 8 && (
               <ReviewStep
                 formData={formData}
                 selectedRace={selectedRace}
@@ -1661,28 +1981,61 @@ export default function CharacterCreatorPage() {
             )}
 
             {/* Navigation Buttons */}
-            <div className="flex justify-between pt-4 border-t">
-              <Button
-                variant="outline"
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                paddingTop: 14,
+                marginTop: 4,
+                borderTop: "1px solid var(--border)",
+                gap: 10,
+              }}
+            >
+              <button
+                type="button"
+                className="sc-btn sc-btn-sm"
                 onClick={handleBack}
-                disabled={step === (isEditMode ? 2 : 0)}
+                disabled={step === (isEditMode ? 2 : 1)}
               >
-                <ChevronLeft className="h-4 w-4 mr-2" />
+                <ChevronLeft size={13} />
                 Back
-              </Button>
-              {step < 9 ? (
-                <Button onClick={handleNext}>
+              </button>
+              {step < 8 ? (
+                <button
+                  type="button"
+                  className="sc-btn sc-btn-primary sc-btn-sm"
+                  onClick={handleNext}
+                >
                   Next
-                  <ChevronRight className="h-4 w-4 ml-2" />
-                </Button>
+                  <ChevronRight size={13} />
+                </button>
               ) : (
-                <Button onClick={handleSubmit} disabled={creating || isLoadingCharacter}>
-                  {creating ? (isEditMode ? "Updating..." : "Creating...") : (isEditMode ? "Update Character" : "Create Character")}
-                </Button>
+                <button
+                  type="button"
+                  className="sc-btn sc-btn-primary sc-btn-sm"
+                  onClick={handleSubmit}
+                  disabled={creating || isLoadingCharacter}
+                >
+                  {creating ? (
+                    <>
+                      <Loader2
+                        size={13}
+                        style={{ animation: "spin 1s linear infinite" }}
+                      />
+                      {isEditMode ? "Updating…" : "Creating…"}
+                    </>
+                  ) : (
+                    <>
+                      <Check size={13} />
+                      {isEditMode ? "Update character" : "Create character"}
+                    </>
+                  )}
+                </button>
               )}
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </main>
       <InfoSheetDialog
         open={infoSheet.open}
@@ -1717,7 +2070,7 @@ function RaceSelectionStep({
   if (error) {
     return (
       <div className="p-4 border border-destructive rounded-md bg-destructive/10">
-        <p className="text-destructive font-medium">Error loading races</p>
+        <p className="text-destructive font-medium">Error loading species</p>
         <p className="text-sm text-muted-foreground mt-1">{error.message}</p>
       </div>
     );
@@ -1726,72 +2079,160 @@ function RaceSelectionStep({
   if (races.length === 0) {
     return (
       <div className="p-4 border border-muted rounded-md">
-        <p className="text-muted-foreground">No races available. Please check your database connection.</p>
+        <p className="text-muted-foreground">No species available. Please check your database connection.</p>
       </div>
     );
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fill, minmax(170px, 1fr))",
+        gap: 8,
+      }}
+    >
       {races.map((race) => {
         const bonuses = race.ability_bonuses as Array<any> | null;
+        const isSelected =
+          selectedRace?.source === race.source && selectedRace?.index === race.index;
+        const { Icon: RaceIcon, hue, saturation } = getRaceVisual(race);
         return (
-          <Card
+          <div
             key={`${race.source}-${race.index}`}
-            className={`cursor-pointer transition-all hover:shadow-md ${
-              selectedRace?.source === race.source && selectedRace?.index === race.index
-                ? "ring-2 ring-primary"
-                : ""
-            }`}
+            className="sc-card sc-card-hover"
+            style={{
+              cursor: "pointer",
+              padding: 10,
+              display: "flex",
+              flexDirection: "column",
+              gap: 6,
+              borderColor: isSelected ? "var(--primary)" : undefined,
+              background: isSelected
+                ? "color-mix(in srgb, var(--primary) 8%, transparent)"
+                : undefined,
+              boxShadow: isSelected
+                ? "0 0 0 1px var(--primary) inset"
+                : undefined,
+            }}
             onClick={() => onSelect(race)}
           >
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-lg">{race.name}</CardTitle>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      infoSheet.showRace(race);
-                    }}
-                  >
-                    <Info className="h-4 w-4" />
-                  </Button>
-                  <Badge variant={race.source === "srd" ? "default" : "secondary"}>
-                    {race.source}
-                  </Badge>
-                </div>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 6,
+              }}
+            >
+              <div
+                aria-hidden
+                style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: 6,
+                  flexShrink: 0,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  background: `hsl(${hue} ${saturation}% 50% / 0.18)`,
+                  color: `hsl(${hue} ${saturation}% ${saturation === 0 ? 70 : 65}%)`,
+                  border: `1px solid hsl(${hue} ${saturation}% 50% / 0.35)`,
+                }}
+              >
+                <RaceIcon size={18} />
               </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2 text-sm">
-                <div>
-                  <span className="font-medium">Speed:</span> {race.speed} ft
-                </div>
-                <div>
-                  <span className="font-medium">Size:</span> {race.size}
-                </div>
-                {bonuses && bonuses.length > 0 && (
-                  <div>
-                    <span className="font-medium">Ability Score Increases:</span>
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {bonuses.map((b: any, i) => {
-                        const abilityName = b.ability_score?.name || b.ability_score?.index || b.ability || '';
-                        return (
-                          <Badge key={i} variant="outline">
-                            {getFullAbilityName(abilityName)} +{b.bonus}
-                          </Badge>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
+              <div
+                className="font-serif"
+                style={{
+                  fontSize: 13,
+                  fontWeight: 600,
+                  lineHeight: 1.2,
+                  flex: 1,
+                  minWidth: 0,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+                title={race.name}
+              >
+                {race.name}
               </div>
-            </CardContent>
-          </Card>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 2,
+                  flexShrink: 0,
+                }}
+              >
+                <button
+                  type="button"
+                  className="sc-btn sc-btn-ghost"
+                  style={{ padding: 2, height: 18, width: 18 }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    infoSheet.showRace(race);
+                  }}
+                  title="Race details"
+                >
+                  <Info size={11} />
+                </button>
+                <span
+                  className="sc-badge"
+                  style={{
+                    fontSize: 9,
+                    padding: "1px 4px",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.05em",
+                  }}
+                >
+                  {race.source}
+                </span>
+              </div>
+            </div>
+            <div
+              style={{
+                display: "flex",
+                gap: 8,
+                fontSize: 10,
+                color: "var(--muted-foreground)",
+              }}
+            >
+              <span>
+                <span style={{ opacity: 0.7 }}>SPD</span> {race.speed}ft
+              </span>
+              <span>
+                <span style={{ opacity: 0.7 }}>SIZE</span> {formatSize(race.size)}
+              </span>
+            </div>
+            {bonuses && bonuses.length > 0 && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 3 }}>
+                {bonuses.map((b: any, i) => {
+                  const abilityName =
+                    b.ability_score?.name ||
+                    b.ability_score?.index ||
+                    b.ability ||
+                    "";
+                  const abbr = abilityName.slice(0, 3).toUpperCase();
+                  return (
+                    <span
+                      key={i}
+                      className="sc-badge"
+                      style={{
+                        fontSize: 9,
+                        padding: "1px 4px",
+                        letterSpacing: "0.02em",
+                      }}
+                      title={`${getFullAbilityName(abilityName)} +${b.bonus}`}
+                    >
+                      {abbr} +{b.bonus}
+                    </span>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         );
       })}
     </div>
@@ -1807,6 +2248,7 @@ function ClassSelectionStep({
   abilityScores,
   onAddClass,
   onRemoveClass,
+  onSetPrimaryClass,
 }: {
   classes: DndClass[];
   loading: boolean;
@@ -1816,7 +2258,15 @@ function ClassSelectionStep({
   abilityScores: CharacterFormData['abilityScores'];
   onAddClass: (cls: DndClass) => void;
   onRemoveClass: (classSource: 'srd' | 'homebrew', classIndex: string) => void;
+  onSetPrimaryClass: (cls: DndClass) => void;
 }) {
+  const [multiclassMode, setMulticlassMode] = useState(false);
+
+  useEffect(() => {
+    if (selectedClasses.length === 0 && multiclassMode) {
+      setMulticlassMode(false);
+    }
+  }, [selectedClasses.length, multiclassMode]);
   if (loading) {
     return <Skeleton className="h-64 w-full" />;
   }
@@ -1854,14 +2304,14 @@ function ClassSelectionStep({
               return (
                 <Badge key={idx} variant={charClass.isPrimary ? "default" : "secondary"} className="text-sm px-3 py-1">
                   {cls?.name || charClass.classIndex} {charClass.isPrimary && "(Primary)"}
-                  {!charClass.isPrimary && (
-                    <button
-                      onClick={() => onRemoveClass(charClass.classSource, charClass.classIndex)}
-                      className="ml-2 hover:bg-destructive/20 rounded px-1"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => onRemoveClass(charClass.classSource, charClass.classIndex)}
+                    className="ml-2 hover:bg-destructive/20 rounded px-1"
+                    title={charClass.isPrimary ? "Remove primary class" : "Remove class"}
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
                 </Badge>
               );
             })}
@@ -1869,87 +2319,299 @@ function ClassSelectionStep({
         </div>
       )}
       
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fill, minmax(170px, 1fr))",
+          gap: 8,
+        }}
+      >
         {classes.map((cls) => {
           const savingThrows = cls.saving_throws || [];
           const isSelected = selectedClassIndices.has(`${cls.source}:${cls.index}`);
-          const prereqError = selectedClasses.length > 0 
+          const prereq = getMulticlassPrerequisite(cls.index);
+          const prereqMet = prereq
+            ? (abilityScores[prereq.ability as keyof typeof abilityScores] ?? 0) >=
+              prereq.min
+            : true;
+          // Only treat as multiclass pick when multiclass mode is active and we'd be ADDING (not replacing)
+          const isMulticlassPick = multiclassMode && !isSelected;
+          const prereqError = isMulticlassPick && !prereqMet
             ? checkMulticlassPrerequisites(abilityScores, cls.index)
             : null;
-          
+          const disabled = !!prereqError && !isSelected;
+          const { Icon: ClassIcon, hue } = getClassVisual(cls);
+
           return (
-            <Card
+            <div
               key={`${cls.source}-${cls.index}`}
-              className={`cursor-pointer transition-all hover:shadow-md ${
-                isSelected
-                  ? "ring-2 ring-primary"
-                  : ""
-              } ${prereqError ? "opacity-50" : ""}`}
-              onClick={() => !isSelected && !prereqError && onAddClass(cls)}
+              className="sc-card sc-card-hover"
+              style={{
+                cursor: disabled ? "not-allowed" : "pointer",
+                padding: 10,
+                display: "flex",
+                flexDirection: "column",
+                gap: 6,
+                opacity: isMulticlassPick && !prereqMet ? 0.55 : 1,
+                borderColor: isSelected ? "var(--primary)" : undefined,
+                background: isSelected
+                  ? "color-mix(in srgb, var(--primary) 8%, transparent)"
+                  : undefined,
+                boxShadow: isSelected
+                  ? "0 0 0 1px var(--primary) inset"
+                  : undefined,
+              }}
+              onClick={() => {
+                if (disabled) return;
+                if (multiclassMode) {
+                  if (isSelected) {
+                    onRemoveClass(cls.source, cls.index);
+                  } else {
+                    onAddClass(cls);
+                  }
+                } else {
+                  onSetPrimaryClass(cls);
+                }
+              }}
+              title={
+                multiclassMode
+                  ? isSelected
+                    ? "Click to remove class"
+                    : prereqError ||
+                      (prereq
+                        ? `Multiclass prereq: ${prereq.ability.charAt(0).toUpperCase()}${prereq.ability.slice(1)} ${prereq.min}+`
+                        : "Click to add as multiclass")
+                  : isSelected
+                    ? "This is your current class"
+                    : "Click to choose this class"
+              }
             >
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg">{cls.name}</CardTitle>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        infoSheet.showClass(cls);
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 6,
+                }}
+              >
+                <div
+                  aria-hidden
+                  style={{
+                    width: 28,
+                    height: 28,
+                    borderRadius: 6,
+                    flexShrink: 0,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    background: `hsl(${hue} 55% 50% / 0.18)`,
+                    color: `hsl(${hue} 55% 65%)`,
+                    border: `1px solid hsl(${hue} 55% 50% / 0.35)`,
+                  }}
+                >
+                  <ClassIcon size={18} />
+                </div>
+                <div
+                  className="font-serif"
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 600,
+                    lineHeight: 1.2,
+                    flex: 1,
+                    minWidth: 0,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                  title={cls.name}
+                >
+                  {cls.name}
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 2,
+                    flexShrink: 0,
+                  }}
+                >
+                  <button
+                    type="button"
+                    className="sc-btn sc-btn-ghost"
+                    style={{ padding: 2, height: 18, width: 18 }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      infoSheet.showClass(cls);
+                    }}
+                    title="Class details"
+                  >
+                    <Info size={11} />
+                  </button>
+                  <span
+                    className="sc-badge"
+                    style={{
+                      fontSize: 9,
+                      padding: "1px 4px",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.05em",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 2,
+                      background: isSelected
+                        ? "color-mix(in srgb, var(--primary) 18%, transparent)"
+                        : undefined,
+                      color: isSelected ? "var(--primary)" : undefined,
+                      borderColor: isSelected ? "transparent" : undefined,
+                    }}
+                  >
+                    {isSelected ? (
+                      <>
+                        <Check size={9} />
+                        SELECTED
+                      </>
+                    ) : (
+                      cls.source
+                    )}
+                  </span>
+                </div>
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  gap: 8,
+                  fontSize: 10,
+                  color: "var(--muted-foreground)",
+                  flexWrap: "wrap",
+                }}
+              >
+                <span>
+                  <span style={{ opacity: 0.7 }}>HIT</span> d{cls.hit_die}
+                </span>
+                {savingThrows.length > 0 && (
+                  <span>
+                    <span style={{ opacity: 0.7 }}>SAVES</span>{" "}
+                    {savingThrows
+                      .map((st) => st.slice(0, 3).toUpperCase())
+                      .join(", ")}
+                  </span>
+                )}
+              </div>
+              {prereq && isMulticlassPick && !isSelected && (() => {
+                const currentScore =
+                  abilityScores[prereq.ability as keyof typeof abilityScores] ?? 0;
+                const abbr = prereq.ability.slice(0, 3).toUpperCase();
+                const failing = !prereqMet;
+                return (
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 4,
+                      fontSize: 10,
+                      padding: "3px 6px",
+                      borderRadius: 4,
+                      background: failing
+                        ? "color-mix(in srgb, var(--destructive) 12%, transparent)"
+                        : "color-mix(in srgb, var(--muted-foreground) 10%, transparent)",
+                      color: failing
+                        ? "var(--destructive)"
+                        : "var(--muted-foreground)",
+                    }}
+                    title={
+                      failing
+                        ? `Multiclass requires ${abbr} ${prereq.min}+ (current: ${currentScore})`
+                        : `Multiclass prerequisite met: ${abbr} ${prereq.min}+`
+                    }
+                  >
+                    <span style={{ opacity: 0.75 }}>MULTICLASS REQ</span>
+                    <span
+                      style={{
+                        fontWeight: 600,
+                        fontVariantNumeric: "tabular-nums",
                       }}
                     >
-                      <Info className="h-4 w-4" />
-                    </Button>
-                    {isSelected && <Badge variant="default">Selected</Badge>}
-                    <Badge variant={cls.source === "srd" ? "default" : "secondary"}>
-                      {cls.source}
-                    </Badge>
+                      {abbr} {prereq.min}+{" "}
+                      <span style={{ opacity: 0.75, fontWeight: 400 }}>
+                        ({currentScore})
+                      </span>
+                    </span>
                   </div>
+                );
+              })()}
+              {isMulticlassPick && prereq && !prereqMet && (
+                <div
+                  style={{
+                    fontSize: 10,
+                    color: "var(--destructive)",
+                    lineHeight: 1.3,
+                  }}
+                >
+                  Can&apos;t add as multiclass — prerequisite not met
                 </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2 text-sm">
-                  <div>
-                    <span className="font-medium">Hit Die:</span> d{cls.hit_die}
-                  </div>
-                  {savingThrows.length > 0 && (
-                    <div>
-                      <span className="font-medium">Saving Throws:</span>
-                      <div className="flex flex-wrap gap-1 mt-1">
-                        {savingThrows.map((st, i) => (
-                          <Badge key={i} variant="outline">
-                            {st}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  <div className="text-xs text-muted-foreground mt-2">
-                    Click <Info className="h-3 w-3 inline" /> for full class features
-                  </div>
-                  {prereqError && (
-                    <div className="text-xs text-destructive mt-2">
-                      {prereqError}
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+              )}
+            </div>
           );
         })}
       </div>
       
       {selectedClasses.length === 0 && (
         <div className="text-sm text-muted-foreground text-center py-4">
-          Select your first class to begin. You can add additional classes after selecting the first one.
+          Select a class to begin. You can switch freely by clicking another class.
         </div>
       )}
-      
+
       {selectedClasses.length > 0 && selectedClasses.length < 3 && (
-        <div className="text-sm text-muted-foreground text-center py-2">
-          You can add more classes. Make sure you meet the prerequisites (13+ in required ability score).
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 10,
+            padding: "8px 10px",
+            borderRadius: 6,
+            background: multiclassMode
+              ? "color-mix(in srgb, var(--primary) 10%, transparent)"
+              : "var(--muted)",
+            border: multiclassMode
+              ? "1px solid var(--primary)"
+              : "1px solid var(--border)",
+          }}
+        >
+          <div
+            style={{
+              fontSize: 11,
+              color: "var(--muted-foreground)",
+              lineHeight: 1.4,
+            }}
+          >
+            {multiclassMode ? (
+              <>
+                <strong style={{ color: "var(--primary)" }}>Multiclass mode</strong> — click classes to add them. Prereqs: 13+ in the required ability.
+              </>
+            ) : (
+              <>
+                Click any class to change your choice. Want to multiclass?
+              </>
+            )}
+          </div>
+          <button
+            type="button"
+            className={multiclassMode ? "sc-btn sc-btn-sm" : "sc-btn sc-btn-primary sc-btn-sm"}
+            onClick={() => setMulticlassMode((v) => !v)}
+          >
+            {multiclassMode ? (
+              <>
+                <Check size={12} />
+                Done
+              </>
+            ) : (
+              <>
+                <Plus size={12} />
+                Add multiclass
+              </>
+            )}
+          </button>
         </div>
       )}
     </div>
@@ -2356,66 +3018,155 @@ function MulticlassSubclassStep({
   );
 }
 
-function FeatureChoicesStep({
+interface ClassFeatureRow {
+  index: string;
+  name: string;
+  level: number;
+  description: string | null;
+  subclass_index: string | null;
+  feature_specific: any;
+}
+
+function isASIFeatureName(name: string): boolean {
+  const n = name.toLowerCase();
+  return (
+    n.includes("ability score improvement") ||
+    n === "asi" ||
+    n.includes("ability score increase")
+  );
+}
+
+// Subclass unlock level per class index. Most classes unlock at level 3;
+// spellcasters with signature subclass features unlock earlier.
+const SUBCLASS_UNLOCK_LEVEL: Record<string, number> = {
+  cleric: 1,
+  sorcerer: 1,
+  warlock: 1,
+  druid: 2,
+  wizard: 2,
+};
+function getSubclassUnlockLevel(classIndex?: string): number {
+  if (!classIndex) return 3;
+  return SUBCLASS_UNLOCK_LEVEL[classIndex.toLowerCase()] ?? 3;
+}
+
+function ClassFeaturesList({
+  charClass,
+  classData,
+  classIdx,
   formData,
   setFormData,
-  selectedClass,
+  campaignId,
+  sourceVersion,
+  infoSheet,
+  onSubclassChange,
 }: {
+  charClass: CharacterClassForm;
+  classData: DndClass | undefined;
+  classIdx: number;
   formData: CharacterFormData;
   setFormData: (data: CharacterFormData) => void;
-  selectedClass: DndClass | null | undefined;
+  campaignId: string | null;
+  sourceVersion: "2014" | "2024" | null;
+  infoSheet: ReturnType<typeof useInfoSheet>;
+  onSubclassChange: (
+    classIdx: number,
+    subclassSource: "srd" | "homebrew" | null,
+    subclassIndex: string | null
+  ) => void;
 }) {
-  if (!selectedClass) {
-    return (
-      <div className="p-4 border border-muted rounded-md">
-        <p className="text-muted-foreground">Please select a class first.</p>
-      </div>
-    );
-  }
+  const [features, setFeatures] = useState<ClassFeatureRow[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  // Get skill proficiency choices from class
-  const proficiencyChoices = selectedClass.proficiency_choices as any;
-  const skillChoices = Array.isArray(proficiencyChoices) 
-    ? proficiencyChoices.find((choice: any) => 
-        choice.type === 'skills' || choice.from?.option_set_type === 'options_array'
+  useEffect(() => {
+    if (!classData?.index) {
+      setFeatures([]);
+      return;
+    }
+    let mounted = true;
+    (async () => {
+      setLoading(true);
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from("srd_features")
+        .select("index, name, level, description, subclass_index, feature_specific")
+        .eq("class_index", classData.index)
+        .not("level", "is", null)
+        .lte("level", charClass.level)
+        .order("level", { ascending: true })
+        .order("name", { ascending: true });
+      if (mounted) {
+        if (!error && data) {
+          const filtered = (data as ClassFeatureRow[]).filter((f) => {
+            if (!f.subclass_index) return true;
+            return (
+              !!charClass.subclassIndex &&
+              f.subclass_index === charClass.subclassIndex
+            );
+          });
+          setFeatures(filtered);
+        } else {
+          setFeatures([]);
+        }
+        setLoading(false);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [classData?.index, charClass.level, charClass.subclassIndex]);
+
+  const ordinal = (n: number) => {
+    const s = ["th", "st", "nd", "rd"];
+    const v = n % 100;
+    return n + (s[(v - 20) % 10] || s[v] || s[0]);
+  };
+
+  // Load subclasses for the inline subclass accordion
+  const { subclasses: availableSubclasses } = useSubclasses(
+    charClass.classIndex,
+    charClass.classSource,
+    campaignId,
+    sourceVersion
+  );
+
+  // Skill proficiency choices from the class (only if this is primary class)
+  const proficiencyChoices = (classData?.proficiency_choices || null) as any;
+  const skillChoices = Array.isArray(proficiencyChoices)
+    ? proficiencyChoices.find(
+        (choice: any) =>
+          choice.type === "skills" ||
+          choice.from?.option_set_type === "options_array"
       )
     : null;
-
-  // Calculate ASI levels (4, 8, 12, 16, 19)
-  const asiLevels = [4, 8, 12, 16, 19].filter(level => level <= formData.level);
-  const hasASI = asiLevels.length > 0;
-
-  // Get feature choices from class levels
-  const featureChoices: Array<{ level: number; name: string; options: any[] }> = [];
-  if (selectedClass.class_levels) {
-    const classLevels = selectedClass.class_levels as any;
-    for (let lvl = 1; lvl <= formData.level; lvl++) {
-      const levelData = classLevels[lvl] || classLevels[`level_${lvl}`] || classLevels[`${lvl}`] || 
-                       (Array.isArray(classLevels) ? classLevels[lvl - 1] : null);
-      if (levelData?.feature_choices) {
-        if (Array.isArray(levelData.feature_choices)) {
-          levelData.feature_choices.forEach((choice: any) => {
-            featureChoices.push({
-              level: lvl,
-              name: choice.name || 'Feature Choice',
-              options: choice.from?.options || choice.options || [],
-            });
-          });
+  const availableSkills: string[] = skillChoices?.from?.options
+    ? skillChoices.from.options.map((opt: any) => {
+        if (typeof opt === "string") return opt;
+        if (opt.item?.name) return opt.item.name;
+        if (opt.item?.index) {
+          const skill = DND_SKILLS.find((s) => s.name === opt.item.index);
+          return skill?.name || opt.item.index;
         }
-      }
-    }
-  }
+        return opt.name || opt;
+      })
+    : [];
+  const isPrimaryClass = !!charClass.isPrimary;
 
-  const handleSkillProficiencyToggle = (skillName: string) => {
+  const selectedSubclass = availableSubclasses.find(
+    (s) =>
+      s.source === charClass.subclassSource &&
+      s.index === charClass.subclassIndex
+  );
+
+  const handleSkillToggle = (skillName: string) => {
     const current = formData.featureChoices.skillProficiencies;
     const maxChoices = skillChoices?.choose || 0;
-    
     if (current.includes(skillName)) {
       setFormData({
         ...formData,
         featureChoices: {
           ...formData.featureChoices,
-          skillProficiencies: current.filter(s => s !== skillName),
+          skillProficiencies: current.filter((s) => s !== skillName),
         },
       });
     } else if (current.length < maxChoices) {
@@ -2429,193 +3180,1105 @@ function FeatureChoicesStep({
     }
   };
 
-  const handleASIChange = (level: number, ability: string, bonus: number) => {
-    const levelASIs = formData.featureChoices.asiImprovements.filter(asi => asi.level === level);
-    const existing = levelASIs.find(asi => asi.ability === ability);
+  const handleASIBonusClick = (level: number, ability: string, bonus: number) => {
+    const levelASIs = formData.featureChoices.asiImprovements.filter(
+      (asi) => asi.level === level
+    );
+    const existing = levelASIs.find((asi) => asi.ability === ability);
     const totalBonus = levelASIs.reduce((sum, asi) => sum + asi.bonus, 0);
-    
     if (existing) {
-      // Remove existing
       setFormData({
         ...formData,
         featureChoices: {
           ...formData.featureChoices,
-          asiImprovements: formData.featureChoices.asiImprovements.filter(asi => 
-            !(asi.level === level && asi.ability === ability)
+          asiImprovements: formData.featureChoices.asiImprovements.filter(
+            (asi) => !(asi.level === level && asi.ability === ability)
           ),
         },
       });
-    } else {
-      // Add new (limit to +2 total per ASI level)
-      if (totalBonus + bonus <= 2) {
-        setFormData({
-          ...formData,
-          featureChoices: {
-            ...formData.featureChoices,
-            asiImprovements: [
-              ...formData.featureChoices.asiImprovements,
-              { level, ability, bonus },
-            ],
-          },
-        });
-      }
+    } else if (totalBonus + bonus <= 2) {
+      setFormData({
+        ...formData,
+        featureChoices: {
+          ...formData.featureChoices,
+          asiImprovements: [
+            ...formData.featureChoices.asiImprovements,
+            { level, ability, bonus },
+          ],
+        },
+      });
     }
   };
 
-  // Get available skill options
-  const availableSkills = skillChoices?.from?.options?.map((opt: any) => {
-    if (typeof opt === 'string') return opt;
-    if (opt.item?.name) return opt.item.name;
-    if (opt.item?.index) {
-      const skill = DND_SKILLS.find(s => s.name === opt.item.index);
-      return skill?.name || opt.item.index;
-    }
-    return opt.name || opt;
-  }) || [];
+  if (!classData) return null;
 
-  return (
-    <div className="space-y-6">
-      {/* Skill Proficiency Choices */}
-      {skillChoices && availableSkills.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Skill Proficiencies</CardTitle>
-            <CardDescription>
-              Choose {skillChoices.choose || 0} skill(s) from your class options
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-              {availableSkills.map((skillOption: string) => {
-                const skill = DND_SKILLS.find(s => 
-                  s.name === skillOption.toLowerCase().replace(/\s+/g, '-') ||
-                  s.name === skillOption
-                );
-                const skillName = skill?.name || skillOption.toLowerCase().replace(/\s+/g, '-');
-                const isSelected = formData.featureChoices.skillProficiencies.includes(skillName);
-                const maxReached = formData.featureChoices.skillProficiencies.length >= (skillChoices.choose || 0);
-                
-                return (
-                  <Button
-                    key={skillOption}
-                    type="button"
-                    variant={isSelected ? "default" : "outline"}
-                    className="justify-start"
-                    onClick={() => handleSkillProficiencyToggle(skillName)}
-                    disabled={!isSelected && maxReached}
-                  >
-                    {skill?.name ? skill.name.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') : skillOption}
-                  </Button>
-                );
-              })}
+  const subclassUnlockLevel = getSubclassUnlockLevel(classData?.index);
+  const subclassUnlocked = charClass.level >= subclassUnlockLevel;
+  const subclassAccordion =
+    availableSubclasses.length > 0 && subclassUnlocked ? (
+      <details
+        key="__subclass"
+        className="sc-card"
+        style={{ padding: 0, borderRadius: 6 }}
+        open={!charClass.subclassIndex}
+      >
+        <summary
+          style={{
+            cursor: "pointer",
+            padding: "10px 12px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 10,
+          }}
+        >
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div
+              className="font-serif"
+              style={{ fontSize: 14, fontWeight: 600, lineHeight: 1.2 }}
+            >
+              Subclass{selectedSubclass ? `: ${selectedSubclass.name}` : ""}
             </div>
-            {formData.featureChoices.skillProficiencies.length > 0 && (
-              <div className="mt-4 p-2 bg-muted/30 rounded">
-                <p className="text-sm font-medium">Selected: {formData.featureChoices.skillProficiencies.length} / {skillChoices.choose || 0}</p>
-                <div className="flex flex-wrap gap-1 mt-1">
-                  {formData.featureChoices.skillProficiencies.map(skill => (
-                    <Badge key={skill} variant="default">
-                      {skill.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
-                    </Badge>
-                  ))}
-                </div>
+            <div
+              style={{
+                fontSize: 11,
+                color: "var(--muted-foreground)",
+                marginTop: 2,
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+              }}
+            >
+              <span>Choose a subclass for {classData.name}</span>
+              {!charClass.subclassIndex && (
+                <>
+                  <span style={{ opacity: 0.4 }}>·</span>
+                  <span style={{ color: "var(--primary)" }}>Choice required</span>
+                </>
+              )}
+            </div>
+          </div>
+          <ChevronRight
+            size={16}
+            className="sc-details-chev"
+            style={{
+              flexShrink: 0,
+              color: "var(--muted-foreground)",
+              transition: "transform 0.15s",
+            }}
+          />
+        </summary>
+        <div style={{ padding: "0 12px 12px" }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+              gap: 8,
+            }}
+          >
+            <div
+              className={`sc-card sc-card-hover ${
+                !charClass.subclassIndex ? "sc-card-selected" : ""
+              }`}
+              onClick={() => onSubclassChange(classIdx, null, null)}
+              style={{
+                padding: "10px 12px",
+                cursor: "pointer",
+                outline: !charClass.subclassIndex
+                  ? "2px solid var(--primary)"
+                  : "none",
+              }}
+            >
+              <div style={{ fontSize: 13, fontWeight: 600 }}>No Subclass</div>
+              <div
+                style={{
+                  fontSize: 11,
+                  color: "var(--muted-foreground)",
+                  marginTop: 2,
+                }}
+              >
+                Skip subclass selection
               </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Ability Score Improvements */}
-      {hasASI && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Ability Score Improvements</CardTitle>
-            <CardDescription>
-              At levels {asiLevels.join(', ')}, you can increase ability scores. Choose +1 to two abilities or +2 to one ability per ASI.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {asiLevels.map(level => {
-              const levelASIs = formData.featureChoices.asiImprovements.filter(asi => asi.level === level);
-              const totalBonus = levelASIs.reduce((sum, asi) => sum + asi.bonus, 0);
-              const remaining = 2 - totalBonus;
-              
+            </div>
+            {availableSubclasses.map((sub) => {
+              const active =
+                charClass.subclassSource === sub.source &&
+                charClass.subclassIndex === sub.index;
               return (
-                <div key={level} className="p-3 border rounded-md">
-                  <div className="font-medium mb-2">Level {level} ASI (Remaining: {remaining}/2)</div>
-                  <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
-                    {['strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma'].map(ability => {
-                      const abilityASI = levelASIs.find(asi => asi.ability === ability);
-                      const currentBonus = abilityASI?.bonus || 0;
-                      
-                      return (
-                        <div key={ability} className="space-y-1">
-                          <div className="text-xs font-medium capitalize">{ability.slice(0, 3).toUpperCase()}</div>
-                          <div className="flex gap-1">
-                            <Button
-                              type="button"
-                              variant={currentBonus >= 1 ? "default" : "outline"}
-                              size="sm"
-                              className="flex-1 text-xs"
-                              onClick={() => handleASIChange(level, ability, 1)}
-                              disabled={remaining < 1 && currentBonus < 1}
-                            >
-                              +1
-                            </Button>
-                            <Button
-                              type="button"
-                              variant={currentBonus >= 2 ? "default" : "outline"}
-                              size="sm"
-                              className="flex-1 text-xs"
-                              onClick={() => handleASIChange(level, ability, 2)}
-                              disabled={(remaining < 2 && currentBonus < 2) || currentBonus >= 1}
-                            >
-                              +2
-                            </Button>
-                          </div>
-                          {currentBonus > 0 && (
-                            <div className="text-xs text-center text-muted-foreground">+{currentBonus}</div>
-                          )}
-                        </div>
-                      );
-                    })}
+                <div
+                  key={`${sub.source}-${sub.index}`}
+                  className="sc-card sc-card-hover"
+                  onClick={() =>
+                    onSubclassChange(classIdx, sub.source, sub.index)
+                  }
+                  style={{
+                    padding: "10px 12px",
+                    cursor: "pointer",
+                    outline: active ? "2px solid var(--primary)" : "none",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 6,
+                    }}
+                  >
+                    <div style={{ fontSize: 13, fontWeight: 600 }}>
+                      {sub.name}
+                    </div>
+                    <button
+                      type="button"
+                      className="sc-btn sc-btn-sm sc-btn-ghost"
+                      style={{ padding: 2 }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        infoSheet.showSubclass(sub, classData.name);
+                      }}
+                      title={`Info: ${sub.name}`}
+                    >
+                      <Info size={12} />
+                    </button>
                   </div>
+                  {sub.subclass_flavor && (
+                    <div
+                      style={{
+                        fontSize: 11,
+                        color: "var(--muted-foreground)",
+                        marginTop: 2,
+                      }}
+                    >
+                      {sub.subclass_flavor}
+                    </div>
+                  )}
                 </div>
               );
             })}
-          </CardContent>
-        </Card>
-      )}
+          </div>
+        </div>
+      </details>
+    ) : null;
 
-      {/* Other Feature Choices */}
-      {featureChoices.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Other Feature Choices</CardTitle>
-            <CardDescription>
-              Additional choices available from your class features
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {featureChoices.map((choice, idx) => (
-              <div key={idx} className="p-3 border rounded-md">
-                <div className="font-medium mb-2">
-                  Level {choice.level}: {choice.name}
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  Feature choice options available (specific implementation depends on feature type)
-                </p>
+  const proficienciesAccordion =
+    isPrimaryClass && skillChoices && availableSkills.length > 0 ? (() => {
+      const selectedCount =
+        formData.featureChoices.skillProficiencies.length;
+      const maxCount = skillChoices.choose || 0;
+      const needsChoice = selectedCount < maxCount;
+      return (
+        <details
+          key="__proficiencies"
+          className="sc-card"
+          style={{ padding: 0, borderRadius: 6 }}
+          open={needsChoice}
+        >
+          <summary
+            style={{
+              cursor: "pointer",
+              padding: "10px 12px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 10,
+            }}
+          >
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div
+                className="font-serif"
+                style={{ fontSize: 14, fontWeight: 600, lineHeight: 1.2 }}
+              >
+                Skill Proficiencies
               </div>
-            ))}
-          </CardContent>
-        </Card>
-      )}
+              <div
+                style={{
+                  fontSize: 11,
+                  color: "var(--muted-foreground)",
+                  marginTop: 2,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                }}
+              >
+                <span>
+                  Choose {maxCount} · 1st level · {selectedCount}/{maxCount}{" "}
+                  selected
+                </span>
+                {needsChoice && (
+                  <>
+                    <span style={{ opacity: 0.4 }}>·</span>
+                    <span style={{ color: "var(--primary)" }}>
+                      Choice required
+                    </span>
+                  </>
+                )}
+              </div>
+            </div>
+            <ChevronRight
+              size={16}
+              className="sc-details-chev"
+              style={{
+                flexShrink: 0,
+                color: "var(--muted-foreground)",
+                transition: "transform 0.15s",
+              }}
+            />
+          </summary>
+          <div style={{ padding: "0 12px 12px" }}>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))",
+                gap: 6,
+              }}
+            >
+              {availableSkills.map((skillOption: string) => {
+                const skill = DND_SKILLS.find(
+                  (s) =>
+                    s.name === skillOption.toLowerCase().replace(/\s+/g, "-") ||
+                    s.name === skillOption
+                );
+                const skillName =
+                  skill?.name ||
+                  skillOption.toLowerCase().replace(/\s+/g, "-");
+                const isSelected =
+                  formData.featureChoices.skillProficiencies.includes(skillName);
+                const maxReached = selectedCount >= maxCount;
+                const displayName = skill?.name
+                  ? skill.name
+                      .split("-")
+                      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+                      .join(" ")
+                  : skillOption;
+                return (
+                  <button
+                    key={skillOption}
+                    type="button"
+                    className="sc-btn sc-btn-sm"
+                    onClick={() => handleSkillToggle(skillName)}
+                    disabled={!isSelected && maxReached}
+                    style={{
+                      justifyContent: "flex-start",
+                      background: isSelected
+                        ? "var(--primary)"
+                        : "var(--secondary)",
+                      color: isSelected
+                        ? "var(--primary-foreground)"
+                        : "var(--secondary-foreground)",
+                      fontWeight: isSelected ? 600 : 500,
+                      opacity: !isSelected && maxReached ? 0.45 : 1,
+                    }}
+                  >
+                    {isSelected && <Check size={12} />}
+                    {displayName}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </details>
+      );
+    })() : null;
 
-      {!skillChoices && !hasASI && featureChoices.length === 0 && (
-        <div className="p-4 border border-muted rounded-md">
-          <p className="text-muted-foreground">No feature choices available for this class at level {formData.level}.</p>
+  return (
+    <div style={{ marginTop: 12 }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          paddingBottom: 6,
+          marginBottom: 8,
+          borderBottom: "1px solid var(--border)",
+        }}
+      >
+        <span
+          style={{
+            fontSize: 11,
+            letterSpacing: "0.1em",
+            textTransform: "uppercase",
+            fontWeight: 600,
+            color: "var(--muted-foreground)",
+          }}
+        >
+          {classData.name} Features
+        </span>
+        <span
+          style={{
+            fontSize: 11,
+            color: "var(--muted-foreground)",
+            opacity: 0.7,
+          }}
+        >
+          {loading
+            ? "Loading…"
+            : `${features.length} feature${features.length === 1 ? "" : "s"}`}
+        </span>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {(() => {
+          type Row =
+            | { kind: "synthetic"; level: number; sort: number; key: string; node: React.ReactNode }
+            | { kind: "feature"; level: number; sort: number; key: string; feature: ClassFeatureRow };
+          const rows: Row[] = [];
+          if (proficienciesAccordion) {
+            rows.push({
+              kind: "synthetic",
+              level: 1,
+              sort: 0.1,
+              key: "__proficiencies",
+              node: proficienciesAccordion,
+            });
+          }
+          if (subclassAccordion) {
+            rows.push({
+              kind: "synthetic",
+              level: subclassUnlockLevel,
+              sort: subclassUnlockLevel + 0.5,
+              key: "__subclass",
+              node: subclassAccordion,
+            });
+          }
+          features.forEach((feat) => {
+            rows.push({
+              kind: "feature",
+              level: feat.level,
+              sort: feat.level,
+              key: feat.index,
+              feature: feat,
+            });
+          });
+          rows.sort((a, b) => a.sort - b.sort);
+
+          if (rows.length === 0 && !loading) {
+            return (
+              <div
+                style={{
+                  fontSize: 12,
+                  color: "var(--muted-foreground)",
+                  padding: "8px 10px",
+                  background: "var(--muted)",
+                  borderRadius: 6,
+                }}
+              >
+                No features listed for {classData.name} up to level {charClass.level}.
+              </div>
+            );
+          }
+
+          return rows.map((row) => {
+            if (row.kind === "synthetic") {
+              return (
+                <React.Fragment key={row.key}>{row.node}</React.Fragment>
+              );
+            }
+            const f = row.feature;
+            const isASI = isASIFeatureName(f.name);
+            const hasChoices =
+              isASI ||
+              (f.feature_specific &&
+                (f.feature_specific.choices ||
+                  f.feature_specific.choice ||
+                  f.feature_specific.options ||
+                  f.feature_specific.from));
+
+            let choiceComplete: boolean | null = null;
+            if (isASI) {
+              const totalForLevel = formData.featureChoices.asiImprovements
+                .filter((asi) => asi.level === f.level)
+                .reduce((sum, asi) => sum + asi.bonus, 0);
+              choiceComplete = totalForLevel >= 2;
+            }
+
+            return (
+              <details
+                key={f.index}
+                className="sc-card"
+              style={{ padding: 0, borderRadius: 6 }}
+              open={hasChoices && choiceComplete === false}
+            >
+              <summary
+                style={{
+                  cursor: "pointer",
+                  padding: "10px 12px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 10,
+                }}
+              >
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div
+                    className="font-serif"
+                    style={{
+                      fontSize: 14,
+                      fontWeight: 600,
+                      lineHeight: 1.2,
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                  >
+                    {f.name}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 11,
+                      color: "var(--muted-foreground)",
+                      marginTop: 2,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
+                    }}
+                  >
+                    <span>{ordinal(f.level)} level</span>
+                    {hasChoices && (
+                      <>
+                        <span style={{ opacity: 0.4 }}>·</span>
+                        <span
+                          style={{
+                            color:
+                              choiceComplete === false
+                                ? "var(--primary)"
+                                : "var(--muted-foreground)",
+                          }}
+                        >
+                          {choiceComplete === false
+                            ? "Choice required"
+                            : "Choices"}
+                        </span>
+                      </>
+                    )}
+                    {f.subclass_index && (
+                      <>
+                        <span style={{ opacity: 0.4 }}>·</span>
+                        <span>Subclass</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+                <ChevronRight
+                  size={16}
+                  className="sc-details-chev"
+                  style={{
+                    flexShrink: 0,
+                    color: "var(--muted-foreground)",
+                    transition: "transform 0.15s",
+                  }}
+                />
+              </summary>
+              <div style={{ padding: "0 12px 12px" }}>
+                {f.description && (
+                  <div
+                    style={{
+                      fontSize: 13,
+                      lineHeight: 1.55,
+                      color: "var(--foreground)",
+                      whiteSpace: "pre-wrap",
+                      opacity: 0.9,
+                    }}
+                  >
+                    {f.description}
+                  </div>
+                )}
+                {isASI && (() => {
+                  const levelASIs = formData.featureChoices.asiImprovements.filter(
+                    (asi) => asi.level === f.level
+                  );
+                  const totalBonus = levelASIs.reduce(
+                    (sum, asi) => sum + asi.bonus,
+                    0
+                  );
+                  const remaining = 2 - totalBonus;
+                  return (
+                    <div
+                      style={{
+                        marginTop: f.description ? 12 : 0,
+                        padding: 10,
+                        borderRadius: 6,
+                        border: "1px solid var(--border)",
+                        background: "var(--muted)",
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: 11,
+                          letterSpacing: "0.05em",
+                          color: "var(--muted-foreground)",
+                          marginBottom: 8,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                        }}
+                      >
+                        <span>
+                          Distribute +2 across ability scores
+                        </span>
+                        <span
+                          style={{
+                            color:
+                              remaining === 0
+                                ? "var(--muted-foreground)"
+                                : "var(--primary)",
+                            fontWeight: 600,
+                          }}
+                        >
+                          {remaining}/2 remaining
+                        </span>
+                      </div>
+                      <div
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns:
+                            "repeat(auto-fill, minmax(96px, 1fr))",
+                          gap: 6,
+                        }}
+                      >
+                        {[
+                          "strength",
+                          "dexterity",
+                          "constitution",
+                          "intelligence",
+                          "wisdom",
+                          "charisma",
+                        ].map((ability) => {
+                          const abilityASI = levelASIs.find(
+                            (asi) => asi.ability === ability
+                          );
+                          const currentBonus = abilityASI?.bonus || 0;
+                          return (
+                            <div key={ability}>
+                              <div
+                                style={{
+                                  fontSize: 10,
+                                  letterSpacing: "0.05em",
+                                  color: "var(--muted-foreground)",
+                                  textTransform: "uppercase",
+                                  textAlign: "center",
+                                  marginBottom: 3,
+                                  fontWeight: 600,
+                                }}
+                              >
+                                {ability.slice(0, 3)}
+                              </div>
+                              <div style={{ display: "flex", gap: 3 }}>
+                                <button
+                                  type="button"
+                                  className="sc-btn sc-btn-sm"
+                                  onClick={() =>
+                                    handleASIBonusClick(f.level, ability, 1)
+                                  }
+                                  disabled={remaining < 1 && currentBonus < 1}
+                                  style={{
+                                    flex: 1,
+                                    justifyContent: "center",
+                                    padding: "3px 4px",
+                                    fontSize: 11,
+                                    background:
+                                      currentBonus >= 1
+                                        ? "var(--primary)"
+                                        : "var(--secondary)",
+                                    color:
+                                      currentBonus >= 1
+                                        ? "var(--primary-foreground)"
+                                        : "var(--secondary-foreground)",
+                                  }}
+                                >
+                                  +1
+                                </button>
+                                <button
+                                  type="button"
+                                  className="sc-btn sc-btn-sm"
+                                  onClick={() =>
+                                    handleASIBonusClick(f.level, ability, 2)
+                                  }
+                                  disabled={
+                                    (remaining < 2 && currentBonus < 2) ||
+                                    currentBonus >= 1
+                                  }
+                                  style={{
+                                    flex: 1,
+                                    justifyContent: "center",
+                                    padding: "3px 4px",
+                                    fontSize: 11,
+                                    background:
+                                      currentBonus >= 2
+                                        ? "var(--primary)"
+                                        : "var(--secondary)",
+                                    color:
+                                      currentBonus >= 2
+                                        ? "var(--primary-foreground)"
+                                        : "var(--secondary-foreground)",
+                                  }}
+                                >
+                                  +2
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            </details>
+          );
+          });
+        })()}
+      </div>
+    </div>
+  );
+}
+
+function FeatureChoicesStep({
+  formData,
+  setFormData,
+  selectedClass,
+  classes,
+  campaignId,
+  sourceVersion,
+  infoSheet,
+}: {
+  formData: CharacterFormData;
+  setFormData: (data: CharacterFormData) => void;
+  selectedClass: DndClass | null | undefined;
+  classes: DndClass[];
+  campaignId: string | null;
+  sourceVersion: "2014" | "2024" | null;
+  infoSheet: ReturnType<typeof useInfoSheet>;
+}) {
+  if (!selectedClass) {
+    return (
+      <div className="p-4 border border-muted rounded-md">
+        <p className="text-muted-foreground">Please select a class first.</p>
+      </div>
+    );
+  }
+
+  const isMulticlass = formData.classes.length > 1;
+
+  const handleSubclassChange = (
+    classIndex: number,
+    subclassSource: "srd" | "homebrew" | null,
+    subclassIndex: string | null
+  ) => {
+    const newClasses = [...formData.classes];
+    newClasses[classIndex] = {
+      ...newClasses[classIndex],
+      subclassSource,
+      subclassIndex,
+    };
+    const primaryIdx = newClasses.findIndex((c) => c.isPrimary);
+    const updatedFormData: CharacterFormData = { ...formData, classes: newClasses };
+    if (classIndex === primaryIdx || (primaryIdx === -1 && classIndex === 0)) {
+      updatedFormData.subclassSource = subclassSource;
+      updatedFormData.subclassIndex = subclassIndex;
+    }
+    setFormData(updatedFormData);
+  };
+
+  const updateClassLevel = (index: number, newLevel: number) => {
+    if (newLevel < 1) return;
+    const newClasses = [...formData.classes];
+    newClasses[index] = { ...newClasses[index], level: newLevel };
+    const newTotal = newClasses.reduce((sum, c) => sum + c.level, 0);
+    if (newTotal > formData.level) {
+      toast.error(
+        `Total class levels cannot exceed character level ${formData.level}`
+      );
+      return;
+    }
+    setFormData({ ...formData, classes: newClasses });
+  };
+
+  const totalClassLevel = formData.classes.reduce((sum, c) => sum + c.level, 0);
+  const levelsRemaining = formData.level - totalClassLevel;
+
+  // Change character level — for single class, sync the primary class's level.
+  // For multiclass, keep class distribution and adjust primary to absorb diff.
+  const handleCharacterLevelChange = (newLevel: number) => {
+    const clamped = Math.max(1, Math.min(20, newLevel));
+    if (formData.classes.length === 0) {
+      setFormData({ ...formData, level: clamped });
+      return;
+    }
+    if (formData.classes.length === 1) {
+      const updatedClasses = [{ ...formData.classes[0], level: clamped }];
+      setFormData({ ...formData, level: clamped, classes: updatedClasses });
+      return;
+    }
+    // Multiclass: keep non-primary levels, adjust primary.
+    const nonPrimaryTotal = formData.classes
+      .filter((c) => !c.isPrimary)
+      .reduce((sum, c) => sum + c.level, 0);
+    const newPrimaryLevel = Math.max(1, clamped - nonPrimaryTotal);
+    const updatedClasses = formData.classes.map((c) =>
+      c.isPrimary ? { ...c, level: newPrimaryLevel } : c
+    );
+    setFormData({ ...formData, level: clamped, classes: updatedClasses });
+  };
+
+  // HP / Hit Dice summary
+  const hitDiceBreakdown: Record<string, number> = {};
+  for (const charClass of formData.classes) {
+    const cls = classes.find(
+      (c) =>
+        c.source === charClass.classSource && c.index === charClass.classIndex
+    );
+    const die = `d${cls?.hit_die || 8}`;
+    hitDiceBreakdown[die] = (hitDiceBreakdown[die] || 0) + charClass.level;
+  }
+  const hitDiceStr =
+    Object.entries(hitDiceBreakdown)
+      .map(([die, count]) => `${count}${die}`)
+      .join(" + ") || "—";
+  const conMod = getAbilityModifier(formData.abilityScores.constitution || 10);
+  const primaryHitDie =
+    classes.find(
+      (c) =>
+        c.source === formData.classes.find((x) => x.isPrimary)?.classSource &&
+        c.index === formData.classes.find((x) => x.isPrimary)?.classIndex
+    )?.hit_die || 8;
+  // Level 1: max of primary hit die + con. Subsequent levels: avg rounded up (hit_die/2 + 1) + con
+  let maxHp = 0;
+  if (formData.classes.length > 0) {
+    maxHp = primaryHitDie + conMod;
+    for (const charClass of formData.classes) {
+      const cls = classes.find(
+        (c) =>
+          c.source === charClass.classSource &&
+          c.index === charClass.classIndex
+      );
+      const die = cls?.hit_die || 8;
+      let levelsFromThisClass = charClass.level;
+      if (charClass.isPrimary) levelsFromThisClass -= 1;
+      levelsFromThisClass = Math.max(0, levelsFromThisClass);
+      const avg = Math.floor(die / 2) + 1;
+      maxHp += levelsFromThisClass * (avg + conMod);
+    }
+    maxHp = Math.max(1, maxHp);
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Character Level & HP Header (DDB-style) */}
+      <div
+        className="sc-card"
+        style={{
+          padding: 14,
+          display: "flex",
+          flexWrap: "wrap",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 14,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <button
+            type="button"
+            className="sc-btn sc-btn-sm"
+            onClick={() => handleCharacterLevelChange(formData.level - 1)}
+            disabled={formData.level <= 1}
+            aria-label="Decrease character level"
+          >
+            <Minus size={14} />
+          </button>
+          <div style={{ textAlign: "center", minWidth: 110 }}>
+            <div
+              style={{
+                fontSize: 10,
+                letterSpacing: "0.1em",
+                textTransform: "uppercase",
+                color: "var(--muted-foreground)",
+              }}
+            >
+              Character Level
+            </div>
+            <div
+              className="font-serif"
+              style={{
+                fontSize: 28,
+                fontWeight: 700,
+                lineHeight: 1.1,
+                fontVariantNumeric: "tabular-nums",
+              }}
+            >
+              {formData.level}
+            </div>
+          </div>
+          <button
+            type="button"
+            className="sc-btn sc-btn-sm"
+            onClick={() => handleCharacterLevelChange(formData.level + 1)}
+            disabled={formData.level >= 20}
+            aria-label="Increase character level"
+          >
+            <Plus size={14} />
+          </button>
+        </div>
+
+        {formData.classes.length > 0 && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 20,
+              padding: "8px 14px",
+              borderRadius: 6,
+              background: "var(--muted)",
+              border: "1px solid var(--border)",
+            }}
+          >
+            <div>
+              <div
+                style={{
+                  fontSize: 10,
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase",
+                  color: "var(--muted-foreground)",
+                }}
+              >
+                Max Hit Points
+              </div>
+              <div
+                className="font-serif"
+                style={{
+                  fontSize: 18,
+                  fontWeight: 600,
+                  fontVariantNumeric: "tabular-nums",
+                }}
+              >
+                {maxHp}
+              </div>
+            </div>
+            <div>
+              <div
+                style={{
+                  fontSize: 10,
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase",
+                  color: "var(--muted-foreground)",
+                }}
+              >
+                Hit Dice
+              </div>
+              <div
+                className="font-serif"
+                style={{
+                  fontSize: 18,
+                  fontWeight: 600,
+                  fontVariantNumeric: "tabular-nums",
+                }}
+              >
+                {hitDiceStr}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Per-class level breakdown (DDB-style: each class with its level) */}
+      {formData.classes.length > 0 && (
+        <div className="space-y-3">
+          {formData.classes.map((charClass, idx) => {
+            const cls = classes.find(
+              (c) =>
+                c.source === charClass.classSource &&
+                c.index === charClass.classIndex
+            );
+            const { Icon: ClassIcon, hue } = cls
+              ? getClassVisual(cls)
+              : { Icon: Fighter, hue: 0 };
+            return (
+              <div key={`${charClass.classSource}-${charClass.classIndex}`}>
+              <div
+                className="sc-card"
+                style={{
+                  padding: "10px 14px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 12,
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 12,
+                    minWidth: 0,
+                    flex: 1,
+                  }}
+                >
+                  <div
+                    aria-hidden
+                    style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: 6,
+                      flexShrink: 0,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      background: `hsl(${hue} 55% 50% / 0.18)`,
+                      color: `hsl(${hue} 55% 65%)`,
+                      border: `1px solid hsl(${hue} 55% 50% / 0.35)`,
+                    }}
+                  >
+                    <ClassIcon size={20} />
+                  </div>
+                  <div style={{ minWidth: 0 }}>
+                    <div
+                      className="font-serif"
+                      style={{
+                        fontSize: 16,
+                        fontWeight: 600,
+                        lineHeight: 1.1,
+                      }}
+                    >
+                      {cls?.name || charClass.classIndex}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 10.5,
+                        color: "var(--muted-foreground)",
+                        marginTop: 2,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6,
+                      }}
+                    >
+                      {charClass.isPrimary ? (
+                        <span
+                          className="sc-badge"
+                          style={{
+                            fontSize: 9,
+                            padding: "1px 5px",
+                            letterSpacing: "0.05em",
+                          }}
+                        >
+                          PRIMARY
+                        </span>
+                      ) : (
+                        <span
+                          className="sc-badge"
+                          style={{
+                            fontSize: 9,
+                            padding: "1px 5px",
+                            letterSpacing: "0.05em",
+                          }}
+                        >
+                          MULTICLASS
+                        </span>
+                      )}
+                      <span>Hit Die: d{cls?.hit_die || 8}</span>
+                    </div>
+                  </div>
+                </div>
+                <div
+                  style={{ display: "flex", alignItems: "center", gap: 8 }}
+                >
+                  <div
+                    style={{
+                      fontSize: 10,
+                      letterSpacing: "0.08em",
+                      textTransform: "uppercase",
+                      color: "var(--muted-foreground)",
+                    }}
+                  >
+                    Level
+                  </div>
+                  <select
+                    value={charClass.level}
+                    onChange={(e) =>
+                      updateClassLevel(idx, parseInt(e.target.value) || 1)
+                    }
+                    style={{
+                      padding: "4px 8px",
+                      borderRadius: 6,
+                      border: "1px solid var(--border)",
+                      background: "var(--background)",
+                      color: "var(--foreground)",
+                      fontSize: 13,
+                      fontWeight: 600,
+                      fontVariantNumeric: "tabular-nums",
+                      cursor: "pointer",
+                    }}
+                  >
+                    {Array.from({ length: formData.level }, (_, i) => i + 1).map(
+                      (n) => (
+                        <option key={n} value={n}>
+                          {n}
+                        </option>
+                      )
+                    )}
+                  </select>
+                  {isMulticlass && !charClass.isPrimary && (
+                    <button
+                      type="button"
+                      className="sc-btn sc-btn-sm sc-btn-ghost"
+                      onClick={() => {
+                        const newClasses = formData.classes.filter(
+                          (c) =>
+                            !(
+                              c.classSource === charClass.classSource &&
+                              c.classIndex === charClass.classIndex
+                            )
+                        );
+                        setFormData({
+                          ...formData,
+                          classes: newClasses,
+                          classSource: newClasses[0]?.classSource || null,
+                          classIndex: newClasses[0]?.classIndex || null,
+                        });
+                      }}
+                      title="Remove multiclass"
+                      style={{ color: "var(--destructive)" }}
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+              </div>
+              <ClassFeaturesList
+                charClass={charClass}
+                classData={cls}
+                classIdx={idx}
+                formData={formData}
+                setFormData={setFormData}
+                campaignId={campaignId}
+                sourceVersion={sourceVersion}
+                infoSheet={infoSheet}
+                onSubclassChange={handleSubclassChange}
+              />
+              </div>
+            );
+          })}
+          {levelsRemaining !== 0 && isMulticlass && (
+            <div
+              style={{
+                fontSize: 11,
+                padding: "6px 10px",
+                borderRadius: 6,
+                background:
+                  levelsRemaining < 0
+                    ? "color-mix(in srgb, var(--destructive) 12%, transparent)"
+                    : "color-mix(in srgb, var(--primary) 10%, transparent)",
+                color:
+                  levelsRemaining < 0
+                    ? "var(--destructive)"
+                    : "var(--muted-foreground)",
+              }}
+            >
+              {levelsRemaining < 0
+                ? `Class levels exceed character level by ${Math.abs(levelsRemaining)}. Reduce a class's level.`
+                : `${levelsRemaining} character level(s) unassigned. Assign them to a class.`}
+            </div>
+          )}
         </div>
       )}
+
     </div>
   );
 }
@@ -2771,141 +4434,413 @@ function AbilityScoresStep({
     });
   };
 
+  const methodOptions: Array<{ value: AbilityScoreMethod; label: string; sub: string }> = [
+    { value: "point-buy", label: "Point Buy", sub: "27 points" },
+    { value: "standard-array", label: "Standard Array", sub: STANDARD_ARRAY.join(", ") },
+    { value: "manual", label: "Roll 4d6", sub: "drop lowest" },
+  ];
+
+  const abilityIcons: Record<string, React.ComponentType<{ size?: number; className?: string }>> = {
+    strength: Strength,
+    dexterity: Dexterity,
+    constitution: Constitution,
+    intelligence: Intelligence,
+    wisdom: Wisdom,
+    charisma: Charisma,
+  };
+
   return (
-    <div className="space-y-6">
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      {/* Method picker - three compact pill buttons */}
       <div>
-        <Label>Ability Score Generation Method</Label>
-        <Select
-          value={formData.abilityScoreMethod}
-          onValueChange={(value) => handleMethodChange(value as AbilityScoreMethod)}
+        <div
+          className="sc-label"
+          style={{ fontSize: 10, marginBottom: 6, textTransform: "uppercase" }}
         >
-          <SelectTrigger className="w-full mt-2">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="point-buy">Point Buy (27 points)</SelectItem>
-            <SelectItem value="standard-array">Standard Array</SelectItem>
-            <SelectItem value="manual">Roll 4d6 (Manual)</SelectItem>
-          </SelectContent>
-        </Select>
+          Generation Method
+        </div>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {methodOptions.map((opt) => {
+            const active = formData.abilityScoreMethod === opt.value;
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => handleMethodChange(opt.value)}
+                className="sc-card sc-card-hover"
+                style={{
+                  flex: "1 1 140px",
+                  padding: "8px 10px",
+                  cursor: "pointer",
+                  textAlign: "left",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 2,
+                  borderColor: active ? "var(--primary)" : undefined,
+                  background: active
+                    ? "color-mix(in srgb, var(--primary) 10%, transparent)"
+                    : undefined,
+                  boxShadow: active ? "0 0 0 1px var(--primary) inset" : undefined,
+                }}
+              >
+                <span style={{ fontSize: 12, fontWeight: 600 }}>{opt.label}</span>
+                <span style={{ fontSize: 10, color: "var(--muted-foreground)" }}>
+                  {opt.sub}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
         {formData.abilityScoreMethod === "point-buy" && (
-          <p className="text-sm text-muted-foreground mt-2">
-            Points remaining: <strong>{pointBuyRemaining}</strong> / {POINT_BUY_TOTAL}
-          </p>
-        )}
-        {formData.abilityScoreMethod === "standard-array" && (
-          <div className="mt-2 p-3 bg-muted/30 rounded-md">
-            <p className="text-sm font-medium mb-2">Available Values: {STANDARD_ARRAY.join(", ")}</p>
-            <p className="text-xs text-muted-foreground">
-              Select a value for each ability. Each value can only be used once.
-            </p>
+          <div
+            style={{
+              marginTop: 8,
+              fontSize: 11,
+              color: "var(--muted-foreground)",
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+            }}
+          >
+            Points remaining:{" "}
+            <strong
+              style={{
+                color:
+                  pointBuyRemaining === 0
+                    ? "var(--primary)"
+                    : pointBuyRemaining < 0
+                      ? "var(--destructive)"
+                      : undefined,
+                fontVariantNumeric: "tabular-nums",
+              }}
+            >
+              {pointBuyRemaining}
+            </strong>{" "}
+            / {POINT_BUY_TOTAL}
           </div>
         )}
         {formData.abilityScoreMethod === "manual" && (
-          <div className="mt-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleReroll}
-              className="w-full"
-            >
-              Reroll All Ability Scores
-            </Button>
-          </div>
+          <button
+            type="button"
+            className="sc-btn sc-btn-sm"
+            style={{ marginTop: 8 }}
+            onClick={handleReroll}
+          >
+            Reroll All
+          </button>
         )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* Compact ability tiles - all six side-by-side in a single row */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(6, minmax(0, 1fr))",
+          gap: 6,
+        }}
+      >
         {abilities.map((ability) => {
           const baseScore = formData.abilityScores[ability];
           const finalScore = getFinalAbilityScore(ability);
           const modifier = getAbilityModifierString(finalScore);
-          
-          const abilityIcons: Record<string, React.ComponentType<{ size?: number; className?: string }>> = {
-            strength: Strength,
-            dexterity: Dexterity,
-            constitution: Constitution,
-            intelligence: Intelligence,
-            wisdom: Wisdom,
-            charisma: Charisma,
-          };
+          const hasRacialBonus = selectedRace && baseScore !== finalScore;
           const AbilityIcon = abilityIcons[ability];
 
           return (
-            <Card key={ability}>
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between mb-2">
-                  <Label className="text-base capitalize flex items-center gap-2">
-                    {AbilityIcon && <AbilityIcon size={20} />}
-                    {ability}
-                  </Label>
-                  {formData.abilityScoreMethod === "point-buy" && (
-                    <div className="flex gap-1">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        className="h-7 w-7"
-                        onClick={() => adjustScore(ability, -1)}
-                        disabled={baseScore <= POINT_BUY_MIN}
-                      >
-                        -
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        className="h-7 w-7"
-                        onClick={() => adjustScore(ability, 1)}
-                        disabled={baseScore >= POINT_BUY_MAX || pointBuyRemaining <= 0}
-                      >
-                        +
-                      </Button>
-                    </div>
-                  )}
+            <div
+              key={ability}
+              className="sc-card"
+              style={{
+                padding: 8,
+                display: "flex",
+                flexDirection: "column",
+                gap: 4,
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 4,
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 4,
+                    minWidth: 0,
+                  }}
+                >
+                  {AbilityIcon && <AbilityIcon size={14} />}
+                  <span
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 600,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.08em",
+                      color: "var(--muted-foreground)",
+                    }}
+                  >
+                    {ability.slice(0, 3)}
+                  </span>
                 </div>
-                {formData.abilityScoreMethod === "standard-array" && (
-                  <div className="mb-3">
-                    <Label className="text-xs text-muted-foreground mb-1 block">Select Value</Label>
-                    <Select
-                      value={baseScore.toString()}
-                      onValueChange={(value) => handleStandardArraySelect(ability, value)}
+                {formData.abilityScoreMethod === "point-buy" && (
+                  <div style={{ display: "flex", gap: 2 }}>
+                    <button
+                      type="button"
+                      className="sc-btn sc-btn-ghost"
+                      style={{ padding: 0, height: 18, width: 18, fontSize: 12 }}
+                      onClick={() => adjustScore(ability, -1)}
+                      disabled={baseScore <= POINT_BUY_MIN}
+                      aria-label={`Decrease ${ability}`}
                     >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Choose value" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {STANDARD_ARRAY.map((val) => {
-                          const isUsed = Array.from(standardArrayAssignments.values()).includes(val) && standardArrayAssignments.get(ability) !== val;
-                          return (
-                            <SelectItem
-                              key={val}
-                              value={val.toString()}
-                              disabled={isUsed}
-                            >
-                              {val} {isUsed && "(Already assigned)"}
-                            </SelectItem>
-                          );
-                        })}
-                      </SelectContent>
-                    </Select>
+                      <Minus size={11} />
+                    </button>
+                    <button
+                      type="button"
+                      className="sc-btn sc-btn-ghost"
+                      style={{ padding: 0, height: 18, width: 18, fontSize: 12 }}
+                      onClick={() => adjustScore(ability, 1)}
+                      disabled={
+                        baseScore >= POINT_BUY_MAX || pointBuyRemaining <= 0
+                      }
+                      aria-label={`Increase ${ability}`}
+                    >
+                      <Plus size={11} />
+                    </button>
                   </div>
                 )}
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-2xl font-bold">{finalScore}</span>
-                    <span className="text-lg text-muted-foreground">({modifier})</span>
-                  </div>
-                  {selectedRace && baseScore !== finalScore && (
-                    <p className="text-xs text-muted-foreground">
-                      Base: {baseScore} + Racial Bonus
-                    </p>
-                  )}
+              </div>
+
+              {formData.abilityScoreMethod === "standard-array" && (
+                <Select
+                  value={baseScore.toString()}
+                  onValueChange={(value) => handleStandardArraySelect(ability, value)}
+                >
+                  <SelectTrigger
+                    style={{ height: 26, fontSize: 11, padding: "0 8px" }}
+                  >
+                    <SelectValue placeholder="Value" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {STANDARD_ARRAY.map((val) => {
+                      const isUsed =
+                        Array.from(standardArrayAssignments.values()).includes(val) &&
+                        standardArrayAssignments.get(ability) !== val;
+                      return (
+                        <SelectItem
+                          key={val}
+                          value={val.toString()}
+                          disabled={isUsed}
+                        >
+                          {val} {isUsed && "(used)"}
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+              )}
+
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "baseline",
+                  justifyContent: "space-between",
+                  gap: 6,
+                }}
+              >
+                <span
+                  className="font-serif"
+                  style={{
+                    fontSize: 22,
+                    fontWeight: 600,
+                    lineHeight: 1,
+                    fontVariantNumeric: "tabular-nums",
+                  }}
+                >
+                  {finalScore}
+                </span>
+                <span
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 500,
+                    color: "var(--primary)",
+                    fontVariantNumeric: "tabular-nums",
+                  }}
+                >
+                  {modifier}
+                </span>
+              </div>
+              {hasRacialBonus && (
+                <div
+                  style={{
+                    fontSize: 9,
+                    color: "var(--muted-foreground)",
+                    marginTop: -2,
+                  }}
+                  title={`Base ${baseScore} + ${finalScore - baseScore} racial`}
+                >
+                  {baseScore} + {finalScore - baseScore}
                 </div>
-              </CardContent>
-            </Card>
+              )}
+            </div>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+// "Home" step — DDB's character builder Home tab: campaign type, campaign
+// selection, character name, and starting level in one consolidated screen.
+function HomeStep({
+  formData,
+  setFormData,
+  campaigns,
+  races,
+}: {
+  formData: CharacterFormData;
+  setFormData: (data: CharacterFormData) => void;
+  campaigns:
+    | ReturnType<typeof useCampaigns>["campaigns"]
+    | null
+    | undefined;
+  races: Race[];
+}) {
+  return (
+    <div className="space-y-5">
+      {/* Character Name */}
+      <div>
+        <Label htmlFor="home-name" className="flex items-center gap-2">
+          <CharacterIcon size={18} />
+          Character Name
+        </Label>
+        <div className="flex gap-2 mt-2">
+          <Input
+            id="home-name"
+            value={formData.name}
+            onChange={(e) =>
+              setFormData({ ...formData, name: e.target.value })
+            }
+            placeholder="Enter character name"
+            className="flex-1"
+          />
+          <NameGeneratorButton
+            category="character"
+            onGenerate={(generatedName) =>
+              setFormData({ ...formData, name: generatedName })
+            }
+            race={
+              formData.raceSource && formData.raceIndex
+                ? races.find(
+                    (r) =>
+                      r.source === formData.raceSource &&
+                      r.index === formData.raceIndex
+                  )?.name
+                : undefined
+            }
+          />
+        </div>
+      </div>
+
+      {/* Campaign Type */}
+      <div>
+        <Label className="flex items-center gap-2">
+          <Campaign size={18} />
+          Character Type
+        </Label>
+        <p className="text-sm text-muted-foreground mt-1">
+          Is this character part of an existing campaign, or a standalone hero?
+        </p>
+        <div className="space-y-3 mt-3">
+          <Card
+            className={`cursor-pointer transition-all ${
+              formData.characterType === "standalone"
+                ? "ring-2 ring-primary"
+                : ""
+            }`}
+            onClick={() =>
+              setFormData({
+                ...formData,
+                characterType: "standalone",
+                campaignId: null,
+              })
+            }
+          >
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                <Person size={24} />
+                <div>
+                  <h3 className="font-semibold">Standalone Character</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Create a character not tied to any campaign
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card
+            className={`cursor-pointer transition-all ${
+              formData.characterType === "campaign"
+                ? "ring-2 ring-primary"
+                : ""
+            }`}
+            onClick={() =>
+              setFormData({ ...formData, characterType: "campaign" })
+            }
+          >
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                <Campaign size={24} />
+                <div>
+                  <h3 className="font-semibold">Campaign Character</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Create a character for a specific campaign
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+        {formData.characterType === "campaign" && (
+          <div className="mt-4 space-y-2">
+            <Label>Select Campaign</Label>
+            <Select
+              value={formData.campaignId || ""}
+              onValueChange={(value) =>
+                setFormData({ ...formData, campaignId: value })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Choose a campaign" />
+              </SelectTrigger>
+              <SelectContent>
+                {campaigns?.map((campaign) => (
+                  <SelectItem key={campaign.id} value={campaign.id}>
+                    {campaign.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+      </div>
+
+      {/* Character Portrait */}
+      <div>
+        <Label className="flex items-center gap-2">
+          <Person size={18} />
+          Character Portrait (Optional)
+        </Label>
+        <CharacterImageUpload
+          imageUrl={formData.imageUrl}
+          onImageChange={(url: string | null) =>
+            setFormData({ ...formData, imageUrl: url })
+          }
+        />
       </div>
     </div>
   );
@@ -2916,11 +4851,13 @@ function BackgroundStep({
   setFormData,
   backgrounds,
   backgroundsLoading,
+  section = "background",
 }: {
   formData: CharacterFormData;
   setFormData: (data: CharacterFormData) => void;
   backgrounds: Array<{ id: string; index: string; name: string; description: string | null; skill_proficiencies: string | null; tool_proficiencies: string | null; languages: string | null; equipment: string | null; feature: string | null; ability_score_increase: string | null; created_at: string }>;
   backgroundsLoading: boolean;
+  section?: "background" | "description";
 }) {
   const selectedBackground = backgrounds.find(bg => bg.name === formData.background || bg.index === formData.background.toLowerCase().replace(/\s+/g, '-'));
   const isCustomBackground = formData.background === "custom";
@@ -2989,31 +4926,8 @@ function BackgroundStep({
 
   return (
     <div className="space-y-4">
-      <div>
-        <Label htmlFor="name" className="flex items-center gap-2">
-          <CharacterIcon size={18} />
-          Character Name *
-        </Label>
-        <div className="flex gap-2 mt-2">
-          <Input
-            id="name"
-            value={formData.name}
-            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-            placeholder="Enter character name"
-            className="flex-1"
-          />
-          <NameGeneratorButton
-            category="character"
-            onGenerate={(generatedName) => setFormData({ ...formData, name: generatedName })}
-            race={
-              formData.raceSource && formData.raceIndex
-                ? races.find((r) => r.source === formData.raceSource && r.index === formData.raceIndex)?.name
-                : undefined
-            }
-          />
-        </div>
-      </div>
-
+      {section === "background" && (
+      <>
       <div>
         <Label htmlFor="background" className="flex items-center gap-2">
           <Book size={18} />
@@ -3185,52 +5099,375 @@ function BackgroundStep({
         </div>
       )}
 
+      </>
+      )}
+
+      {section === "description" && (
+      <>
+      {/* Alignment — 3x3 grid picker */}
       <div>
-        <Label htmlFor="alignment" className="flex items-center gap-2">
+        <Label className="flex items-center gap-2">
           <Book size={18} />
           Alignment
         </Label>
-        <Select
-          value={formData.alignment}
-          onValueChange={(value) => setFormData({ ...formData, alignment: value })}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(3, 1fr)",
+            gap: 6,
+            marginTop: 8,
+          }}
         >
-          <SelectTrigger className="w-full mt-2">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {ALIGNMENTS.map((align) => (
-              <SelectItem key={align} value={align}>
-                {align}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          {ALIGNMENT_GRID.map((a) => {
+            const isActive = formData.alignment === a.value;
+            return (
+              <button
+                key={a.value}
+                type="button"
+                className="sc-card sc-card-hover"
+                onClick={() =>
+                  setFormData({ ...formData, alignment: a.value })
+                }
+                style={{
+                  padding: "10px 8px",
+                  textAlign: "center",
+                  cursor: "pointer",
+                  background: isActive
+                    ? "color-mix(in srgb, var(--primary) 14%, var(--card))"
+                    : "var(--card)",
+                  borderColor: isActive
+                    ? "var(--primary)"
+                    : "var(--border)",
+                  transition: "all 0.15s",
+                }}
+              >
+                <div
+                  className="font-serif"
+                  style={{
+                    fontSize: 16,
+                    fontWeight: 600,
+                    color: isActive ? "var(--primary)" : "var(--foreground)",
+                    letterSpacing: "0.04em",
+                  }}
+                >
+                  {a.abbr}
+                </div>
+                <div
+                  style={{
+                    fontSize: 10,
+                    color: "var(--muted-foreground)",
+                    marginTop: 2,
+                    letterSpacing: "0.04em",
+                  }}
+                >
+                  {a.value}
+                </div>
+                <div
+                  style={{
+                    fontSize: 10,
+                    color: "var(--muted-foreground)",
+                    marginTop: 4,
+                    fontStyle: "italic",
+                    lineHeight: 1.3,
+                  }}
+                >
+                  {a.blurb}
+                </div>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
+      {/* -------------- Description & Physical Details -------------- */}
+      <DescriptionSection formData={formData} setFormData={setFormData} />
+      </>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Description section — personality, ideals, bonds, flaws, physical details,
+// appearance and backstory. Backed by formData.description.
+// ---------------------------------------------------------------------------
+
+const PERSONALITY_SUGGESTIONS = [
+  "I idolize a particular hero of my faith and constantly refer to that person's deeds and example.",
+  "I've been isolated for so long that I rarely speak, preferring gestures and the occasional grunt.",
+  "I am tolerant (or intolerant) of other faiths and respect (or condemn) the worship of other gods.",
+  "I've enjoyed fine food, drink, and high society among my temple's elite. Rough living grates on me.",
+  "I've spent so long in the temple that I have little practical experience dealing with people in the outside world.",
+  "I quote (or misquote) sacred texts and proverbs in almost every situation.",
+  "I am heedless of my personal safety in combat when acting on my faith.",
+  "I am inflexible in my thinking and prone to lecturing.",
+];
+const IDEAL_SUGGESTIONS = [
+  "Tradition. The ancient traditions of worship and sacrifice must be preserved and upheld. (Lawful)",
+  "Charity. I always try to help those in need, no matter the personal cost. (Good)",
+  "Change. We must help bring about the changes the gods are constantly working in the world. (Chaotic)",
+  "Power. I hope to one day rise to the top of my faith's religious hierarchy. (Lawful)",
+  "Faith. I trust that my deity will guide my actions. I have faith that if I work hard, things will go well. (Lawful)",
+  "Aspiration. I seek to prove myself worthy of my god's favor by matching my actions against their teachings. (Any)",
+];
+const BOND_SUGGESTIONS = [
+  "I would die to recover an ancient relic of my faith that was lost long ago.",
+  "I will someday get revenge on the corrupt temple hierarchy who branded me a heretic.",
+  "I owe my life to the priest who took me in when my parents died.",
+  "Everything I do is for the common people.",
+  "I will do anything to protect the temple where I served.",
+  "I seek to preserve a sacred text that my enemies consider heretical and seek to destroy.",
+];
+const FLAW_SUGGESTIONS = [
+  "I judge others harshly, and myself even more severely.",
+  "I put too much trust in those who wield power within my temple's hierarchy.",
+  "My piety sometimes leads me to blindly trust those that profess faith in my god.",
+  "I am inflexible in my thinking.",
+  "I am suspicious of strangers and expect the worst of them.",
+  "Once I pick a goal, I become obsessed with it to the detriment of everything else in my life.",
+];
+
+function pickRandom(list: string[]): string {
+  return list[Math.floor(Math.random() * list.length)];
+}
+
+function DescriptionSection({
+  formData,
+  setFormData,
+}: {
+  formData: CharacterFormData;
+  setFormData: (data: CharacterFormData) => void;
+}) {
+  const desc = formData.description;
+  const update = (patch: Partial<CharacterFormData["description"]>) => {
+    setFormData({
+      ...formData,
+      description: { ...formData.description, ...patch },
+    });
+  };
+
+  const addSuggestion = (
+    key: keyof CharacterFormData["description"],
+    list: string[],
+  ) => {
+    const current = desc[key] as string;
+    const next = pickRandom(list);
+    update({ [key]: current ? `${current}\n${next}` : next } as Partial<
+      CharacterFormData["description"]
+    >);
+  };
+
+  const textareaStyle: React.CSSProperties = {
+    width: "100%",
+    minHeight: 72,
+    padding: "8px 10px",
+    borderRadius: 6,
+    border: "1px solid var(--border)",
+    background: "var(--background)",
+    color: "var(--foreground)",
+    fontSize: 12.5,
+    lineHeight: 1.5,
+    resize: "vertical",
+    fontFamily: "inherit",
+    outline: "none",
+  };
+
+  const fieldInputStyle: React.CSSProperties = {
+    width: "100%",
+    padding: "6px 10px",
+    borderRadius: 6,
+    border: "1px solid var(--border)",
+    background: "var(--background)",
+    color: "var(--foreground)",
+    fontSize: 12.5,
+    fontFamily: "inherit",
+    outline: "none",
+  };
+
+  const traitBlock = (
+    key: keyof CharacterFormData["description"],
+    title: string,
+    placeholder: string,
+    suggestions: string[],
+  ) => (
+    <div
+      className="sc-card"
+      style={{ padding: 12, display: "flex", flexDirection: "column", gap: 6 }}
+    >
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: 8,
+        }}
+      >
+        <div className="sc-label">{title}</div>
+        <button
+          type="button"
+          className="sc-btn sc-btn-sm sc-btn-ghost"
+          onClick={() => addSuggestion(key, suggestions)}
+          title="Add a suggested entry"
+        >
+          <Plus size={11} />
+          Suggest
+        </button>
+      </div>
+      <textarea
+        value={desc[key] as string}
+        onChange={(e) =>
+          update({ [key]: e.target.value } as Partial<
+            CharacterFormData["description"]
+          >)
+        }
+        placeholder={placeholder}
+        style={textareaStyle}
+      />
+      <div style={{ fontSize: 10, color: "var(--muted-foreground)" }}>
+        One entry per line · tone-setters, not scripts
+      </div>
+    </div>
+  );
+
+  const detailField = (
+    key: keyof CharacterFormData["description"],
+    label: string,
+    placeholder?: string,
+  ) => (
+    <div>
+      <div
+        style={{
+          fontSize: 10,
+          letterSpacing: "0.1em",
+          textTransform: "uppercase",
+          color: "var(--muted-foreground)",
+          marginBottom: 4,
+        }}
+      >
+        {label}
+      </div>
+      <input
+        type="text"
+        value={desc[key] as string}
+        onChange={(e) =>
+          update({ [key]: e.target.value } as Partial<
+            CharacterFormData["description"]
+          >)
+        }
+        placeholder={placeholder}
+        style={fieldInputStyle}
+      />
+    </div>
+  );
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 12,
+        paddingTop: 14,
+        marginTop: 4,
+        borderTop: "1px solid var(--border)",
+      }}
+    >
       <div>
-        <Label htmlFor="level" className="flex items-center gap-2">
-          <CharacterIcon size={18} />
-          Starting Level
-        </Label>
-        <Input
-          id="level"
-          type="number"
-          min={1}
-          max={20}
-          value={formData.level}
-          onChange={(e) => setFormData({ ...formData, level: parseInt(e.target.value) || 1 })}
-          className="mt-2"
+        <div
+          className="font-serif"
+          style={{ fontSize: 16, fontWeight: 600, marginBottom: 2 }}
+        >
+          Character description
+        </div>
+        <div style={{ fontSize: 11, color: "var(--muted-foreground)" }}>
+          Flesh out who your character is beyond the numbers — traits, physical
+          details, and the story that brought them here.
+        </div>
+      </div>
+
+      {/* Personality / Ideals / Bonds / Flaws */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+          gap: 10,
+        }}
+      >
+        {traitBlock(
+          "personalityTraits",
+          "Personality traits",
+          "What small quirks or mannerisms define this character?",
+          PERSONALITY_SUGGESTIONS,
+        )}
+        {traitBlock(
+          "ideals",
+          "Ideals",
+          "The principles this character will not compromise on.",
+          IDEAL_SUGGESTIONS,
+        )}
+        {traitBlock(
+          "bonds",
+          "Bonds",
+          "Ties to people, places, or objects that drive them.",
+          BOND_SUGGESTIONS,
+        )}
+        {traitBlock(
+          "flaws",
+          "Flaws",
+          "Vices, fears, or failings that get in their way.",
+          FLAW_SUGGESTIONS,
+        )}
+      </div>
+
+      {/* Physical details */}
+      <div
+        className="sc-card"
+        style={{ padding: 12, display: "flex", flexDirection: "column", gap: 10 }}
+      >
+        <div className="sc-label">Physical description</div>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+            gap: 10,
+          }}
+        >
+          {detailField("age", "Age", "e.g. 27")}
+          {detailField("gender", "Gender", "e.g. Woman")}
+          {detailField("pronouns", "Pronouns", "e.g. she/her")}
+          {detailField("height", "Height", `e.g. 5'10"`)}
+          {detailField("weight", "Weight", "e.g. 160 lb")}
+          {detailField("eyes", "Eyes", "e.g. Grey")}
+          {detailField("hair", "Hair", "e.g. Auburn")}
+          {detailField("skin", "Skin", "e.g. Olive")}
+          {detailField("faith", "Faith / Deity", "e.g. Moradin")}
+        </div>
+      </div>
+
+      {/* Appearance */}
+      <div
+        className="sc-card"
+        style={{ padding: 12, display: "flex", flexDirection: "column", gap: 6 }}
+      >
+        <div className="sc-label">Appearance</div>
+        <textarea
+          value={desc.appearance}
+          onChange={(e) => update({ appearance: e.target.value })}
+          placeholder="Scars, tattoos, clothing, posture — how others see them at a glance."
+          style={{ ...textareaStyle, minHeight: 90 }}
         />
       </div>
 
-      <div>
-        <Label className="flex items-center gap-2">
-          <Person size={18} />
-          Character Portrait (Optional)
-        </Label>
-        <CharacterImageUpload
-          imageUrl={formData.imageUrl}
-          onImageChange={(url: string | null) => setFormData({ ...formData, imageUrl: url })}
+      {/* Backstory */}
+      <div
+        className="sc-card"
+        style={{ padding: 12, display: "flex", flexDirection: "column", gap: 6 }}
+      >
+        <div className="sc-label">Backstory</div>
+        <textarea
+          value={desc.backstory}
+          onChange={(e) => update({ backstory: e.target.value })}
+          placeholder="Where did they come from? Who shaped them? What's unfinished?"
+          style={{ ...textareaStyle, minHeight: 140 }}
         />
       </div>
     </div>
@@ -3776,7 +6013,7 @@ function ReviewStep({
               <span className="font-medium">Name:</span> {formData.name || "Unnamed"}
             </div>
             <div>
-              <span className="font-medium">Race:</span> {selectedRace?.name || "Not selected"}
+              <span className="font-medium">Species:</span> {selectedRace?.name || "Not selected"}
             </div>
             <div>
               <span className="font-medium">Class:</span> {selectedClass?.name || "Not selected"}

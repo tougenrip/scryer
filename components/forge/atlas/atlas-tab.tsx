@@ -346,6 +346,7 @@ export function AtlasTab({ campaignId, isDm }: AtlasTabProps) {
         onSave={handleMarkerSave}
         onDelete={isDm ? handleMarkerDelete : undefined}
         isDm={isDm}
+        campaignId={campaignId}
       />
     </div>
   );

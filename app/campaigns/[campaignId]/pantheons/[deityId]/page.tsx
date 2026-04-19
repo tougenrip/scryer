@@ -10,7 +10,6 @@ import { X, Moon, MapPin, History, Users, Sparkles, Edit, Check } from 'lucide-r
 import { usePantheonDeities, useUpdatePantheonDeity, useScenes, useScene, useLocationMarkers } from '@/hooks/useForgeContent'
 import { createClient } from '@/lib/supabase/client'
 import type { PantheonDeity } from '@/hooks/useForgeContent'
-import { ContentSidebar } from '@/components/forge/navigation/content-sidebar'
 import { DeityFormDialog } from '@/components/forge/pantheon/deity-form-dialog'
 import { AtlasMap } from '@/components/forge/atlas/atlas-map'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -362,14 +361,6 @@ export default function PantheonOverviewPage() {
 
   return (
     <div className="flex h-full bg-background overflow-hidden">
-      {/* Left Sidebar Navigation */}
-      <ContentSidebar
-        campaignId={campaignId}
-        currentEntityId={deityId}
-        currentEntityType="pantheon"
-        isDm={isDm}
-      />
-
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header with illustration */}

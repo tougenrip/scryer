@@ -5,7 +5,7 @@ import { EdgeProps, getSmoothStepPath, EdgeLabelRenderer, BaseEdge } from "react
 import { useRelationshipGraphStore } from "./relationship-graph-store";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
-import { Heart, Plus, Minus, X } from "lucide-react";
+import { Heart, Plus, Minus, X, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type RelationshipType = 
@@ -32,6 +32,7 @@ export interface RelationshipEdgeData {
   description?: string | null;
   onStrengthChange?: (newStrength: number) => void;
   onDelete?: () => void;
+  onEdit?: () => void;
   relationshipId?: string;
   sourceType?: string;
   targetType?: string;
@@ -267,6 +268,24 @@ export function AffinityEdge({
               <span className="text-xs font-medium text-foreground">
                 {relationshipType.charAt(0).toUpperCase() + relationshipType.slice(1).replace('_', ' ')}
               </span>
+              {data?.isDm && data?.onEdit && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-5 w-5 p-0 hover:bg-primary/20"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    data.onEdit?.();
+                  }}
+                  onMouseDown={(e) => {
+                    e.stopPropagation();
+                  }}
+                >
+                  <Pencil className="h-3 w-3 text-muted-foreground hover:text-foreground" />
+                </Button>
+              )}
             </div>
 
             {/* Heart rating */}

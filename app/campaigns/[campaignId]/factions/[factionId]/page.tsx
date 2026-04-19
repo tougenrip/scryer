@@ -10,7 +10,6 @@ import { X, Moon, MapPin, History, Users, Swords, Edit, Check } from 'lucide-rea
 import { useFactions, useUpdateFaction, useScenes, useScene, useLocationMarkers } from '@/hooks/useForgeContent'
 import { createClient } from '@/lib/supabase/client'
 import type { Faction } from '@/hooks/useForgeContent'
-import { ContentSidebar } from '@/components/forge/navigation/content-sidebar'
 import { FactionFormDialog } from '@/components/forge/factions/faction-form-dialog'
 import { AtlasMap } from '@/components/forge/atlas/atlas-map'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -361,14 +360,6 @@ export default function FactionOverviewPage() {
 
   return (
     <div className="flex h-full bg-background overflow-hidden">
-      {/* Left Sidebar Navigation */}
-      <ContentSidebar
-        campaignId={campaignId}
-        currentEntityId={factionId}
-        currentEntityType="faction"
-        isDm={isDm}
-      />
-
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header with illustration */}

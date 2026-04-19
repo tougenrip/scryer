@@ -413,54 +413,73 @@ export function CalendarTab({ campaignId, isDm }: CalendarTabProps) {
 
   if (loading) {
     return (
-      <div className="space-y-6">
-        <div>
-          <Skeleton className="h-8 w-64 mb-2" />
-          <Skeleton className="h-4 w-96" />
+      <div style={{ padding: "16px 20px" }}>
+        <Skeleton className="h-6 w-64 mb-2" />
+        <Skeleton className="h-3 w-80 mb-4" />
+        <div className="sc-card" style={{ padding: 14 }}>
+          <Skeleton className="h-80 w-full" />
         </div>
-        <Card>
-          <CardContent className="p-6">
-            <Skeleton className="h-96 w-full" />
-          </CardContent>
-        </Card>
       </div>
     );
   }
 
   if (!calendar) {
     return (
-      <div className="space-y-6">
-        <div>
-          <h2 className="font-serif text-2xl font-semibold">Campaign Calendar</h2>
-          <p className="text-muted-foreground text-sm">
+      <div style={{ padding: "16px 20px" }}>
+        <div style={{ marginBottom: 14 }}>
+          <div className="font-serif" style={{ fontSize: 20 }}>
+            Campaign Calendar
+          </div>
+          <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
             Track time, weather, and moon phases
-          </p>
+          </div>
         </div>
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <Calendar className="h-16 w-16 text-muted-foreground/50 mb-4" />
-            <p className="text-muted-foreground text-center mb-4">
-              Calendar not initialized yet.
-            </p>
+        <div className="sc-card" style={{ padding: 40 }}>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              textAlign: "center",
+              color: "var(--muted-foreground)",
+            }}
+          >
+            <Calendar size={48} style={{ opacity: 0.5, marginBottom: 10 }} />
+            <div style={{ marginBottom: 14 }}>Calendar not initialized yet.</div>
             {isDm && (
-              <Button onClick={handleInitialize}>
-                Initialize Calendar
-              </Button>
+              <button
+                type="button"
+                className="sc-btn sc-btn-primary sc-btn-sm"
+                onClick={handleInitialize}
+              >
+                Initialize calendar
+              </button>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div style={{ padding: "16px 20px" }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: 14,
+          flexWrap: "wrap",
+          gap: 10,
+        }}
+      >
         <div>
-          <h2 className="font-serif text-2xl font-semibold">Campaign Calendar</h2>
-          <p className="text-muted-foreground text-sm">
+          <div className="font-serif" style={{ fontSize: 20 }}>
+            Campaign Calendar
+          </div>
+          <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
             Track time, weather, and moon phases
-          </p>
+          </div>
         </div>
         
         {/* Quick Actions */}

@@ -1,8 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Plus, Clock } from "lucide-react";
 import {
@@ -247,40 +245,64 @@ export function CampaignTrackerTab({ campaignId, isDm }: CampaignTrackerTabProps
 
   if (loading) {
     return (
-      <div className="space-y-4">
-        {[1, 2, 3].map((i) => (
-          <Card key={i}>
-            <CardContent className="p-6">
-              <Skeleton className="h-24 w-full" />
-            </CardContent>
-          </Card>
-        ))}
+      <div style={{ padding: "16px 20px" }}>
+        <div style={{ marginBottom: 14 }}>
+          <Skeleton className="h-6 w-56" />
+        </div>
+        <div className="sc-card" style={{ padding: 14 }}>
+          <Skeleton className="h-48 w-full" />
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div style={{ padding: "16px 20px" }}>
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: 14,
+          flexWrap: "wrap",
+          gap: 10,
+        }}
+      >
         <div>
-          <h2 className="font-serif text-2xl font-semibold">Campaign Timeline</h2>
-          <p className="text-muted-foreground text-sm mt-1">
-            Plan and track your campaign sessions chronologically. Create branches for alternative paths.
-          </p>
+          <div className="font-serif" style={{ fontSize: 20 }}>
+            Campaign Timeline
+          </div>
+          <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
+            {timeline.length} entr{timeline.length === 1 ? "y" : "ies"} — plan
+            sessions and branch alternate paths
+          </div>
         </div>
       </div>
 
       {/* Timeline Canvas */}
-      <Card>
-        <CardContent className="p-0 relative">
+      <div className="sc-card" style={{ padding: 0, overflow: "hidden", position: "relative" }}>
           {/* Add New Session Button - positioned like in reference */}
           {isDm && !loading && (
-            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10">
-              <Button onClick={handleCreate} disabled={creating || updating || deleting} className="shadow-lg">
-                <Plus className="h-4 w-4 mr-2" />
-                Add New Session
-              </Button>
+            <div
+              style={{
+                position: "absolute",
+                top: 12,
+                left: "50%",
+                transform: "translateX(-50%)",
+                zIndex: 10,
+              }}
+            >
+              <button
+                type="button"
+                className="sc-btn sc-btn-primary sc-btn-sm"
+                onClick={handleCreate}
+                disabled={creating || updating || deleting}
+                style={{ boxShadow: "0 2px 8px rgba(0,0,0,0.25)" }}
+              >
+                <Plus size={12} />
+                Add new session
+              </button>
             </div>
           )}
           
@@ -344,8 +366,7 @@ export function CampaignTrackerTab({ campaignId, isDm }: CampaignTrackerTabProps
               />
             )}
           </div>
-        </CardContent>
-      </Card>
+      </div>
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>

@@ -21,10 +21,8 @@ import { ActionsTab } from "./actions-tab";
 import { BackgroundTab } from "./background-tab";
 import { ExtrasTab } from "./extras-tab";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
 import { type SkillName, getAbilityModifierString } from "@/lib/utils/character";
 import { toast } from "sonner";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useInfoSheet } from "@/hooks/useInfoSheet";
 import { InfoSheetDialog } from "@/components/shared/info-sheet-dialog";
 import { useDiceRoller } from "@/contexts/dice-roller-context";
@@ -34,12 +32,10 @@ import { Strength, Dexterity, Constitution, Intelligence, Wisdom, Charisma } fro
 // import { Initiative } from "dnd-icons/combat";
 import { Action } from "dnd-icons/combat";
 import { Spell } from "dnd-icons/game";
-import { Book } from "dnd-icons/entity";
+import { Book, Armor } from "dnd-icons/entity";
 // import { Blinded, Charmed, Deafened, Exhaustion, Frightened, Grappled, Incapacitated, Invisible, Paralyzed, Petrified, Poisoned, Prone, Restrained, Stunned, Unconscious } from "dnd-icons/condition";
 import { Acid, Bludgeoning, Cold, Fire, Force, Lightning, Necrotic, Piercing, Poison, Psychic, Radiant, Slashing, Thunder } from "dnd-icons/damage";
 // import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import { getProficiencyBonus, calculateSpellSlots, calculateSkillProficiencies, calculateSavingThrowProficiencies, calculateMulticlassSpellSlots } from "@/lib/utils/character";
 import { Plus, Minus, Edit } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -845,7 +841,20 @@ export function CharacterSheet({
   );
 
   if (loading) {
-    return <div>Loading character data...</div>;
+    return (
+      <div style={{ padding: "16px 20px" }}>
+        <div
+          className="sc-card"
+          style={{
+            padding: 40,
+            textAlign: "center",
+            color: "var(--muted-foreground)",
+          }}
+        >
+          Loading character data…
+        </div>
+      </div>
+    );
   }
 
   // Calculate XP progress (assuming 300 XP per level for simplicity)
@@ -1123,14 +1132,32 @@ export function CharacterSheet({
   };
 
   return (
-    <div className="space-y-2">
+    <div
+      className="sc-fade-in"
+      style={{
+        padding: "16px 20px",
+        display: "flex",
+        flexDirection: "column",
+        gap: 10,
+      }}
+    >
       {/* Top Section: Portrait, Name, Basic Info */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
         {/* Left Column: Portrait and Basic Info */}
-        <div className="lg:col-span-2 space-y-2">
+        <div
+          className="lg:col-span-2"
+          style={{ display: "flex", flexDirection: "column", gap: 10 }}
+        >
           {/* Portrait with Glow Effect */}
           <div className="relative">
-            <div className="absolute inset-0 bg-primary/20 blur-xl rounded-full -z-10" />
+            <div
+              className="absolute inset-0 -z-10"
+              style={{
+                background:
+                  "radial-gradient(circle, color-mix(in srgb, var(--primary) 25%, transparent), transparent 70%)",
+                filter: "blur(24px)",
+              }}
+            />
             <CharacterPortrait
               characterId={character.id}
               imageUrl={character.image_url}
@@ -1143,78 +1170,158 @@ export function CharacterSheet({
 
           {/* Character Name and Info */}
           <div>
-            <div className="flex items-center gap-2 mb-1">
-              <h1 className="text-2xl font-bold font-serif">{character.name}</h1>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 4,
+                marginBottom: 6,
+              }}
+            >
+              <h1
+                className="font-serif truncate"
+                style={{
+                  fontSize: 22,
+                  fontWeight: 600,
+                  letterSpacing: "0.02em",
+                  margin: 0,
+                  flex: 1,
+                  minWidth: 0,
+                }}
+                title={character.name}
+              >
+                {character.name}
+              </h1>
               {editable && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8"
-                  onClick={() => router.push(`/character-creator?editId=${character.id}`)}
-                  title="Edit Character"
+                <button
+                  type="button"
+                  className="sc-btn sc-btn-sm"
+                  style={{
+                    flexShrink: 0,
+                    gap: 4,
+                    padding: "4px 10px",
+                    fontSize: 12,
+                    fontWeight: 600,
+                  }}
+                  onClick={() =>
+                    router.push(`/character-creator?editId=${character.id}`)
+                  }
+                  title="Open full character editor"
                 >
-                  <Edit className="h-4 w-4" />
-                </Button>
+                  <Edit size={12} />
+                  Edit
+                </button>
               )}
             </div>
-            <div className="flex flex-wrap gap-1.5 mb-2">
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: 4,
+                marginBottom: 10,
+              }}
+            >
               {selectedRace && (
-                <Badge 
-                  variant="outline" 
-                  className="text-sm cursor-pointer hover:opacity-80 transition-opacity"
+                <span
+                  className="sc-badge"
+                  style={{ cursor: "pointer", fontSize: 10 }}
                   onClick={() => infoSheet.showRace(selectedRace)}
                 >
                   {selectedRace.name}
-                </Badge>
+                </span>
               )}
               {/* Display multiclass badges if multiclass, otherwise single class */}
               {multiclassClasses && multiclassClasses.length > 0 ? (
                 multiclassClasses.map(({ characterClass, classData }, idx) => (
-                  <Badge 
+                  <span
                     key={idx}
-                    variant={characterClass.is_primary_class ? "default" : "secondary"}
-                    className="text-sm cursor-pointer hover:opacity-80 transition-opacity"
+                    className="sc-badge"
+                    style={{
+                      cursor: "pointer",
+                      fontSize: 10,
+                      background: characterClass.is_primary_class
+                        ? "color-mix(in srgb, var(--primary) 18%, transparent)"
+                        : undefined,
+                      color: characterClass.is_primary_class
+                        ? "var(--primary)"
+                        : undefined,
+                      borderColor: characterClass.is_primary_class
+                        ? "transparent"
+                        : undefined,
+                    }}
                     onClick={() => classData && infoSheet.showClass(classData)}
                   >
-                    {classData?.name || characterClass.class_index} {characterClass.level}
-                    {characterClass.is_primary_class && " (Primary)"}
-                  </Badge>
+                    {classData?.name || characterClass.class_index}{" "}
+                    {characterClass.level}
+                    {characterClass.is_primary_class && " ★"}
+                  </span>
                 ))
               ) : selectedClass && (
-                <Badge 
-                  variant="outline" 
-                  className="text-sm cursor-pointer hover:opacity-80 transition-opacity"
+                <span
+                  className="sc-badge"
+                  style={{ cursor: "pointer", fontSize: 10 }}
                   onClick={() => infoSheet.showClass(selectedClass)}
                 >
                   {selectedClass.name}
-                </Badge>
+                </span>
               )}
-              <Badge variant="outline" className="text-sm">Level {character.level}</Badge>
+              <span
+                className="sc-badge"
+                style={{
+                  fontSize: 10,
+                  background:
+                    "color-mix(in srgb, var(--primary) 12%, transparent)",
+                  color: "var(--primary)",
+                  borderColor: "transparent",
+                }}
+              >
+                LVL {character.level}
+              </span>
             </div>
             
             {/* XP & Level Management */}
-            <Card className="bg-muted/30">
-              <CardHeader className="pb-2 pt-3 px-3">
-                <CardTitle className="text-sm">Experience & Level</CardTitle>
-              </CardHeader>
-              <CardContent className="px-3 pb-3 space-y-2">
+            <div className="sc-card" style={{ padding: 10 }}>
+              <div className="sc-label" style={{ marginBottom: 8 }}>
+                Experience &amp; Level
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 8,
+                }}
+              >
                 {/* Level Control */}
-                <div className="space-y-1">
-                  <label className="text-[10px] text-muted-foreground">Level</label>
-                  <div className="flex items-center gap-1">
+                <div>
+                  <div
+                    style={{
+                      fontSize: 10,
+                      color: "var(--muted-foreground)",
+                      marginBottom: 3,
+                    }}
+                  >
+                    Level
+                  </div>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 4,
+                    }}
+                  >
                     {editable && (
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-7 w-7"
+                      <button
+                        type="button"
+                        className="sc-btn sc-btn-sm sc-btn-ghost"
+                        style={{ padding: 4, width: 24, justifyContent: "center" }}
                         onClick={() => handleLevelAdjust(-1)}
                         disabled={(character.level || 1) <= 1}
                       >
-                        <Minus className="h-3 w-3" />
-                      </Button>
+                        <Minus size={11} />
+                      </button>
                     )}
                     {editable ? (
-                      <Input
+                      <input
                         type="number"
                         min={1}
                         max={20}
@@ -1223,43 +1330,73 @@ export function CharacterSheet({
                           const value = parseInt(e.target.value) || 1;
                           handleLevelChange(value);
                         }}
-                        className="h-7 text-center text-sm font-semibold"
+                        className="sc-input"
+                        style={{
+                          height: 26,
+                          textAlign: "center",
+                          fontWeight: 600,
+                          fontSize: 13,
+                          flex: 1,
+                          minWidth: 0,
+                        }}
                       />
                     ) : (
-                      <div className="flex-1 text-center text-sm font-semibold py-1.5">
+                      <div
+                        style={{
+                          flex: 1,
+                          textAlign: "center",
+                          fontSize: 13,
+                          fontWeight: 600,
+                          padding: "6px 0",
+                        }}
+                      >
                         {character.level || 1}
                       </div>
                     )}
                     {editable && (
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-7 w-7"
+                      <button
+                        type="button"
+                        className="sc-btn sc-btn-sm sc-btn-ghost"
+                        style={{ padding: 4, width: 24, justifyContent: "center" }}
                         onClick={() => handleLevelAdjust(1)}
                         disabled={(character.level || 1) >= 20}
                       >
-                        <Plus className="h-3 w-3" />
-                      </Button>
+                        <Plus size={11} />
+                      </button>
                     )}
                   </div>
                 </div>
 
                 {/* XP Control */}
-                <div className="space-y-1">
-                  <label className="text-[10px] text-muted-foreground">Experience Points</label>
-                  <div className="flex items-center gap-1">
+                <div>
+                  <div
+                    style={{
+                      fontSize: 10,
+                      color: "var(--muted-foreground)",
+                      marginBottom: 3,
+                    }}
+                  >
+                    Experience Points
+                  </div>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 4,
+                    }}
+                  >
                     {editable && (
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-7 w-7"
+                      <button
+                        type="button"
+                        className="sc-btn sc-btn-sm sc-btn-ghost"
+                        style={{ padding: 4, width: 24, justifyContent: "center" }}
                         onClick={() => handleXpAdjust(-50)}
                       >
-                        <Minus className="h-3 w-3" />
-                      </Button>
+                        <Minus size={11} />
+                      </button>
                     )}
                     {editable ? (
-                      <Input
+                      <input
                         type="number"
                         min={0}
                         value={character.experience_points || 0}
@@ -1267,121 +1404,220 @@ export function CharacterSheet({
                           const value = parseInt(e.target.value) || 0;
                           handleXpChange(value);
                         }}
-                        className="h-7 text-center text-sm"
+                        className="sc-input"
+                        style={{
+                          height: 26,
+                          textAlign: "center",
+                          fontSize: 13,
+                          flex: 1,
+                          minWidth: 0,
+                          fontVariantNumeric: "tabular-nums",
+                        }}
                       />
                     ) : (
-                      <div className="flex-1 text-center text-sm py-1.5">
+                      <div
+                        style={{
+                          flex: 1,
+                          textAlign: "center",
+                          fontSize: 13,
+                          padding: "6px 0",
+                          fontVariantNumeric: "tabular-nums",
+                        }}
+                      >
                         {character.experience_points || 0}
                       </div>
                     )}
                     {editable && (
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-7 w-7"
+                      <button
+                        type="button"
+                        className="sc-btn sc-btn-sm sc-btn-ghost"
+                        style={{ padding: 4, width: 24, justifyContent: "center" }}
                         onClick={() => handleXpAdjust(50)}
                       >
-                        <Plus className="h-3 w-3" />
-                      </Button>
+                        <Plus size={11} />
+                      </button>
                     )}
                   </div>
                 </div>
 
                 {/* XP Progress Bar */}
-                <div className="space-y-0.5 pt-1 border-t border-border/50">
-                  <div className="flex justify-between text-[10px] text-muted-foreground">
+                <div
+                  style={{
+                    paddingTop: 6,
+                    borderTop: "1px solid var(--border)",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      fontSize: 10,
+                      color: "var(--muted-foreground)",
+                      marginBottom: 3,
+                      fontVariantNumeric: "tabular-nums",
+                    }}
+                  >
                     <span>{xpProgress} / 300 XP</span>
-                    <span>towards LVL {character.level + 1}</span>
+                    <span>→ LVL {character.level + 1}</span>
                   </div>
-                  <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                  <div
+                    style={{
+                      height: 4,
+                      background: "var(--muted)",
+                      borderRadius: 2,
+                      overflow: "hidden",
+                    }}
+                  >
                     <div
-                      className="h-full bg-primary transition-all"
-                      style={{ width: `${xpPercentage}%` }}
+                      style={{
+                        width: `${xpPercentage}%`,
+                        height: "100%",
+                        background: "var(--primary)",
+                        transition: "width 0.3s",
+                      }}
                     />
                   </div>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           </div>
 
           {/* Ability Scores - Compact Grid Layout */}
-          <Card className="bg-muted/30">
-            <CardHeader className="pb-2 pt-3 px-3">
-              <CardTitle className="text-sm">Ability Scores</CardTitle>
-            </CardHeader>
-            <CardContent className="px-3 pb-3">
-              <div className="grid grid-cols-3 gap-2 mb-2">
-                {[
-                  { name: "Strength", short: "STR", score: abilityScores.strength, Icon: Strength },
-                  { name: "Dexterity", short: "DEX", score: abilityScores.dexterity, Icon: Dexterity },
-                  { name: "Constitution", short: "CON", score: abilityScores.constitution, Icon: Constitution },
-                  { name: "Intelligence", short: "INT", score: abilityScores.intelligence, Icon: Intelligence },
-                  { name: "Wisdom", short: "WIS", score: abilityScores.wisdom, Icon: Wisdom },
-                  { name: "Charisma", short: "CHA", score: abilityScores.charisma, Icon: Charisma },
-                ].map((ability) => {
-                  const modifier = getAbilityModifierString(ability.score);
-                  const modifierValue = getAbilityModifier(ability.score);
-                  const IconComponent = ability.Icon;
-                  return (
-                    <div 
-                      key={ability.short} 
-                      className="text-center p-2 bg-background/50 rounded-md border border-border/50"
-                      onClick={() => {
-                        infoSheet.showAbility(ability.name, ability.short, ability.score);
+          <div className="sc-card" style={{ padding: 10 }}>
+            <div className="sc-label" style={{ marginBottom: 8 }}>
+              Ability Scores
+            </div>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(3, 1fr)",
+                gap: 6,
+                marginBottom: 8,
+              }}
+            >
+              {[
+                { name: "Strength", short: "STR", score: abilityScores.strength, Icon: Strength },
+                { name: "Dexterity", short: "DEX", score: abilityScores.dexterity, Icon: Dexterity },
+                { name: "Constitution", short: "CON", score: abilityScores.constitution, Icon: Constitution },
+                { name: "Intelligence", short: "INT", score: abilityScores.intelligence, Icon: Intelligence },
+                { name: "Wisdom", short: "WIS", score: abilityScores.wisdom, Icon: Wisdom },
+                { name: "Charisma", short: "CHA", score: abilityScores.charisma, Icon: Charisma },
+              ].map((ability) => {
+                const modifier = getAbilityModifierString(ability.score);
+                const modifierValue = getAbilityModifier(ability.score);
+                const IconComponent = ability.Icon;
+                return (
+                  <div
+                    key={ability.short}
+                    className="ability-tile sc-card-hover"
+                    style={{
+                      padding: "8px 6px",
+                      cursor: "pointer",
+                    }}
+                    onClick={() => {
+                      infoSheet.showAbility(ability.name, ability.short, ability.score);
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "center",
+                        marginBottom: 2,
+                        color: "var(--muted-foreground)",
                       }}
                     >
-                      <IconComponent size={16} className="mx-auto mb-0.5" />
-                      <div className="text-[10px] text-muted-foreground mb-0.5">
-                        {ability.short}
-                      </div>
-                      <div className="text-xl font-bold leading-none mb-0.5">{ability.score}</div>
-                      <button
-                        type="button"
-                        className="inline-flex items-center justify-center w-full px-1.5 py-0.5 text-xs font-semibold rounded border transition-all bg-muted/50 border-border/50 text-foreground hover:bg-muted hover:border-border mt-0.5"
-                        onClick={async (e) => {
-                          e.stopPropagation();
-                          if (e.ctrlKey || e.metaKey) {
-                            e.preventDefault();
-                            await rollWithAdvantage(modifierValue, {
-                              label: `${ability.name} Check`,
-                              characterId: character.id,
-                              characterName: character.name,
-                              campaignId: character.campaign_id || undefined,
-                            });
-                          } else {
-                            await rollDice(`1d20${modifierValue >= 0 ? '+' : ''}${modifierValue}`, {
-                              label: `${ability.name} Check`,
-                              characterId: character.id,
-                              characterName: character.name,
-                              campaignId: character.campaign_id || undefined,
-                            });
-                          }
-                        }}
-                        onContextMenu={async (e) => {
+                      <IconComponent size={14} />
+                    </div>
+                    <div className="label" style={{ marginBottom: 3 }}>
+                      {ability.short}
+                    </div>
+                    <div
+                      className="score"
+                      style={{ fontSize: 22, marginBottom: 3 }}
+                    >
+                      {ability.score}
+                    </div>
+                    <button
+                      type="button"
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        width: "100%",
+                        padding: "2px 4px",
+                        fontSize: 11,
+                        fontWeight: 600,
+                        borderRadius: 4,
+                        border: "1px solid var(--border)",
+                        background:
+                          "color-mix(in srgb, var(--primary) 8%, transparent)",
+                        color: "var(--primary)",
+                        cursor: "pointer",
+                        transition: "background 0.12s, border-color 0.12s",
+                      }}
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        if (e.ctrlKey || e.metaKey) {
                           e.preventDefault();
-                          e.stopPropagation();
                           await rollWithAdvantage(modifierValue, {
-                            label: `${ability.name} Check (Advantage)`,
+                            label: `${ability.name} Check`,
                             characterId: character.id,
                             characterName: character.name,
                             campaignId: character.campaign_id || undefined,
                           });
-                        }}
-                      >
-                        {modifier}
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-              <div className="pt-1.5 border-t border-border/50">
-                <div className="flex justify-between items-center text-xs">
-                  <span className="text-muted-foreground">Proficiency Bonus</span>
-                  <span className="font-semibold">+{character.proficiency_bonus || 2}</span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+                        } else {
+                          await rollDice(
+                            `1d20${modifierValue >= 0 ? "+" : ""}${modifierValue}`,
+                            {
+                              label: `${ability.name} Check`,
+                              characterId: character.id,
+                              characterName: character.name,
+                              campaignId: character.campaign_id || undefined,
+                            },
+                          );
+                        }
+                      }}
+                      onContextMenu={async (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        await rollWithAdvantage(modifierValue, {
+                          label: `${ability.name} Check (Advantage)`,
+                          characterId: character.id,
+                          characterName: character.name,
+                          campaignId: character.campaign_id || undefined,
+                        });
+                      }}
+                    >
+                      {modifier}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+            <div
+              style={{
+                paddingTop: 6,
+                borderTop: "1px solid var(--border)",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                fontSize: 11,
+              }}
+            >
+              <span style={{ color: "var(--muted-foreground)" }}>
+                Proficiency Bonus
+              </span>
+              <span
+                style={{
+                  fontWeight: 600,
+                  fontVariantNumeric: "tabular-nums",
+                  color: "var(--primary)",
+                }}
+              >
+                +{character.proficiency_bonus || 2}
+              </span>
+            </div>
+          </div>
 
           {/* Saving Throws - Moved under Ability Scores */}
           <SavingThrows
@@ -1444,11 +1680,17 @@ export function CharacterSheet({
             />
 
             {/* Conditions Card - Made Shorter */}
-            <Card className="bg-muted/30">
-              <CardHeader className="pb-2 pt-3 px-3">
-                <CardTitle className="text-sm">Conditions & Defenses</CardTitle>
-              </CardHeader>
-              <CardContent className="px-3 pb-3 space-y-1.5">
+            <div className="sc-card" style={{ padding: 10 }}>
+              <div className="sc-label" style={{ marginBottom: 8 }}>
+                Conditions &amp; Defenses
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 6,
+                }}
+              >
                 <Conditions
                   conditions={character.conditions || []}
                   onConditionsChange={async (conditions) => {
@@ -1460,8 +1702,8 @@ export function CharacterSheet({
                   editable={editable}
                 />
                 <Defenses raceTraits={selectedRace?.traits} />
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           </div>
 
           {/* Skills + Main Content Tabs - Inside Right Column */}
@@ -1485,7 +1727,7 @@ export function CharacterSheet({
             </div>
 
             {/* Main Content Tabs - On Right Side */}
-            <div className="md:col-span-9">
+            <div className="md:col-span-9 sc-tabs-theme">
               <Tabs defaultValue="actions" className="w-full">
             <TabsList className="grid w-full grid-cols-7 h-9">
               <TabsTrigger value="actions" className="text-xs flex items-center gap-1">

@@ -1,10 +1,8 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
   Select,
@@ -45,6 +43,7 @@ import {
   useDeleteWorldLocation,
   type WorldLocation,
 } from "@/hooks/useForgeContent";
+import { parseLocationContent, ParsedLocationData } from "@/lib/utils/ai-content-parser";
 import { toast } from "sonner";
 import { LocationFormDialog } from "./location-form-dialog";
 import { LocationDetailDialog } from "./location-detail-dialog";
@@ -123,13 +122,15 @@ export function LocationsTab({ campaignId, isDm }: LocationsTabProps) {
   const [locationToDelete, setLocationToDelete] = useState<WorldLocation | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [aiDialogOpen, setAiDialogOpen] = useState(false);
+  const [aiGeneratedData, setAiGeneratedData] = useState<ParsedLocationData | null>(null);
 
   const ollama = useOllamaSafe();
   const canUseAI = ollama?.settings.enabled && ollama?.isConnected;
 
   // Build hierarchical structure
   const locationTree = useMemo(() => {
-    const locationMap = new Map<string, WorldLocation & { children: WorldLocation[] }>();
+    type LocationNode = WorldLocation & { children: LocationNode[] };
+    const locationMap = new Map<string, LocationNode>();
     
     // Initialize all locations
     locations.forEach(loc => {
@@ -137,7 +138,7 @@ export function LocationsTab({ campaignId, isDm }: LocationsTabProps) {
     });
 
     // Build parent-child relationships
-    const roots: (WorldLocation & { children: WorldLocation[] })[] = [];
+    const roots: LocationNode[] = [];
     locations.forEach(loc => {
       const node = locationMap.get(loc.id)!;
       if (loc.parent_location_id) {
@@ -167,11 +168,13 @@ export function LocationsTab({ campaignId, isDm }: LocationsTabProps) {
 
   const handleCreate = () => {
     setEditingLocation(null);
+    setAiGeneratedData(null);
     setIsFormOpen(true);
   };
 
   const handleEdit = (location: WorldLocation) => {
     setEditingLocation(location);
+    setAiGeneratedData(null);
     setIsFormOpen(true);
   };
 
@@ -242,7 +245,7 @@ export function LocationsTab({ campaignId, isDm }: LocationsTabProps) {
   };
 
   const renderLocationNode = (
-    node: WorldLocation & { children: WorldLocation[] },
+    node: WorldLocation & { children: any[] },
     level: number = 0
   ) => {
     const isExpanded = expandedNodes.has(node.id);
@@ -342,20 +345,22 @@ export function LocationsTab({ campaignId, isDm }: LocationsTabProps) {
 
   if (loading) {
     return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <Skeleton className="h-9 w-48" />
-          <Skeleton className="h-10 w-32" />
+      <div style={{ padding: "16px 20px" }}>
+        <div style={{ marginBottom: 14 }}>
+          <Skeleton className="h-6 w-48" />
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="sc-card" style={{ padding: 14 }}>
           {[1, 2, 3].map((i) => (
-            <Card key={i}>
-              <CardContent className="p-6">
-                <Skeleton className="h-6 w-32 mb-2" />
-                <Skeleton className="h-4 w-24 mb-4" />
-                <Skeleton className="h-16 w-full" />
-              </CardContent>
-            </Card>
+            <div
+              key={i}
+              style={{
+                padding: "10px 0",
+                borderBottom: "1px solid var(--border)",
+              }}
+            >
+              <Skeleton className="h-5 w-40 mb-1" />
+              <Skeleton className="h-3 w-72" />
+            </div>
           ))}
         </div>
       </div>
@@ -363,40 +368,86 @@ export function LocationsTab({ campaignId, isDm }: LocationsTabProps) {
   }
 
   return (
-    <div className="space-y-6">
+    <div style={{ padding: "16px 20px" }}>
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: 14,
+          flexWrap: "wrap",
+          gap: 10,
+        }}
+      >
         <div>
-          <h2 className="font-serif text-2xl font-semibold">Locations</h2>
-          <p className="text-muted-foreground text-sm mt-1">
-            Manage cities, villages, and points of interest in your world
-          </p>
+          <div className="font-serif" style={{ fontSize: 20 }}>
+            World Atlas
+          </div>
+          <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
+            {locations.length} location{locations.length === 1 ? "" : "s"} —
+            realms, cities, and points of interest
+          </div>
         </div>
         {isDm && (
-          <div className="flex items-center gap-2">
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
             {canUseAI && (
-              <Button variant="outline" onClick={() => setAiDialogOpen(true)}>
-                <Sparkles className="h-4 w-4 mr-2" />
-                Generate with AI
-              </Button>
+              <button
+                type="button"
+                className="sc-btn sc-btn-sm"
+                onClick={() => setAiDialogOpen(true)}
+              >
+                <Sparkles size={12} />
+                AI
+              </button>
             )}
-            <Button onClick={handleCreate} disabled={creating}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Location
-            </Button>
+            <button
+              type="button"
+              className="sc-btn sc-btn-primary sc-btn-sm"
+              onClick={handleCreate}
+              disabled={creating}
+            >
+              <Plus size={12} />
+              New location
+            </button>
           </div>
         )}
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
+      <div
+        style={{
+          display: "flex",
+          gap: 10,
+          marginBottom: 14,
+          flexWrap: "wrap",
+        }}
+      >
+        <div
+          className="sc-input"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            padding: "6px 10px",
+            flex: 1,
+            minWidth: 200,
+          }}
+        >
+          <Search size={13} style={{ color: "var(--muted-foreground)" }} />
+          <input
+            type="text"
             placeholder="Search locations..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10"
+            style={{
+              border: "none",
+              background: "transparent",
+              outline: "none",
+              fontSize: 12.5,
+              flex: 1,
+              color: "var(--foreground)",
+            }}
           />
         </div>
         <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v as LocationType | "all")}>
@@ -430,22 +481,27 @@ export function LocationsTab({ campaignId, isDm }: LocationsTabProps) {
 
       {/* Location List */}
       {locations.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <MapPin className="h-16 w-16 text-muted-foreground/50 mb-4" />
-            <p className="text-muted-foreground text-center mb-2">
-              No locations yet.
-            </p>
+        <div className="sc-card" style={{ padding: 40 }}>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              textAlign: "center",
+              color: "var(--muted-foreground)",
+            }}
+          >
+            <MapPin size={48} style={{ opacity: 0.5, marginBottom: 10 }} />
+            <div style={{ marginBottom: 4 }}>No locations yet.</div>
             {isDm && (
-              <p className="text-sm text-muted-foreground text-center">
+              <div style={{ fontSize: 12 }}>
                 Create your first location to start building your world.
-              </p>
+              </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       ) : (
-        <Card>
-          <CardContent className="p-0">
+        <div className="sc-card" style={{ padding: 0, overflow: "hidden" }}>
             {searchQuery || typeFilter !== "all" ? (
               // Flat list for filtered view
               <div className="divide-y">
@@ -534,8 +590,7 @@ export function LocationsTab({ campaignId, isDm }: LocationsTabProps) {
                 )}
               </div>
             )}
-          </CardContent>
-        </Card>
+        </div>
       )}
 
       {/* Dialogs */}
@@ -543,6 +598,7 @@ export function LocationsTab({ campaignId, isDm }: LocationsTabProps) {
         open={isFormOpen}
         onOpenChange={setIsFormOpen}
         location={editingLocation}
+        initialData={aiGeneratedData}
         locations={locations}
         campaignId={campaignId}
         isDm={isDm}
@@ -609,9 +665,13 @@ export function LocationsTab({ campaignId, isDm }: LocationsTabProps) {
         generatorType="location"
         title="Generate Location with AI"
         description="Create a detailed location with atmosphere, features, and secrets"
-        onGenerated={() => {
+        onGenerated={(content) => {
+          const parsedData = parseLocationContent(content);
+          setAiGeneratedData(parsedData);
           setAiDialogOpen(false);
-          handleCreate();
+          setTimeout(() => {
+            setIsFormOpen(true);
+          }, 50);
         }}
       />
     </div>

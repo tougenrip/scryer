@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, type ComponentType, type CSSProperties } from "react";
 import { cn } from "@/lib/utils";
 import { LocationMarker } from "@/hooks/useForgeContent";
 import { 
@@ -27,8 +27,6 @@ import {
   CircleIcon,
   DiamondIcon,
   SquareIcon,
-  TriangleIcon,
-  BookmarkIcon,
   AxeIcon,
   PotionIcon,
   MoonStarIcon,
@@ -37,8 +35,15 @@ import {
   FlagIcon,
   CastleIcon,
   HouseIcon,
-  GlobeIcon
-  } from "./marker-icons";
+  GlobeIcon,
+  MagicShopIcon,
+  ButcherIcon,
+  SchoolIcon,
+  EnemyIcon,
+  LootIcon,
+  QuestIcon,
+  SideQuestIcon,
+} from "./marker-icons";
 
 // Re-export shape icons for use as marker icons
 const SphereIcon = CircleIcon;
@@ -46,6 +51,12 @@ const ShapeSquareIcon = SquareIcon;
 const ShapeDiamondIcon = DiamondIcon;
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
+import {
+  isRichTextHtmlVisuallyEmpty,
+  richTextHtmlToPlainText,
+} from "@/lib/utils/rich-text-html";
+import { AtlasMarkerBackground } from "@/components/forge/atlas/atlas-marker-background";
+import { markerIconCentroidNudgeY } from "@/components/forge/atlas/marker-layout";
 
 interface AtlasMapProps {
   imageUrl: string | null;
@@ -430,17 +441,11 @@ export function AtlasMap({
     };
   };
 
-  // Background shapes
-  const backgroundShapes: Record<NonNullable<LocationMarker['background_shape']>, React.ComponentType<{ className?: string }>> = {
-    circle: CircleIcon,
-    diamond: DiamondIcon,
-    square: SquareIcon,
-    triangle: TriangleIcon,
-    bookmark: BookmarkIcon,
-  };
-
   // Icon type definitions matching marker-form-dialog.tsx
-  const markerIcons: Record<NonNullable<LocationMarker['icon_type']>, React.ComponentType<{ className?: string }>> = {
+  const markerIcons: Record<
+    NonNullable<LocationMarker['icon_type']>,
+    ComponentType<{ className?: string }>
+  > = {
     // Basic Shapes
     sphere: SphereIcon,
     shape_square: ShapeSquareIcon,
@@ -452,6 +457,13 @@ export function AtlasMap({
     star: StarIcon,
     sword: SwordIcon,
     flag: FlagIcon,
+    magic_shop: MagicShopIcon,
+    butcher: ButcherIcon,
+    school: SchoolIcon,
+    enemy: EnemyIcon,
+    loot: LootIcon,
+    quest: QuestIcon,
+    side_quest: SideQuestIcon,
     // Location Icons
     castle: CastleIcon,
     house: HouseIcon,
@@ -474,16 +486,29 @@ export function AtlasMap({
     backgroundShape: LocationMarker['background_shape'],
     iconType: LocationMarker['icon_type'],
     markerColor?: string
-  ) => {
+  ): {
+    IconComponent: ComponentType<{ className?: string; style?: CSSProperties }>;
+    interiorFill: string;
+    /** Pin-style: white glyph on colored badge. Standalone: white + black outline. */
+    glyphMode: 'pin' | 'standalone';
+    jsonIconOverride?: string;
+  } => {
     // Default colors for icon types
     const defaultColors: Record<string, string> = {
-      // Fantasy Icons
-      'axe': '#ffffff', // White
-      'potion': '#ffffff', // White
-      'moon_star': '#8b5cf6', // Purple
-      'star': '#fbbf24', // Gold
-      'sword': '#ffffff', // White
-      'flag': '#ffffff', // White
+      // Fantasy — interior fill (glyph is white on the map when a frame is used)
+      'axe': '#92400e',
+      'potion': '#6d28d9',
+      'moon_star': '#7c3aed',
+      'star': '#d97706',
+      'sword': '#475569',
+      'flag': '#b91c1c',
+      'magic_shop': '#a855f7',
+      'butcher': '#b91c1c',
+      'school': '#2563eb',
+      'enemy': '#7f1d1d',
+      'loot': '#ca8a04',
+      'quest': '#d97706',
+      'side_quest': '#0d9488',
       // Location Icons
       'castle': '#92400e', // Brown
       'house': '#92400e', // Brown
@@ -503,35 +528,35 @@ export function AtlasMap({
     };
     
     // Parse color - support both JSON format and plain string (backward compatibility)
-    let color = defaultColors[iconType || 'landmark'] || '#c9b882';
-    let outlineColor = '#ffffff'; // White outline for better contrast
-    // Icons should always be filled with the selected color
-    let iconColor = defaultColors[iconType || 'landmark'] || '#c9b882';
-    
+    let interiorFill = defaultColors[iconType || 'landmark'] || '#c9b882';
+    let jsonIconOverride: string | undefined;
+
     if (markerColor) {
       try {
-        const parsedColor = JSON.parse(markerColor);
-        if (parsedColor.fill) {
-          color = parsedColor.fill;
-          outlineColor = parsedColor.outline || '#ffffff'; // Default to white for contrast
-          // Use explicit icon color, or default to white for contrast with background
-          iconColor = parsedColor.icon || '#ffffff'; // White icon for visibility
-        } else {
-          // If JSON but no fill, treat as plain string
-          color = markerColor;
-          iconColor = '#ffffff'; // Use white for icon to contrast with background
+        const parsedColor = JSON.parse(markerColor) as {
+          fill?: string;
+          icon?: string;
+        };
+        if (typeof parsedColor.fill === 'string') {
+          interiorFill = parsedColor.fill;
+        }
+        if (typeof parsedColor.icon === 'string') {
+          jsonIconOverride = parsedColor.icon;
         }
       } catch {
-        // If not JSON, treat as plain color string (backward compatibility)
-        color = markerColor;
-        iconColor = '#ffffff'; // Use white for icon to contrast with background
+        interiorFill = markerColor;
       }
     }
-    
-    const BackgroundComponent = backgroundShape ? backgroundShapes[backgroundShape] : null;
+
     const IconComponent = iconType ? markerIcons[iconType] : Landmark;
-    
-    return { BackgroundComponent, IconComponent, color, iconColor, outlineColor };
+    const glyphMode: 'pin' | 'standalone' = backgroundShape ? 'pin' : 'standalone';
+
+    return {
+      IconComponent,
+      interiorFill,
+      glyphMode,
+      jsonIconOverride,
+    };
   };
 
   const getStatusOverlay = (status: LocationMarker['status_icon']) => {
@@ -648,25 +673,27 @@ export function AtlasMap({
             {markers
               .filter((m) => m.visible)
               .map((marker) => {
-                const { BackgroundComponent, IconComponent, color, iconColor, outlineColor } = getMarkerComponents(
-                  marker.background_shape,
-                  marker.icon_type,
-                  marker.color
-                );
+                const { IconComponent, interiorFill, glyphMode, jsonIconOverride } =
+                  getMarkerComponents(
+                    marker.background_shape,
+                    marker.icon_type,
+                    marker.color
+                  );
                 const isEditing = editingMarkerId === marker.id;
                 const tooltipText = marker.name;
                 const tooltipDescription = marker.description;
 
+                // One footprint per size for all shapes; icon ~27% of container (matches form preview).
                 const sizePixels = {
-                  small: { container: 20, icon: 12, background: 26 }, // Smaller markers
-                  medium: { container: 28, icon: 16, background: 36 }, // Smaller markers
-                  large: { container: 36, icon: 20, background: 46 }, // Smaller markers
+                  small: { container: 32, icon: 10 },
+                  medium: { container: 44, icon: 13 },
+                  large: { container: 56, icon: 17 },
                 };
                 const sizes = sizePixels[marker.size];
                 const sizeClasses = {
-                  small: { container: 'h-6 w-6', icon: 'h-2.5 w-2.5' },
-                  medium: { container: 'h-8 w-8', icon: 'h-4 w-4' },
-                  large: { container: 'h-10 w-10', icon: 'h-5.5 w-5.5' },
+                  small: { container: 'h-8 w-8', icon: 'h-2.5 w-2.5' },
+                  medium: { container: 'h-11 w-11', icon: 'h-3.5 w-3.5' },
+                  large: { container: 'h-14 w-14', icon: 'h-4 w-4' },
                 };
                 const sizeClassNames = sizeClasses[marker.size];
 
@@ -690,73 +717,109 @@ export function AtlasMap({
                         }}
                       >
                         {(() => {
-                          // Bookmark and triangle need larger container to accommodate their preview-sized backgrounds
-                          const isBookmarkOrTriangle = marker.background_shape === 'bookmark' || marker.background_shape === 'triangle';
-                          const containerWidth = isBookmarkOrTriangle 
-                            ? { small: 40, medium: 56, large: 72 }[marker.size] // Match preview container sizes (reduced)
-                            : sizes.container;
-                          
-                          return (
-                            <div className="relative flex items-center justify-center" style={{ width: containerWidth, height: containerWidth }}>
-                              {/* Background shape - made bigger to avoid collision with icons */}
-                              {BackgroundComponent && (() => {
-                                // Adjust vertical position based on shape type
-                                let verticalOffset = 0;
-                                if (marker.background_shape === 'triangle') {
-                                  verticalOffset = -4; // Move triangle higher
-                                } else if (marker.background_shape === 'bookmark') {
-                                  verticalOffset = 4; // Move bookmark lower
+                          const box = sizes.container;
+                          let wrapperOffsetY = 0;
+                          let backgroundOnlyOffsetY = 0;
+                          if (marker.background_shape === 'triangle') {
+                            wrapperOffsetY = -3;
+                          } else if (marker.background_shape === 'bookmark') {
+                            backgroundOnlyOffsetY = 9;
+                          } else if (marker.background_shape === 'teardrop') {
+                            backgroundOnlyOffsetY = 9;
+                          }
+
+                          const hasFrame = !!marker.background_shape;
+                          const iconCentroidNudgeY = markerIconCentroidNudgeY(
+                            marker.background_shape,
+                            box
+                          );
+                          const pinIconPx = Math.max(
+                            6,
+                            Math.round(sizes.icon * (hasFrame ? 0.9 : 1))
+                          );
+                          const pinGlyphColor = jsonIconOverride ?? '#ffffff';
+                          const iconStyle: CSSProperties =
+                            glyphMode === 'pin'
+                              ? {
+                                  width: pinIconPx,
+                                  height: pinIconPx,
+                                  color: pinGlyphColor,
+                                  fill: pinGlyphColor,
+                                  stroke: pinGlyphColor,
+                                  strokeWidth: 1,
+                                  strokeLinejoin: 'round',
+                                  strokeLinecap: 'round',
                                 }
-                                
-                                // Bookmark and triangle use same size as container to match preview (1:1 ratio)
-                                const backgroundSize = isBookmarkOrTriangle
-                                  ? containerWidth  // Same as container for bookmark/triangle to match preview
-                                  : sizes.background;
-                                
-                                return (
-                                  <div 
-                                    className="absolute inset-0 flex items-center justify-center"
+                              : {
+                                  width: sizes.icon,
+                                  height: sizes.icon,
+                                  color: '#ffffff',
+                                  fill: '#ffffff',
+                                  stroke: '#0a0a0a',
+                                  strokeWidth: 2.25,
+                                  paintOrder: 'stroke fill',
+                                  strokeLinejoin: 'round',
+                                  strokeLinecap: 'round',
+                                  filter:
+                                    'drop-shadow(0 2px 2px rgba(0,0,0,0.45))',
+                                };
+
+                          return (
+                            <div
+                              className="relative flex items-center justify-center"
+                              style={{ width: box, height: box }}
+                            >
+                              <div
+                                className="relative flex h-full w-full items-center justify-center"
+                                style={{
+                                  transform:
+                                    wrapperOffsetY !== 0
+                                      ? `translateY(${wrapperOffsetY}px)`
+                                      : undefined,
+                                }}
+                              >
+                                {marker.background_shape && (
+                                  <div
+                                    className="pointer-events-none absolute inset-0 flex items-center justify-center"
                                     style={{
-                                      transform: verticalOffset !== 0 ? `translateY(${verticalOffset}px)` : undefined
+                                      transform:
+                                        backgroundOnlyOffsetY !== 0
+                                          ? `translateY(${backgroundOnlyOffsetY}px)`
+                                          : undefined,
                                     }}
                                   >
-                                    <BackgroundComponent
-                                      style={{
-                                        width: backgroundSize,
-                                        height: backgroundSize,
-                                        fill: color,
-                                        stroke: outlineColor,
-                                        strokeWidth: 1.5,
-                                        strokeLinejoin: 'round',
-                                        strokeLinecap: 'round',
-                                        color: color,
-                                      }}
+                                    <AtlasMarkerBackground
+                                      shape={marker.background_shape}
+                                      fill={interiorFill}
+                                      size={box}
                                     />
                                   </div>
-                                );
-                              })()}
-                              {/* Icon */}
-                              <div className="relative z-10 flex items-center justify-center">
-                                <IconComponent
-                                  className={cn("drop-shadow-lg", sizeClassNames.icon)}
-                                  style={{ 
-                                    width: sizes.icon,
-                                    height: sizes.icon,
-                                    color: iconColor, // Icon color
-                                    fill: iconColor, // Icon color fill
-                                    stroke: outlineColor, // Outline color
-                                    strokeWidth: 1.5,
-                                    strokeLinejoin: 'round',
-                                    strokeLinecap: 'round'
+                                )}
+                                <div
+                                  className="relative z-10 flex items-center justify-center"
+                                  style={{
+                                    transform:
+                                      iconCentroidNudgeY !== 0
+                                        ? `translateY(${iconCentroidNudgeY}px)`
+                                        : undefined,
                                   }}
-                                />
+                                >
+                                  <IconComponent
+                                    className={cn(
+                                      glyphMode === 'standalone' && 'drop-shadow-sm',
+                                      sizeClassNames.icon
+                                    )}
+                                    style={iconStyle}
+                                  />
+                                </div>
                               </div>
                             </div>
                           );
                         })()}
                       </div>
                     </TooltipTrigger>
-                    {(tooltipText || tooltipDescription) && (
+                    {(tooltipText ||
+                      !isRichTextHtmlVisuallyEmpty(tooltipDescription)) && (
                       <TooltipContent
                         side="top"
                         sideOffset={8}
@@ -766,12 +829,12 @@ export function AtlasMap({
                           {tooltipText && (
                             <p className="font-semibold">{tooltipText}</p>
                           )}
-                          {tooltipDescription && (
+                          {!isRichTextHtmlVisuallyEmpty(tooltipDescription) && (
                             <p className="text-xs opacity-90 whitespace-normal">
-                              {tooltipDescription}
+                              {richTextHtmlToPlainText(tooltipDescription ?? "")}
                             </p>
-                      )}
-                    </div>
+                          )}
+                        </div>
                       </TooltipContent>
                     )}
                   </Tooltip>

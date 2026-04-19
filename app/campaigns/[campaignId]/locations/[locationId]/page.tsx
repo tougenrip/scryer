@@ -6,12 +6,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
-import { X, Moon, MapPin, Edit, Check, User, Sword, Sparkles, Building2, Home, Castle, TreePine, Globe, Landmark, DoorOpen, Waves, Flag, Church, UtensilsCrossed, ShoppingBag, Mountain } from 'lucide-react'
+import { X, Moon, MapPin, Edit, Check, User, Sword, Swords, Sparkles, Building2, Home, Castle, TreePine, Globe, Landmark, DoorOpen, Waves, Flag, Church, UtensilsCrossed, ShoppingBag, Mountain, ScrollText } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { useWorldLocations, useUpdateWorldLocation, useScenes, useScene, useLocationMarkers } from '@/hooks/useForgeContent'
 import { createClient } from '@/lib/supabase/client'
 import type { WorldLocation } from '@/hooks/useForgeContent'
-import { ContentSidebar } from '@/components/forge/navigation/content-sidebar'
 import { AtlasMap } from '@/components/forge/atlas/atlas-map'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
@@ -20,6 +19,7 @@ import { ManageTags } from '@/components/shared/manage-tags'
 import { ManageAssociates } from '@/components/shared/manage-associates'
 import { cn } from '@/lib/utils'
 import { marked } from 'marked'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 
 // Predefined icon mapping for entity pages
 const entityIcons: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -81,6 +81,7 @@ export default function LocationOverviewPage() {
   const [editMode, setEditMode] = useState(false)
   const [entityName, setEntityName] = useState<string>('')
   const [iconName, setIconName] = useState<string>('moon')
+  const [portraitLightboxOpen, setPortraitLightboxOpen] = useState(false)
 
   const { locations, loading } = useWorldLocations(campaignId, isDm)
   const { updateLocation, loading: updating } = useUpdateWorldLocation()
@@ -369,14 +370,6 @@ export default function LocationOverviewPage() {
 
   return (
     <div className="flex h-full bg-background overflow-hidden">
-      {/* Left Sidebar Navigation */}
-      <ContentSidebar
-        campaignId={campaignId}
-        currentEntityId={locationId}
-        currentEntityType="location"
-        isDm={isDm}
-      />
-
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header with illustration */}
@@ -390,7 +383,7 @@ export default function LocationOverviewPage() {
           ) : (
             <div className="w-full h-full bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900" />
           )}
-          <div className="absolute inset-x-0 bottom-0 top-1/3 bg-gradient-to-t from-background via-background/50 to-transparent" />
+          <div className="absolute inset-x-0 bottom-0 top-0 entity-hero-gradient" />
           <div className="absolute bottom-0 left-0 right-0 p-6 md:p-8">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
@@ -498,7 +491,7 @@ export default function LocationOverviewPage() {
               <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                 <TabsContent value="overview" className="space-y-6 mt-0">
                 {/* Origins/Description - Editable with Markdown (includes heading) */}
-                <div>
+                <div className="entity-section">
                   {isDm && editMode ? (
                     <Textarea
                       value={markdownContent}
@@ -511,7 +504,7 @@ export default function LocationOverviewPage() {
                       placeholder="## Heading&#10;&#10;Write your description in markdown format...&#10;&#10;**Bold text**&#10;*Italic text*&#10;- List item"
                     />
                   ) : (
-                    <div className="max-w-none text-foreground [&_h1]:text-2xl [&_h1]:font-bold [&_h1]:mt-6 [&_h1]:mb-4 [&_h2]:text-xl [&_h2]:font-bold [&_h2]:mt-5 [&_h2]:mb-3 [&_h3]:text-lg [&_h3]:font-semibold [&_h3]:mt-4 [&_h3]:mb-2 [&_h4]:text-base [&_h4]:font-semibold [&_h4]:mt-3 [&_h4]:mb-2 [&_p]:leading-relaxed [&_p]:mb-4 [&_strong]:font-bold [&_em]:italic [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:mb-4 [&_ol]:list-decimal [&_ol]:pl-6 [&_ol]:mb-4 [&_li]:mb-1">
+                    <div className="prose-entity">
                       <div 
                         dangerouslySetInnerHTML={{ __html: getHtmlContent() || '<p>No description available.</p>' }}
                       />
@@ -521,26 +514,24 @@ export default function LocationOverviewPage() {
 
                 {/* Secret Section */}
                 {secret && (
-                  <div className="border-2 border-dashed border-purple-500/50 rounded-lg p-6 bg-purple-500/5">
-                    <h3 className="text-xl font-bold mb-2">Secret</h3>
-                    <p className="text-muted-foreground whitespace-pre-wrap">{secret}</p>
+                  <div className="entity-section secret-callout">
+                    <div className="secret-label">Secret</div>
+                    <p>{secret}</p>
                   </div>
                 )}
 
                 {/* Features/Items */}
                 {features.length > 0 && (
-                  <div className="space-y-4">
+                  <div className="entity-section feature-grid">
                     {features.map((feature: any, index: number) => (
-                      <div key={index} className="flex gap-4 p-4 rounded-lg bg-muted/50">
+                      <div key={index} className="feature-card">
                         {feature.icon && (
-                          <div className="flex-shrink-0 w-16 h-16 rounded-lg bg-gradient-to-br from-purple-500/20 to-pink-500/20 flex items-center justify-center">
-                            <span className="text-2xl">{feature.icon}</span>
+                          <div className="feature-icon">
+                            <span className="text-lg">{feature.icon}</span>
                           </div>
                         )}
-                        <div className="flex-1">
-                          <h4 className="font-semibold text-lg mb-1">{feature.name}</h4>
-                          <p className="text-sm text-muted-foreground">{feature.description}</p>
-                        </div>
+                        <h4>{feature.name}</h4>
+                        <p>{feature.description}</p>
                       </div>
                     ))}
                   </div>
@@ -639,10 +630,44 @@ export default function LocationOverviewPage() {
 
           {/* Right Sidebar - Always Visible */}
           <div className="w-80 border-l border-border bg-background overflow-y-auto flex-shrink-0">
-            <div className="p-6 space-y-6">
+            <div className="p-6 space-y-0">
+              {/* Portrait */}
+              {location.image_url && (
+                <div className="mb-6">
+                  <button
+                    type="button"
+                    onClick={() => setPortraitLightboxOpen(true)}
+                    className={cn(
+                      'w-full p-0 border-0 bg-transparent rounded-[0.75rem] cursor-zoom-in',
+                      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background'
+                    )}
+                    aria-label={`View ${location.name} image full size`}
+                  >
+                    <img
+                      src={location.image_url}
+                      alt={location.name}
+                      className="entity-portrait pointer-events-none"
+                    />
+                  </button>
+                  <Dialog open={portraitLightboxOpen} onOpenChange={setPortraitLightboxOpen}>
+                    <DialogContent
+                      className="w-fit max-w-[min(96vw,1400px)] gap-0 p-2 sm:p-3 sm:max-w-[min(96vw,1400px)]"
+                      aria-describedby={undefined}
+                    >
+                      <DialogTitle className="sr-only">{location.name} — full size image</DialogTitle>
+                      <img
+                        src={location.image_url}
+                        alt={location.name}
+                        className="max-h-[min(85vh,1200px)] max-w-full w-auto object-contain rounded-md"
+                      />
+                    </DialogContent>
+                  </Dialog>
+                </div>
+              )}
+
               {/* Summary */}
               <div>
-                <h3 className="text-sm font-semibold mb-3 uppercase tracking-wide">SUMMARY</h3>
+                <h3 className="sidebar-section-label">SUMMARY</h3>
                 {isDm && editMode ? (
                   <Textarea
                     value={summary}
@@ -668,6 +693,8 @@ export default function LocationOverviewPage() {
                 )}
               </div>
 
+              <hr className="sidebar-divider my-5" />
+
                 {/* Tags */}
                 <ManageTags
               campaignId={campaignId}
@@ -678,10 +705,12 @@ export default function LocationOverviewPage() {
               isDm={isDm && editMode}
                 />
 
+                <hr className="sidebar-divider my-5" />
+
                 {/* Atmosphere */}
                 {location.metadata?.atmosphere && (
                   <div>
-                    <h3 className="text-sm font-semibold mb-3 uppercase tracking-wide">ATMOSPHERE</h3>
+                    <h3 className="sidebar-section-label">ATMOSPHERE</h3>
                     <div className="p-3 rounded-lg bg-muted/50 flex items-center justify-between">
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium truncate">{location.metadata.atmosphere.title || 'Ambient Music'}</p>
@@ -705,33 +734,42 @@ export default function LocationOverviewPage() {
                   </div>
                 )}
 
+                <hr className="sidebar-divider my-5" />
+
                 {/* Backlinks */}
                 <div>
-                  <h3 className="text-sm font-semibold mb-3 uppercase tracking-wide">BACKLINKS</h3>
+                  <h3 className="sidebar-section-label">BACKLINKS</h3>
                   {backlinks.length === 0 ? (
                     <p className="text-sm text-muted-foreground">No associated entities</p>
                   ) : (
-                    <div className="space-y-2">
-                      {backlinks.map((link) => (
-                        <div
-                          key={link.id}
-                          className="flex items-center gap-2 text-sm cursor-pointer hover:text-foreground text-muted-foreground transition-colors"
-                          onClick={() => {
-                            if (link.type === 'npc') {
-                              router.push(`/campaigns/${campaignId}/npcs/${link.id}`)
-                            } else if (link.type === 'faction') {
-                              router.push(`/campaigns/${campaignId}/factions/${link.id}`)
-                            } else if (link.type === 'location') {
-                              router.push(`/campaigns/${campaignId}/locations/${link.id}`)
-                            } else if (link.type === 'quest') {
-                              router.push(`/campaigns/${campaignId}/quest-board`)
-                            }
-                          }}
-                        >
-                          <span className="text-xs">•</span>
-                          <span>{link.name}</span>
-                        </div>
-                      ))}
+                    <div className="space-y-1">
+                      {backlinks.map((link) => {
+                        const BacklinkIcon = link.type === 'npc' ? User
+                          : link.type === 'faction' ? Swords
+                          : link.type === 'location' ? MapPin
+                          : link.type === 'quest' ? ScrollText
+                          : MapPin
+                        return (
+                          <div
+                            key={link.id}
+                            className="backlink-item"
+                            onClick={() => {
+                              if (link.type === 'npc') {
+                                router.push(`/campaigns/${campaignId}/npcs/${link.id}`)
+                              } else if (link.type === 'faction') {
+                                router.push(`/campaigns/${campaignId}/factions/${link.id}`)
+                              } else if (link.type === 'location') {
+                                router.push(`/campaigns/${campaignId}/locations/${link.id}`)
+                              } else if (link.type === 'quest') {
+                                router.push(`/campaigns/${campaignId}/quest-board`)
+                              }
+                            }}
+                          >
+                            <BacklinkIcon className="backlink-icon" />
+                            <span>{link.name}</span>
+                          </div>
+                        )
+                      })}
                     </div>
                   )}
                 </div>

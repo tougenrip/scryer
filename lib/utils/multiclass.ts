@@ -152,7 +152,7 @@ export function getMulticlassSpellSlots(
  * Multiclass prerequisites for each class
  * A character must have at least 13 in the specified ability to multiclass into that class
  */
-const MULTICLASS_PREREQUISITES: Record<string, string> = {
+const MULTICLASS_PREREQUISITES: Record<string, string | null> = {
   barbarian: 'strength',
   paladin: 'strength',
   monk: 'dexterity',
@@ -164,9 +164,22 @@ const MULTICLASS_PREREQUISITES: Record<string, string> = {
   bard: 'charisma',
   sorcerer: 'charisma',
   warlock: 'charisma',
-  fighter: null, // Fighter doesn't have prerequisites
-  wizard: 'intelligence',
+  fighter: null,
+  artificer: 'intelligence',
 };
+
+/**
+ * Returns the multiclass prerequisite for a class, or null if none.
+ * Paladin actually requires STR 13 AND CHA 13 per the rules, but we keep a
+ * single-ability simplification here consistent with checkMulticlassPrerequisites.
+ */
+export function getMulticlassPrerequisite(
+  classIndex: string
+): { ability: string; min: number } | null {
+  const ability = MULTICLASS_PREREQUISITES[classIndex.toLowerCase()];
+  if (!ability) return null;
+  return { ability, min: 13 };
+}
 
 /**
  * Check if a character meets the prerequisites to multiclass into a given class

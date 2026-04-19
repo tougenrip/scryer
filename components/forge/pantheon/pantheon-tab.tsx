@@ -1,19 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Plus, Sparkles, Search, Edit, Trash2, Star } from "lucide-react";
+import { Plus, Sparkles, Search, Edit, Trash2 } from "lucide-react";
 import {
   usePantheonDeities,
   useCreatePantheonDeity,
@@ -24,6 +13,23 @@ import {
 import { toast } from "sonner";
 import { DeityFormDialog } from "./deity-form-dialog";
 import { DeityDetailDialog } from "./deity-detail-dialog";
+
+const DEITY_COLORS = [
+  "#5b9bd5",
+  "#d6a85a",
+  "#7ec27e",
+  "#b583e0",
+  "#c87b5a",
+  "#7ab0d6",
+  "#d98b3a",
+  "#9dd89d",
+];
+
+const hashColor = (id: string) => {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+  return DEITY_COLORS[h % DEITY_COLORS.length];
+};
 
 interface PantheonTabProps {
   campaignId: string;
@@ -129,146 +135,274 @@ export function PantheonTab({ campaignId, isDm }: PantheonTabProps) {
 
   if (loading) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {[1, 2, 3].map((i) => (
-          <Card key={i}>
-            <CardContent className="p-6">
+      <div style={{ padding: "16px 20px" }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))",
+            gap: 14,
+          }}
+        >
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="sc-card" style={{ padding: 16 }}>
               <Skeleton className="h-6 w-32 mb-2" />
               <Skeleton className="h-4 w-24 mb-4" />
               <Skeleton className="h-16 w-full" />
-            </CardContent>
-          </Card>
-        ))}
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div style={{ padding: "16px 20px" }}>
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: 14,
+          flexWrap: "wrap",
+          gap: 10,
+        }}
+      >
         <div>
-          <h2 className="font-serif text-2xl font-semibold">Pantheon</h2>
-          <p className="text-muted-foreground text-sm mt-1">
-            Manage gods, deities, and religions in your campaign world
-          </p>
+          <div className="font-serif" style={{ fontSize: 20 }}>
+            The Pantheon
+          </div>
+          <div
+            style={{ fontSize: 12, color: "var(--muted-foreground)" }}
+          >
+            {filteredDeities.length} of {deities.length} known power{deities.length === 1 ? "" : "s"}
+          </div>
         </div>
-        {isDm && (
-          <Button onClick={handleCreate} disabled={creating}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Deity
-          </Button>
-        )}
-      </div>
-
-      {/* Search */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder="Search deities by name, title, or domain..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="pl-10"
-        />
-      </div>
-
-      {/* Deity List */}
-      {deities.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <Sparkles className="h-16 w-16 text-muted-foreground/50 mb-4" />
-            <p className="text-muted-foreground text-center mb-2">
-              No deities yet.
-            </p>
-            {isDm && (
-              <p className="text-sm text-muted-foreground text-center">
-                Create your first deity to start building your pantheon.
-              </p>
-            )}
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredDeities.map((deity) => (
-            <Card
-              key={deity.id}
-              className="cursor-pointer hover:shadow-lg transition-shadow"
-              onClick={() => {
-                setSelectedDeity(deity);
-                setIsDetailOpen(true);
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <div style={{ position: "relative" }}>
+            <Search
+              size={12}
+              style={{
+                position: "absolute",
+                left: 10,
+                top: "50%",
+                transform: "translateY(-50%)",
+                color: "var(--muted-foreground)",
               }}
+            />
+            <input
+              className="sc-input"
+              placeholder="Search deities…"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{ paddingLeft: 30, width: 220, fontSize: 12 }}
+            />
+          </div>
+          {isDm && (
+            <button
+              type="button"
+              className="sc-btn sc-btn-primary sc-btn-sm"
+              onClick={handleCreate}
+              disabled={creating}
             >
-              <CardContent className="p-6">
-                <div className="flex items-start justify-between mb-2">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <Star className="h-5 w-5 text-yellow-500 fill-yellow-500" />
-                      <h3 className="font-semibold text-lg">{deity.name}</h3>
+              <Plus size={12} />
+              Deity
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Empty */}
+      {deities.length === 0 ? (
+        <div className="sc-card" style={{ padding: 40 }}>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              textAlign: "center",
+              color: "var(--muted-foreground)",
+            }}
+          >
+            <Sparkles size={48} style={{ opacity: 0.5, marginBottom: 10 }} />
+            <div style={{ marginBottom: 6 }}>No deities yet.</div>
+            {isDm && (
+              <div style={{ fontSize: 12 }}>
+                Create your first deity to start building your pantheon.
+              </div>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))",
+            gap: 14,
+          }}
+        >
+          {filteredDeities.map((deity) => {
+            const color = hashColor(deity.id);
+            const symbolChar = deity.name ? deity.name.charAt(0) : "✦";
+            return (
+              <div
+                key={deity.id}
+                className="sc-card sc-card-hover"
+                style={{ padding: 0, overflow: "hidden", cursor: "pointer" }}
+                onClick={() => {
+                  setSelectedDeity(deity);
+                  setIsDetailOpen(true);
+                }}
+              >
+                <div
+                  style={{
+                    background: `linear-gradient(135deg, color-mix(in srgb, ${color} 30%, var(--card)), var(--card))`,
+                    padding: "20px 16px 14px",
+                    borderBottom: "1px solid var(--border)",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 14,
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 60,
+                      height: 60,
+                      borderRadius: "50%",
+                      background: `color-mix(in srgb, ${color} 30%, var(--background))`,
+                      border: `1.5px solid ${color}`,
+                      display: "grid",
+                      placeItems: "center",
+                      fontSize: 26,
+                      fontFamily: "var(--font-serif)",
+                      color,
+                      overflow: "hidden",
+                      flexShrink: 0,
+                    }}
+                  >
+                    {deity.symbol && deity.symbol.startsWith("http") ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={deity.symbol}
+                        alt={deity.name}
+                        style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                      />
+                    ) : (
+                      symbolChar
+                    )}
+                  </div>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div
+                      className="font-serif truncate"
+                      style={{
+                        fontSize: 18,
+                        letterSpacing: "0.04em",
+                      }}
+                    >
+                      {deity.name}
                     </div>
                     {deity.title && (
-                      <p className="text-sm text-muted-foreground mt-1 italic">
+                      <div
+                        className="truncate"
+                        style={{
+                          fontSize: 12,
+                          color: "var(--muted-foreground)",
+                          fontStyle: "italic",
+                        }}
+                      >
                         {deity.title}
-                      </p>
+                      </div>
                     )}
                   </div>
-                  {deity.alignment && (
-                    <Badge variant="outline" className="shrink-0">
-                      {deity.alignment}
-                    </Badge>
+                </div>
+                <div style={{ padding: "14px 16px" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: 6,
+                      marginBottom: 10,
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    {deity.alignment && (
+                      <span className="sc-badge" style={{ fontSize: 10 }}>
+                        {deity.alignment}
+                      </span>
+                    )}
+                    {(deity.domain || []).slice(0, 4).map((dom) => (
+                      <span
+                        key={dom}
+                        className="sc-badge"
+                        style={{
+                          fontSize: 10,
+                          borderColor: `color-mix(in srgb, ${color} 40%, transparent)`,
+                          color,
+                        }}
+                      >
+                        {dom}
+                      </span>
+                    ))}
+                    {(deity.domain?.length || 0) > 4 && (
+                      <span className="sc-badge" style={{ fontSize: 10 }}>
+                        +{(deity.domain?.length || 0) - 4}
+                      </span>
+                    )}
+                  </div>
+                  {deity.description && (
+                    <div
+                      style={{
+                        fontSize: 12,
+                        color: "var(--muted-foreground)",
+                        lineHeight: 1.6,
+                        display: "-webkit-box",
+                        WebkitBoxOrient: "vertical",
+                        WebkitLineClamp: 3,
+                        overflow: "hidden",
+                      }}
+                    >
+                      {deity.description}
+                    </div>
+                  )}
+                  {isDm && (
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: 6,
+                        marginTop: 12,
+                        paddingTop: 12,
+                        borderTop: "1px solid var(--border)",
+                      }}
+                    >
+                      <button
+                        type="button"
+                        className="sc-btn sc-btn-sm sc-btn-ghost"
+                        style={{ flex: 1, justifyContent: "center" }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleEdit(deity);
+                        }}
+                      >
+                        <Edit size={12} />
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        className="sc-btn sc-btn-sm sc-btn-ghost"
+                        style={{ color: "var(--destructive)" }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDelete(deity);
+                        }}
+                        disabled={deleting}
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
                   )}
                 </div>
-
-                {deity.domain && deity.domain.length > 0 && (
-                  <div className="flex flex-wrap gap-1 mt-3">
-                    {deity.domain.slice(0, 3).map((domain, idx) => (
-                      <Badge key={idx} variant="secondary" className="text-xs">
-                        {domain}
-                      </Badge>
-                    ))}
-                    {deity.domain.length > 3 && (
-                      <Badge variant="secondary" className="text-xs">
-                        +{deity.domain.length - 3}
-                      </Badge>
-                    )}
-                  </div>
-                )}
-
-                {deity.description && (
-                  <p className="text-sm text-muted-foreground mt-3 line-clamp-2">
-                    {deity.description}
-                  </p>
-                )}
-
-                {isDm && (
-                  <div className="flex items-center gap-2 mt-4 pt-4 border-t">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleEdit(deity);
-                      }}
-                      className="flex-1"
-                    >
-                      <Edit className="h-4 w-4 mr-2" />
-                      Edit
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDelete(deity);
-                      }}
-                      className="text-destructive hover:text-destructive"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          ))}
+              </div>
+            );
+          })}
         </div>
       )}
 

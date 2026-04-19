@@ -6,11 +6,10 @@ import { marked } from 'marked'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { X, Moon, MapPin, History, Users, User, Edit, Check } from 'lucide-react'
+import { X, Moon, MapPin, History, Users, User, Edit, Check, Swords, ScrollText } from 'lucide-react'
 import { useCampaignNPCs, useUpdateNPC } from '@/hooks/useCampaignContent'
 import { createClient } from '@/lib/supabase/client'
 import type { NPC } from '@/hooks/useCampaignContent'
-import { ContentSidebar } from '@/components/forge/navigation/content-sidebar'
 import { useScenes, useScene, useLocationMarkers } from '@/hooks/useForgeContent'
 import { AtlasMap } from '@/components/forge/atlas/atlas-map'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -315,14 +314,6 @@ export default function NPCOverviewPage() {
 
   return (
     <div className="flex h-full bg-background overflow-hidden">
-      {/* Left Sidebar Navigation */}
-      <ContentSidebar
-        campaignId={campaignId}
-        currentEntityId={npcId}
-        currentEntityType="npc"
-        isDm={isDm}
-      />
-
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header with illustration */}
@@ -336,7 +327,7 @@ export default function NPCOverviewPage() {
         ) : (
           <div className="w-full h-full bg-gradient-to-br from-green-900 via-emerald-900 to-teal-900" />
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/50 to-transparent" />
+        <div className="absolute inset-0 entity-hero-gradient" />
         <div className="absolute bottom-0 left-0 right-0 p-6 md:p-8">
           <div className="flex items-center gap-2 mb-4">
             <Moon className="h-5 w-5 text-foreground" />
@@ -390,7 +381,7 @@ export default function NPCOverviewPage() {
               <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                 <TabsContent value="overview" className="space-y-6 mt-0">
                 {/* About/Description - Editable with Markdown (includes heading) */}
-                <div>
+                <div className="entity-section">
                   {isDm && editMode ? (
                     <Textarea
                       value={markdownContent}
@@ -399,7 +390,7 @@ export default function NPCOverviewPage() {
                       placeholder="## Heading&#10;&#10;Write your description in markdown format...&#10;&#10;**Bold text**&#10;*Italic text*&#10;- List item"
                     />
                   ) : (
-                    <div className="max-w-none text-foreground [&_h1]:text-2xl [&_h1]:font-bold [&_h1]:mt-6 [&_h1]:mb-4 [&_h2]:text-xl [&_h2]:font-bold [&_h2]:mt-5 [&_h2]:mb-3 [&_h3]:text-lg [&_h3]:font-semibold [&_h3]:mt-4 [&_h3]:mb-2 [&_h4]:text-base [&_h4]:font-semibold [&_h4]:mt-3 [&_h4]:mb-2 [&_p]:leading-relaxed [&_p]:mb-4 [&_strong]:font-bold [&_em]:italic [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:mb-4 [&_ol]:list-decimal [&_ol]:pl-6 [&_ol]:mb-4 [&_li]:mb-1">
+                    <div className="prose-entity">
                       <div 
                         dangerouslySetInnerHTML={{ __html: getHtmlContent() || '<p>No description available.</p>' }}
                       />
@@ -409,24 +400,22 @@ export default function NPCOverviewPage() {
 
                 {/* Secret Section */}
                 {secret && (
-                  <div className="border-2 border-dashed border-purple-500/50 rounded-lg p-6 bg-purple-500/5">
-                    <h3 className="text-xl font-bold mb-2">Secret</h3>
-                    <p className="text-muted-foreground whitespace-pre-wrap">{secret}</p>
+                  <div className="entity-section secret-callout">
+                    <div className="secret-label">Secret</div>
+                    <p>{secret}</p>
                   </div>
                 )}
 
                 {/* Features/Items */}
                 {features.length > 0 && (
-                  <div className="space-y-4">
+                  <div className="entity-section feature-grid">
                     {features.map((feature, index) => (
-                      <div key={index} className="flex gap-4 p-4 rounded-lg bg-muted/50">
-                        <div className="flex-shrink-0 w-16 h-16 rounded-lg bg-gradient-to-br from-green-500/20 to-teal-500/20 flex items-center justify-center">
-                          <User className="h-8 w-8 text-green-400" />
+                      <div key={index} className="feature-card">
+                        <div className="feature-icon">
+                          <User className="h-5 w-5 text-primary" />
                         </div>
-                        <div className="flex-1">
-                          <h4 className="font-semibold text-lg mb-1">{feature.name}</h4>
-                          <p className="text-sm text-muted-foreground whitespace-pre-wrap">{feature.description}</p>
-                        </div>
+                        <h4>{feature.name}</h4>
+                        <p>{feature.description}</p>
                       </div>
                     ))}
                   </div>
@@ -526,10 +515,21 @@ export default function NPCOverviewPage() {
 
           {/* Right Sidebar - Always Visible */}
           <div className="w-80 border-l border-border bg-background overflow-y-auto flex-shrink-0">
-            <div className="p-6 space-y-6">
+            <div className="p-6 space-y-0">
+              {/* Portrait */}
+              {npc.image_url && (
+                <div className="mb-6">
+                  <img
+                    src={npc.image_url}
+                    alt={npc.name}
+                    className="entity-portrait"
+                  />
+                </div>
+              )}
+
               {/* Summary */}
               <div>
-                <h3 className="text-sm font-semibold mb-3 uppercase tracking-wide">SUMMARY</h3>
+                <h3 className="sidebar-section-label">SUMMARY</h3>
                 {isDm && editMode ? (
                   <Textarea
                     value={summary}
@@ -555,6 +555,8 @@ export default function NPCOverviewPage() {
                 )}
               </div>
 
+              <hr className="sidebar-divider my-5" />
+
               {/* Tags */}
               <ManageTags
                 campaignId={campaignId}
@@ -567,39 +569,51 @@ export default function NPCOverviewPage() {
 
               {/* Custom Label */}
               {customLabel && (
-                <div>
-                  <h3 className="text-sm font-semibold mb-3 uppercase tracking-wide">CUSTOM LABEL</h3>
-                  <div className="p-3 rounded-lg bg-muted/50">
-                    <p className="text-sm">{customLabel}</p>
+                <>
+                  <hr className="sidebar-divider my-5" />
+                  <div>
+                    <h3 className="sidebar-section-label">CUSTOM LABEL</h3>
+                    <div className="p-3 rounded-lg bg-muted/50">
+                      <p className="text-sm">{customLabel}</p>
+                    </div>
                   </div>
-                </div>
+                </>
               )}
 
               {/* Backlinks */}
               {backlinks.length > 0 && (
-                <div>
-                  <h3 className="text-sm font-semibold mb-3 uppercase tracking-wide">BACKLINKS</h3>
-                  <div className="space-y-2">
-                    {backlinks.map((link) => (
-                      <div
-                        key={link.id}
-                        className="flex items-center gap-2 text-sm cursor-pointer hover:text-foreground text-muted-foreground transition-colors"
-                        onClick={() => {
-                          if (link.type === 'faction') {
-                            router.push(`/campaigns/${campaignId}/factions/${link.id}`)
-                          } else if (link.type === 'location') {
-                            router.push(`/campaigns/${campaignId}/locations/${link.id}`)
-                          } else if (link.type === 'quest') {
-                            router.push(`/campaigns/${campaignId}/quests/${link.id}`)
-                          }
-                        }}
-                      >
-                        <span className="text-xs">•</span>
-                        <span>{link.name}</span>
-                      </div>
-                    ))}
+                <>
+                  <hr className="sidebar-divider my-5" />
+                  <div>
+                    <h3 className="sidebar-section-label">BACKLINKS</h3>
+                    <div className="space-y-1">
+                      {backlinks.map((link) => {
+                        const BacklinkIcon = link.type === 'faction' ? Swords
+                          : link.type === 'location' ? MapPin
+                          : link.type === 'quest' ? ScrollText
+                          : User
+                        return (
+                          <div
+                            key={link.id}
+                            className="backlink-item"
+                            onClick={() => {
+                              if (link.type === 'faction') {
+                                router.push(`/campaigns/${campaignId}/factions/${link.id}`)
+                              } else if (link.type === 'location') {
+                                router.push(`/campaigns/${campaignId}/locations/${link.id}`)
+                              } else if (link.type === 'quest') {
+                                router.push(`/campaigns/${campaignId}/quests/${link.id}`)
+                              }
+                            }}
+                          >
+                            <BacklinkIcon className="backlink-icon" />
+                            <span>{link.name}</span>
+                          </div>
+                        )
+                      })}
+                    </div>
                   </div>
-                </div>
+                </>
               )}
             </div>
           </div>

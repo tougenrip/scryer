@@ -8,7 +8,6 @@ import { useCampaign, useDeleteCampaign } from "@/hooks/useCampaigns";
 import { CampaignForm } from "@/components/campaign/campaign-form";
 import { MemberList } from "@/components/campaign/member-list";
 import { InviteDialog } from "@/components/campaign/invite-dialog";
-import { ContentSidebar } from "@/components/forge/navigation/content-sidebar";
 import { createClient } from "@/lib/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -89,12 +88,6 @@ export default function CampaignSettingsPage() {
 
   return (
     <div className="flex h-full bg-background overflow-hidden">
-      {/* Left Sidebar Navigation */}
-      <ContentSidebar
-        campaignId={campaignId}
-        isDm={isDm}
-      />
-
       {/* Main Content Area */}
       <div className="flex-1 overflow-y-auto">
         <div className="container mx-auto px-4 py-8 max-w-7xl">

@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { DiceRollerProvider } from "@/components/dice/dice-roller-provider";
 import { OllamaProvider } from "@/contexts/ollama-context";
 import { DisplayProvider } from "@/contexts/display-context";
+import { RoleProvider } from "@/contexts/role-context";
 import "./globals.css";
 
 const defaultUrl = process.env.VERCEL_URL
@@ -56,12 +57,14 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <DisplayProvider>
-            <OllamaProvider>
-              <DiceRollerProvider>
-                {children}
-                <Toaster position="bottom-right" />
-              </DiceRollerProvider>
-            </OllamaProvider>
+            <RoleProvider>
+              <OllamaProvider>
+                <DiceRollerProvider>
+                  {children}
+                  <Toaster position="bottom-right" />
+                </DiceRollerProvider>
+              </OllamaProvider>
+            </RoleProvider>
           </DisplayProvider>
         </ThemeProvider>
       </body>

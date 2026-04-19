@@ -12,15 +12,13 @@ export interface ParsedNPCData {
   notes?: string;
   customSpecies?: string;
   customClass?: string;
+  combatStats?: any;
 }
 
 export interface ParsedLocationData {
   name?: string;
   description?: string;
-  features?: string;
-  history?: string;
-  inhabitants?: string;
-  secrets?: string;
+  dmNotes?: string;
 }
 
 export interface ParsedFactionData {
@@ -164,6 +162,27 @@ function extractSectionLegacy(content: string, sectionNames: string[]): string |
 // --- Parser Functions ---
 
 /**
+ * Helper to convert basic markdown text to HTML for TipTap rich text editors.
+ */
+function parseMarkdownToHtml(text?: string): string {
+  if (!text) return '';
+  
+  // Convert bold and italic
+  let html = text
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+    .replace(/_(.*?)_/g, '<em>$1</em>');
+    
+  // Convert newlines to paragraphs
+  const paragraphs = html.split(/\n+/).filter(p => p.trim());
+  if (paragraphs.length > 0) {
+    return paragraphs.map(p => `<p>${p.trim()}</p>`).join('');
+  }
+  
+  return `<p>${html.trim()}</p>`;
+}
+
+/**
  * Parse AI-generated NPC content into structured form data
  */
 export function parseNPCContent(content: string): ParsedNPCData {
@@ -176,26 +195,41 @@ export function parseNPCContent(content: string): ParsedNPCData {
     
     // Construct notes from various fields
     let notes = '';
-    if (jsonData.quote) notes += `**Quote:** "${jsonData.quote}"\n\n`;
-    if (jsonData.plotHook) notes += `**Plot Hook:** ${jsonData.plotHook}\n\n`;
-    if (jsonData.stats) notes += `**Stats:** ${jsonData.stats}`;
-    if (jsonData.secret) notes += `\n\n**Secret:** ${jsonData.secret}`;
+    if (jsonData.quote) notes += `<p><strong>Quote:</strong> "${jsonData.quote}"</p>`;
+    if (jsonData.plotHook) notes += `<p><strong>Plot Hook:</strong> ${jsonData.plotHook}</p>`;
+    if (jsonData.secret) notes += `<p><strong>Secret:</strong> ${jsonData.secret}</p>`;
 
     // Combine motivation into background if needed, or keep separate
-    let background = jsonData.background || '';
+    let background = jsonData.background ? parseMarkdownToHtml(jsonData.background) : '';
     if (jsonData.motivation) {
-      background = `**Motivation:** ${jsonData.motivation}\n\n${background}`;
+      background = `<p><strong>Motivation:</strong> ${jsonData.motivation}</p>${background}`;
+    }
+
+    // Process combatStats to ensure it follows the correct schema
+    let combatStats = jsonData.combatStats || null;
+    if (combatStats) {
+      // Clean up strings to numbers for attributes
+      ['hp', 'maxHp', 'ac', 'str', 'dex', 'con', 'int', 'wis', 'cha'].forEach(key => {
+        if (typeof combatStats[key] === 'string') {
+          combatStats[key] = parseInt(combatStats[key], 10) || 10;
+        }
+      });
+      // Ensure maxHp matches hp if only hp was provided
+      if (combatStats.hp && !combatStats.maxHp) {
+        combatStats.maxHp = combatStats.hp;
+      }
     }
 
     return {
       name: jsonData.name,
-      appearance: jsonData.appearance,
-      personality: jsonData.personality,
+      appearance: parseMarkdownToHtml(jsonData.appearance),
+      personality: parseMarkdownToHtml(jsonData.personality),
       background: background.trim(),
       notes: notes.trim(),
       customSpecies: jsonData.race,
       customClass: jsonData.class,
-      description: jsonData.description // Fallback if AI provides it
+      description: parseMarkdownToHtml(jsonData.description),
+      combatStats
     };
   }
 
@@ -265,15 +299,22 @@ export function parseLocationContent(content: string): ParsedLocationData {
   const jsonData = extractJson<any>(content);
   if (jsonData) {
     let description = jsonData.overview || jsonData.description || '';
-    if (jsonData.atmosphere) description += `\n\n**Atmosphere:** ${jsonData.atmosphere}`;
+    if (jsonData.atmosphere) description += `\n\n**Atmosphere:**\n${jsonData.atmosphere}`;
+    if (jsonData.history) description += `\n\n**History:**\n${jsonData.history}`;
+    if (jsonData.inhabitants) description += `\n\n**Inhabitants:**\n${jsonData.inhabitants}`;
+    if (jsonData.notableFeatures || jsonData.features) description += `\n\n**Notable Features:**\n${jsonData.notableFeatures || jsonData.features}`;
+
+    let dmNotes = '';
+    if (jsonData.secrets) dmNotes += `**Secrets:**\n${jsonData.secrets}\n\n`;
+    if (jsonData.dangers) dmNotes += `**Dangers:**\n${jsonData.dangers}\n\n`;
+    if (jsonData.treasures) dmNotes += `**Treasures:**\n${jsonData.treasures}\n\n`;
+    if (jsonData.connections) dmNotes += `**Connections:**\n${jsonData.connections}\n\n`;
+    if (jsonData.adventureHooks) dmNotes += `**Adventure Hooks:**\n${jsonData.adventureHooks}\n\n`;
 
     return {
       name: jsonData.name,
-      description: description.trim(),
-      features: jsonData.notableFeatures || jsonData.features,
-      history: jsonData.history,
-      inhabitants: jsonData.inhabitants,
-      secrets: jsonData.secrets
+      description: parseMarkdownToHtml(description.trim()),
+      dmNotes: parseMarkdownToHtml(dmNotes.trim()),
     };
   }
 
@@ -283,19 +324,7 @@ export function parseLocationContent(content: string): ParsedLocationData {
   if (name) result.name = name.replace(/^["']|["']$/g, '').replace(/\*+/g, '').split('\n')[0].trim();
 
   const description = extractSectionLegacy(content, ['Description', 'Overview', 'Appearance']);
-  if (description) result.description = description.replace(/\*+/g, '').trim();
-
-  const features = extractSectionLegacy(content, ['Features', 'Notable Features', 'Key Features']);
-  if (features) result.features = features.replace(/\*+/g, '').trim();
-
-  const history = extractSectionLegacy(content, ['History', 'Background', 'Lore']);
-  if (history) result.history = history.replace(/\*+/g, '').trim();
-
-  const inhabitants = extractSectionLegacy(content, ['Inhabitants', 'Population', 'Residents', 'Creatures']);
-  if (inhabitants) result.inhabitants = inhabitants.replace(/\*+/g, '').trim();
-
-  const secrets = extractSectionLegacy(content, ['Secrets', 'Hidden', 'Mystery']);
-  if (secrets) result.secrets = secrets.replace(/\*+/g, '').trim();
+  if (description) result.description = parseMarkdownToHtml(description.replace(/\*+/g, '').trim());
 
   return result;
 }

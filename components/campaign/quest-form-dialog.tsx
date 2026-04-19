@@ -12,7 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { RichTextEditor } from "@/components/shared/rich-text-editor";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Quest, QuestStep, QuestObjective } from "@/hooks/useCampaignContent";
 import { Plus, Trash2, GripVertical, CheckCircle2, XCircle, Circle } from "lucide-react";
@@ -92,6 +92,7 @@ interface ObjectiveData {
   name: string;
   goal: string;
   status: 'pending' | 'success' | 'failure';
+  is_hidden?: boolean;
 }
 
 export function QuestFormDialog({
@@ -359,14 +360,14 @@ export function QuestFormDialog({
               <Label htmlFor="content">
                 Content <span className="text-destructive">*</span>
               </Label>
-              <Textarea
+              <RichTextEditor
                 id="content"
                 value={content}
-                onChange={(e) => setContent(e.target.value)}
+                onChange={setContent}
                 placeholder="The full quest or side quest details..."
-                rows={4}
-                required
+                campaignId={campaignId}
                 disabled={loading}
+                minHeight="120px"
               />
             </div>
             <div className="grid grid-cols-2 gap-4">
@@ -472,13 +473,15 @@ export function QuestFormDialog({
                             <Label htmlFor={`step-${stepIndex}-description`}>
                               Step Description
                             </Label>
-                            <Textarea
+                            <RichTextEditor
                               id={`step-${stepIndex}-description`}
                               value={step.description}
-                              onChange={(e) => updateStepDescription(stepIndex, e.target.value)}
+                              onChange={(value) => updateStepDescription(stepIndex, value)}
                               placeholder="Describe what happens in this step..."
-                              rows={3}
+                              campaignId={campaignId}
                               disabled={loading}
+                              compact
+                              minHeight="80px"
                             />
                           </div>
 

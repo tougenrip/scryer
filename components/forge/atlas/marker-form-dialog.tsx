@@ -13,7 +13,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import { RichTextEditor } from "@/components/shared/rich-text-editor";
+import { RichTextDisplay } from "@/components/shared/rich-text-display";
 import {
   Select,
   SelectContent,
@@ -51,8 +52,7 @@ import {
   Diamond,
   Square,
   Star,
-  Moon,
-  Bridge
+  Moon
 } from "lucide-react";
 import { LocationMarker, WorldLocation } from "@/hooks/useForgeContent";
 import {
@@ -60,6 +60,7 @@ import {
   DiamondIcon,
   SquareIcon,
   TriangleIcon,
+  TeardropIcon,
   BookmarkIcon,
   AxeIcon,
   PotionIcon,
@@ -69,14 +70,24 @@ import {
   FlagIcon,
   CastleIcon,
   HouseIcon,
-  GlobeIcon
+  GlobeIcon,
+  MagicShopIcon,
+  ButcherIcon,
+  SchoolIcon,
+  EnemyIcon,
+  LootIcon,
+  QuestIcon,
+  SideQuestIcon,
 } from "./marker-icons";
+import { AtlasMarkerBackground } from "@/components/forge/atlas/atlas-marker-background";
+import { markerIconCentroidNudgeY } from "@/components/forge/atlas/marker-layout";
 
 interface MarkerFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   marker: LocationMarker | null;
   clickedPosition: { x: number; y: number } | null;
+  campaignId: string;
   locations: WorldLocation[];
   onSave: (data: {
     location_id?: string | null;
@@ -93,7 +104,7 @@ interface MarkerFormDialogProps {
 }
 
 const getTypeIcon = (type: string) => {
-  const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
+  const iconMap: Record<string, React.ComponentType<{ className?: string; style?: React.CSSProperties }>> = {
     world: Globe,
     continent: Mountain,
     region: Flag,
@@ -121,7 +132,8 @@ const getTypeLabel = (type: string): string => {
 };
 
 // Background shapes (optional)
-const backgroundShapes: Record<LocationMarker['background_shape'], { icon: React.ComponentType<{ className?: string }>, label: string }> = {
+const backgroundShapes: Record<NonNullable<LocationMarker['background_shape']>, { icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>, label: string }> = {
+  teardrop: { icon: TeardropIcon, label: 'Map pin' },
   circle: { icon: CircleIcon, label: 'Circle' },
   diamond: { icon: DiamondIcon, label: 'Diamond' },
   square: { icon: SquareIcon, label: 'Square' },
@@ -130,7 +142,7 @@ const backgroundShapes: Record<LocationMarker['background_shape'], { icon: React
 };
 
 // Icon type definitions for marker icons - using filled, outlined style
-const markerIcons: Record<NonNullable<LocationMarker['icon_type']>, { icon: React.ComponentType<{ className?: string }>, label: string }> = {
+const markerIcons: Record<NonNullable<LocationMarker['icon_type']>, { icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>, label: string }> = {
   // Fantasy Icons
   axe: { icon: AxeIcon, label: 'Axe' },
   potion: { icon: PotionIcon, label: 'Potion' },
@@ -138,10 +150,21 @@ const markerIcons: Record<NonNullable<LocationMarker['icon_type']>, { icon: Reac
   star: { icon: StarIcon, label: 'Star' },
   sword: { icon: SwordIcon, label: 'Sword' },
   flag: { icon: FlagIcon, label: 'Flag' },
+  magic_shop: { icon: MagicShopIcon, label: 'Magic shop' },
+  butcher: { icon: ButcherIcon, label: 'Butcher' },
+  school: { icon: SchoolIcon, label: 'School' },
+  enemy: { icon: EnemyIcon, label: 'Enemy' },
+  loot: { icon: LootIcon, label: 'Loot' },
+  quest: { icon: QuestIcon, label: 'Quest' },
+  side_quest: { icon: SideQuestIcon, label: 'Side quest' },
   // Location Icons
   castle: { icon: CastleIcon, label: 'Castle' },
   house: { icon: HouseIcon, label: 'House' },
   globe: { icon: GlobeIcon, label: 'Globe' },
+  // Special shapes
+  sphere: { icon: GlobeIcon, label: 'Sphere' },
+  shape_square: { icon: SquareIcon, label: 'Plain Square' },
+  shape_diamond: { icon: DiamondIcon, label: 'Plain Diamond' },
   // Legacy icons (keeping for backward compatibility)
   city: { icon: Building2, label: 'City' },
   village: { icon: Home, label: 'Village' },
@@ -156,6 +179,27 @@ const markerIcons: Record<NonNullable<LocationMarker['icon_type']>, { icon: Reac
   border: { icon: Shield, label: 'Border' },
 };
 
+/** Glyphs on dark picker tiles — solid light silhouettes (reference: white on charcoal cells, gold selected ring) */
+const MARKER_PICKER_GLYPH_STYLE = {
+  color: '#f4f4f5',
+  fill: '#f4f4f5',
+  stroke: '#f4f4f5',
+  strokeWidth: 1.5,
+  strokeLinejoin: 'round' as const,
+  strokeLinecap: 'round' as const,
+};
+
+function markerPickerTileClass(isSelected: boolean, disabled?: boolean) {
+  return cn(
+    'rounded-md border transition-colors',
+    'bg-muted/55 hover:bg-muted/80',
+    isSelected
+      ? 'border-primary shadow-none'
+      : 'border-border/70 hover:border-border',
+    disabled && 'opacity-50 cursor-not-allowed'
+  );
+}
+
 interface BackgroundShapeSelectorProps {
   value: LocationMarker['background_shape'];
   onChange: (value: LocationMarker['background_shape']) => void;
@@ -163,7 +207,14 @@ interface BackgroundShapeSelectorProps {
 }
 
 function BackgroundShapeSelector({ value, onChange, disabled }: BackgroundShapeSelectorProps) {
-  const shapeOrder: LocationMarker['background_shape'][] = ['circle', 'diamond', 'square', 'triangle', 'bookmark'];
+  const shapeOrder: LocationMarker['background_shape'][] = [
+    'teardrop',
+    'circle',
+    'diamond',
+    'square',
+    'triangle',
+    'bookmark',
+  ];
 
   return (
     <div className="flex gap-1.5">
@@ -172,16 +223,12 @@ function BackgroundShapeSelector({ value, onChange, disabled }: BackgroundShapeS
         onClick={() => !disabled && onChange(null)}
         disabled={disabled}
         className={cn(
-          "flex items-center justify-center p-1.5 rounded-md border-2 transition-all h-10",
-          "hover:bg-accent hover:border-accent-foreground/20",
-          value === null
-            ? "border-primary bg-primary/10 shadow-sm" 
-            : "border-border bg-background",
-          disabled && "opacity-50 cursor-not-allowed"
+          'flex items-center justify-center px-2 rounded-md border h-10',
+          markerPickerTileClass(value === null, disabled)
         )}
         title="No Background"
       >
-        <span className="text-xs font-medium">None</span>
+        <span className="text-xs font-medium text-zinc-100/90">None</span>
       </button>
       {shapeOrder.map((shape) => {
         const { icon: ShapeComponent, label } = backgroundShapes[shape!];
@@ -193,26 +240,12 @@ function BackgroundShapeSelector({ value, onChange, disabled }: BackgroundShapeS
             onClick={() => !disabled && onChange(shape)}
             disabled={disabled}
             className={cn(
-              "flex items-center justify-center p-1.5 rounded-md border-2 transition-all h-10 w-10",
-              "hover:bg-accent hover:border-accent-foreground/20",
-              isSelected 
-                ? "border-primary bg-primary/10 shadow-sm" 
-                : "border-border bg-background",
-              disabled && "opacity-50 cursor-not-allowed"
+              'flex items-center justify-center p-1.5 rounded-md border h-10 w-10',
+              markerPickerTileClass(isSelected, disabled)
             )}
             title={label}
           >
-            <ShapeComponent 
-              className="h-5 w-5"
-              style={{ 
-                color: '#000000',
-                fill: '#ffffff',
-                stroke: '#ffffff',
-                strokeWidth: 1.5,
-                strokeLinejoin: 'round',
-                strokeLinecap: 'round'
-              }}
-            />
+            <ShapeComponent className="h-5 w-5 shrink-0" style={MARKER_PICKER_GLYPH_STYLE} />
           </button>
         );
       })}
@@ -229,16 +262,44 @@ interface IconTypeSelectorProps {
 function IconTypeSelector({ value, onChange, disabled }: IconTypeSelectorProps) {
   // Order icons: fantasy icons first, then location icons, then legacy
   const iconOrder: NonNullable<LocationMarker['icon_type']>[] = [
-    // Fantasy Icons
-    'axe', 'potion', 'moon_star', 'star', 'sword', 'flag',
+    // Fantasy / adventure
+    'axe',
+    'potion',
+    'moon_star',
+    'star',
+    'sword',
+    'flag',
+    'magic_shop',
+    'butcher',
+    'school',
+    'enemy',
+    'loot',
+    'quest',
+    'side_quest',
     // Location Icons
-    'castle', 'house', 'globe',
+    'castle',
+    'house',
+    'globe',
     // Legacy icons
-    'city', 'village', 'fort', 'tavern', 'shop', 'temple', 'dungeon', 'cave', 'landmark', 'port', 'border'
+    'city',
+    'village',
+    'fort',
+    'tavern',
+    'shop',
+    'temple',
+    'dungeon',
+    'cave',
+    'landmark',
+    'port',
+    'border',
+    // Basic shapes (often used as plain pins)
+    'sphere',
+    'shape_square',
+    'shape_diamond',
   ];
 
   return (
-    <div className="grid grid-cols-6 sm:grid-cols-8 gap-2">
+    <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
       {iconOrder
         .filter(iconType => markerIcons[iconType])
         .map((iconType) => {
@@ -251,25 +312,14 @@ function IconTypeSelector({ value, onChange, disabled }: IconTypeSelectorProps) 
               onClick={() => !disabled && onChange(iconType)}
               disabled={disabled}
               className={cn(
-                "flex items-center justify-center p-2 rounded-lg border-2 transition-all aspect-square",
-                "hover:bg-accent hover:border-accent-foreground/20",
-                isSelected 
-                  ? "border-primary bg-primary/10 shadow-sm" 
-                  : "border-border bg-background",
-                disabled && "opacity-50 cursor-not-allowed"
+                'flex items-center justify-center p-2 aspect-square',
+                markerPickerTileClass(isSelected, disabled)
               )}
               title={label}
             >
-              <IconComponent 
-                className="h-6 w-6"
-                style={{ 
-                  color: '#000000', // Black icon color
-                  fill: '#ffffff', // White fill
-                  stroke: '#ffffff', // White stroke for contrast
-                  strokeWidth: 1.5,
-                  strokeLinejoin: 'round',
-                  strokeLinecap: 'round'
-                }}
+              <IconComponent
+                className="h-7 w-7 shrink-0 text-zinc-100"
+                style={MARKER_PICKER_GLYPH_STYLE}
               />
             </button>
           );
@@ -285,82 +335,132 @@ interface MarkerPreviewProps {
   size: LocationMarker['size'];
 }
 
+function resolveMarkerInteriorFill(colorField: string): string {
+  try {
+    const o = JSON.parse(colorField) as { fill?: string };
+    if (typeof o?.fill === 'string') return o.fill;
+  } catch {
+    /* plain hex or legacy */
+  }
+  return colorField?.trim() ? colorField : '#c9b882';
+}
+
+function resolveJsonIconOverride(colorField: string): string | undefined {
+  try {
+    const o = JSON.parse(colorField) as { icon?: string };
+    if (typeof o?.icon === 'string') return o.icon;
+  } catch {
+    return undefined;
+  }
+  return undefined;
+}
+
 function MarkerPreview({ backgroundShape, iconType, color, size }: MarkerPreviewProps) {
+  // Keep in sync with atlas-map.tsx marker sizePixels (container + icon ratio).
   const sizePixels = {
-    small: 48,
-    medium: 64,
-    large: 80,
+    small: 32,
+    medium: 44,
+    large: 56,
   };
 
   const iconSizePixels = {
-    small: 14,
-    medium: 18,
-    large: 22,
+    small: 10,
+    medium: 13,
+    large: 17,
   };
 
   const containerSize = sizePixels[size];
   const iconSize = iconSizePixels[size];
+  const interiorFill = resolveMarkerInteriorFill(color);
+  const jsonIcon = resolveJsonIconOverride(color);
 
-  const BackgroundComponent = backgroundShape ? backgroundShapes[backgroundShape].icon : null;
   const IconComponent = iconType ? markerIcons[iconType].icon : null;
+  const hasFrame = !!backgroundShape;
+  const pinIconPx = Math.max(6, Math.round(iconSize * (hasFrame ? 0.9 : 1)));
+
+  let wrapperOffsetY = 0;
+  let backgroundOnlyOffsetY = 0;
+  if (backgroundShape === 'triangle') wrapperOffsetY = -3;
+  else if (backgroundShape === 'bookmark') backgroundOnlyOffsetY = 9;
+  else if (backgroundShape === 'teardrop') backgroundOnlyOffsetY = 9;
+
+  const iconCentroidNudgeY = markerIconCentroidNudgeY(
+    backgroundShape,
+    containerSize
+  );
+
+  const iconStyle: React.CSSProperties = hasFrame
+    ? {
+        width: pinIconPx,
+        height: pinIconPx,
+        color: jsonIcon ?? '#ffffff',
+        fill: jsonIcon ?? '#ffffff',
+        stroke: jsonIcon ?? '#ffffff',
+        strokeWidth: 1,
+        strokeLinejoin: 'round',
+        strokeLinecap: 'round',
+      }
+    : {
+        width: iconSize,
+        height: iconSize,
+        color: '#ffffff',
+        fill: '#ffffff',
+        stroke: '#0a0a0a',
+        strokeWidth: 2.25,
+        paintOrder: 'stroke fill',
+        strokeLinejoin: 'round',
+        strokeLinecap: 'round',
+        filter: 'drop-shadow(0 2px 2px rgba(0,0,0,0.45))',
+      };
 
   return (
     <div className="flex items-center justify-center p-4 bg-muted rounded-lg border min-h-[120px]">
-      <div className="relative flex items-center justify-center" style={{ width: containerSize, height: containerSize }}>
-        {/* Background shape */}
-        {BackgroundComponent && (() => {
-          // Adjust vertical position based on shape type
-          let verticalOffset = 0;
-          if (backgroundShape === 'triangle') {
-            verticalOffset = -4; // Move triangle higher
-          } else if (backgroundShape === 'bookmark') {
-            verticalOffset = 4; // Move bookmark lower
-          }
-          
-          return (
-            <div 
-              className="absolute inset-0 flex items-center justify-center"
+      <div
+        className="relative flex items-center justify-center"
+        style={{ width: containerSize, height: containerSize }}
+      >
+        <div
+          className="relative flex h-full w-full items-center justify-center"
+          style={{
+            transform:
+              wrapperOffsetY !== 0 ? `translateY(${wrapperOffsetY}px)` : undefined,
+          }}
+        >
+          {backgroundShape && (
+            <div
+              className="pointer-events-none absolute inset-0 flex items-center justify-center"
               style={{
-                transform: verticalOffset !== 0 ? `translateY(${verticalOffset}px)` : undefined
+                transform:
+                  backgroundOnlyOffsetY !== 0
+                    ? `translateY(${backgroundOnlyOffsetY}px)`
+                    : undefined,
               }}
             >
-              <BackgroundComponent
-                style={{
-                  width: containerSize,
-                  height: containerSize,
-                  fill: color,
-                  stroke: '#ffffff',
-                  strokeWidth: 1.5,
-                  strokeLinejoin: 'round',
-                  strokeLinecap: 'round',
-                  color: color,
-                }}
+              <AtlasMarkerBackground
+                shape={backgroundShape}
+                fill={interiorFill}
+                size={containerSize}
               />
             </div>
-          );
-        })()}
-        {/* Icon */}
-        {IconComponent ? (
-          <div className="relative z-10 flex items-center justify-center">
-            <IconComponent
+          )}
+          {IconComponent ? (
+            <div
+              className="relative z-10 flex items-center justify-center"
               style={{
-                width: iconSize,
-                height: iconSize,
-                // Use white for icon when there's a background shape for contrast, otherwise use the selected color
-                color: BackgroundComponent ? '#ffffff' : color,
-                fill: BackgroundComponent ? '#ffffff' : color,
-                stroke: '#ffffff',
-                strokeWidth: 1.5,
-                strokeLinejoin: 'round',
-                strokeLinecap: 'round',
+                transform:
+                  iconCentroidNudgeY !== 0
+                    ? `translateY(${iconCentroidNudgeY}px)`
+                    : undefined,
               }}
-            />
-          </div>
-        ) : (
-          <div className="relative z-10 flex items-center justify-center text-muted-foreground text-xs">
-            No icon
-          </div>
-        )}
+            >
+              <IconComponent style={iconStyle} />
+            </div>
+          ) : (
+            <div className="relative z-10 flex items-center justify-center text-muted-foreground text-xs">
+              No icon
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -371,6 +471,7 @@ export function MarkerFormDialog({
   onOpenChange,
   marker,
   clickedPosition,
+  campaignId,
   locations,
   onSave,
   onDelete,
@@ -582,13 +683,15 @@ export function MarkerFormDialog({
 
               <div className="space-y-2">
                 <Label htmlFor="description">Description (Optional)</Label>
-                <Textarea
+                <RichTextEditor
                   id="description"
                   value={description}
-                  onChange={(e) => setDescription(e.target.value)}
+                  onChange={setDescription}
                   placeholder="Marker description or notes"
-                  rows={3}
+                  campaignId={campaignId}
                   disabled={!isDm && !!marker}
+                  compact
+                  minHeight="80px"
                 />
               </div>
 
@@ -782,7 +885,9 @@ export function MarkerFormDialog({
               {marker.description && (
                 <div className="space-y-2">
                   <Label>Description</Label>
-                  <p className="text-sm py-2 px-3 bg-muted rounded-md whitespace-pre-wrap">{marker.description}</p>
+                  <div className="text-sm py-2 px-3 bg-muted rounded-md">
+                    <RichTextDisplay content={marker.description} />
+                  </div>
                 </div>
               )}
               <div className="grid grid-cols-2 gap-4">

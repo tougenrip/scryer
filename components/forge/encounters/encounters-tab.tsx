@@ -1,10 +1,7 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { useState } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
 import {
   useCampaignEncounters,
   useCreateEncounter,
@@ -58,19 +55,18 @@ export function EncountersTab({ campaignId, isDm }: EncountersTabProps) {
   const defaultPartySize = 4;
   const defaultPartyLevel = 5;
 
-  // Get difficulty badge color
-  const getDifficultyColor = (difficulty: Difficulty) => {
+  const getDifficultyColor = (difficulty: Difficulty): string => {
     switch (difficulty) {
       case "Easy":
-        return "bg-green-600";
+        return "#4ade80";
       case "Medium":
-        return "bg-yellow-600";
+        return "#facc15";
       case "Hard":
-        return "bg-orange-600";
+        return "#fb923c";
       case "Deadly":
-        return "bg-red-600";
+        return "#f87171";
       default:
-        return "bg-gray-600";
+        return "var(--muted-foreground)";
     }
   };
 
@@ -130,56 +126,98 @@ export function EncountersTab({ campaignId, isDm }: EncountersTabProps) {
 
   if (loading) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {[1, 2, 3].map((i) => (
-          <Card key={i} className="h-64">
-            <CardContent className="p-0">
-              <Skeleton className="h-full w-full" />
-            </CardContent>
-          </Card>
-        ))}
+      <div style={{ padding: "16px 20px" }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
+            gap: 12,
+          }}
+        >
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="sc-card" style={{ padding: 14 }}>
+              <Skeleton className="h-6 w-40 mb-3" />
+              <Skeleton className="h-4 w-full mb-2" />
+              <Skeleton className="h-4 w-3/4" />
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div style={{ padding: "16px 20px" }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: 14,
+          flexWrap: "wrap",
+          gap: 10,
+        }}
+      >
         <div>
-          <h2 className="font-serif text-2xl font-semibold">Encounters</h2>
-          <p className="text-muted-foreground text-sm">
-            Manage combat encounters for your campaign
-          </p>
+          <div className="font-serif" style={{ fontSize: 20 }}>
+            Encounter Builder
+          </div>
+          <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
+            {encounters.length} encounter{encounters.length === 1 ? "" : "s"} —
+            balanced combat set pieces
+          </div>
         </div>
         {isDm && (
-          <div className="flex items-center gap-2">
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
             {canUseAI && (
-              <Button variant="outline" onClick={() => setAiDialogOpen(true)}>
-                <Sparkles className="h-4 w-4 mr-2" />
-                Generate with AI
-              </Button>
+              <button
+                type="button"
+                className="sc-btn sc-btn-sm"
+                onClick={() => setAiDialogOpen(true)}
+              >
+                <Sparkles size={12} />
+                AI
+              </button>
             )}
-            <Button onClick={() => setCreateDialogOpen(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Create Encounter
-            </Button>
+            <button
+              type="button"
+              className="sc-btn sc-btn-primary sc-btn-sm"
+              onClick={() => setCreateDialogOpen(true)}
+            >
+              <Plus size={12} />
+              New encounter
+            </button>
           </div>
         )}
       </div>
 
       {encounters.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <Swords className="h-16 w-16 text-muted-foreground/50 mb-4" />
-            <p className="text-muted-foreground text-center">
-              No encounters yet. {isDm && "Create your first encounter to get started."}
-            </p>
-          </CardContent>
-        </Card>
+        <div className="sc-card" style={{ padding: 40 }}>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              textAlign: "center",
+              color: "var(--muted-foreground)",
+            }}
+          >
+            <Swords size={48} style={{ opacity: 0.5, marginBottom: 10 }} />
+            <div>
+              No encounters yet.
+              {isDm && " Create your first encounter to get started."}
+            </div>
+          </div>
+        </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
+            gap: 12,
+          }}
+        >
           {encounters.map((encounter) => {
-            // Resolve monster names from saved monster data
             const encounterMonsters: EncounterMonster[] =
               encounter.monsters && encounter.monsters.length > 0
                 ? encounter.monsters
@@ -187,7 +225,7 @@ export function EncountersTab({ campaignId, isDm }: EncountersTabProps) {
                       const monster = monsters.find(
                         (m) =>
                           m.index === savedMonster.monster_index &&
-                          m.source === savedMonster.monster_source
+                          m.source === savedMonster.monster_source,
                       );
                       return monster
                         ? { monster, quantity: savedMonster.quantity }
@@ -196,114 +234,220 @@ export function EncountersTab({ campaignId, isDm }: EncountersTabProps) {
                     .filter((m): m is EncounterMonster => m !== null)
                 : [];
 
-            // Calculate encounter stats
             const encounterStats =
               encounterMonsters.length > 0
                 ? calculateEncounterStats(
                     encounterMonsters,
                     defaultPartySize,
-                    defaultPartyLevel
+                    defaultPartyLevel,
                   )
                 : null;
 
             const totalMonsters = encounterMonsters.reduce(
               (sum, m) => sum + m.quantity,
-              0
+              0,
             );
 
+            const diffColor = encounterStats
+              ? getDifficultyColor(encounterStats.difficulty)
+              : "var(--muted-foreground)";
+
             return (
-              <Card key={encounter.id} className="hover:shadow-md transition-shadow">
-                <CardContent className="p-6 space-y-4">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-lg truncate">
-                        {encounter.name || "Unnamed Encounter"}
-                      </h3>
-                    </div>
-                    {encounterStats && (
-                      <Badge
-                        className={`${getDifficultyColor(
-                          encounterStats.difficulty
-                        )} text-white ml-2 flex-shrink-0`}
-                      >
-                        {encounterStats.difficulty}
-                      </Badge>
-                    )}
+              <div
+                key={encounter.id}
+                className="sc-card sc-card-hover"
+                style={{ padding: 14, position: "relative", overflow: "hidden" }}
+              >
+                <div
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    height: 3,
+                    background: diffColor,
+                  }}
+                />
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "flex-start",
+                    justifyContent: "space-between",
+                    gap: 10,
+                    marginBottom: 10,
+                  }}
+                >
+                  <div
+                    className="font-serif truncate"
+                    style={{ fontSize: 16, flex: 1, minWidth: 0 }}
+                  >
+                    {encounter.name || "Unnamed Encounter"}
                   </div>
-
-                  {/* Monsters List */}
-                  {encounterMonsters.length > 0 ? (
-                    <div className="space-y-2 pt-2 border-t">
-                      <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                        Creatures ({totalMonsters})
-                      </div>
-                      <div className="space-y-1 max-h-[120px] overflow-y-auto">
-                        {encounterMonsters.map(({ monster, quantity }, idx) => (
-                          <div
-                            key={`${monster.source}-${monster.index}-${idx}`}
-                            className="flex items-center justify-between text-sm"
-                          >
-                            <span className="truncate flex-1 min-w-0">
-                              {quantity > 1 && (
-                                <span className="font-medium mr-1">{quantity}x</span>
-                              )}
-                              {monster.name}
-                            </span>
-                            <span className="text-xs text-muted-foreground ml-2 flex-shrink-0">
-                              CR {monster.challenge_rating}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="text-sm text-muted-foreground pt-2 border-t">
-                      No monsters added
-                    </div>
-                  )}
-
-                  {/* Encounter Stats */}
                   {encounterStats && (
-                    <div className="grid grid-cols-2 gap-2 pt-2 border-t text-xs">
-                      <div>
-                        <div className="text-muted-foreground">Total XP</div>
-                        <div className="font-semibold">
-                          {encounterStats.totalXP.toLocaleString()}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-muted-foreground">Adjusted XP</div>
-                        <div className="font-semibold">
-                          {encounterStats.adjustedXP.toLocaleString()}
-                        </div>
-                      </div>
-                    </div>
+                    <span
+                      className="sc-badge"
+                      style={{
+                        background: `color-mix(in srgb, ${diffColor} 18%, transparent)`,
+                        color: diffColor,
+                        borderColor: "transparent",
+                        fontSize: 10,
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {encounterStats.difficulty}
+                    </span>
                   )}
+                </div>
 
-                  {/* Action Buttons */}
-                  {isDm && (
-                    <div className="flex items-center gap-2 pt-2 border-t">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setEditingEncounter(encounter)}
-                        className="flex-1"
-                      >
-                        <Edit className="h-4 w-4 mr-2" />
-                        Edit
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setDeletingEncounterId(encounter.id)}
-                        className="text-destructive hover:text-destructive"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                {encounterMonsters.length > 0 ? (
+                  <div
+                    style={{
+                      paddingTop: 10,
+                      borderTop: "1px solid var(--border)",
+                    }}
+                  >
+                    <div className="sc-label" style={{ marginBottom: 6 }}>
+                      Creatures · {totalMonsters}
                     </div>
-                  )}
-                </CardContent>
-              </Card>
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 2,
+                        maxHeight: 120,
+                        overflowY: "auto",
+                      }}
+                    >
+                      {encounterMonsters.map(({ monster, quantity }, idx) => (
+                        <div
+                          key={`${monster.source}-${monster.index}-${idx}`}
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            fontSize: 12,
+                          }}
+                        >
+                          <span
+                            className="truncate"
+                            style={{ flex: 1, minWidth: 0 }}
+                          >
+                            {quantity > 1 && (
+                              <span style={{ fontWeight: 600, marginRight: 4 }}>
+                                {quantity}×
+                              </span>
+                            )}
+                            {monster.name}
+                          </span>
+                          <span
+                            style={{
+                              fontSize: 10,
+                              color: "var(--muted-foreground)",
+                              marginLeft: 8,
+                              whiteSpace: "nowrap",
+                              fontVariantNumeric: "tabular-nums",
+                            }}
+                          >
+                            CR {monster.challenge_rating}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div
+                    style={{
+                      fontSize: 12,
+                      color: "var(--muted-foreground)",
+                      paddingTop: 10,
+                      borderTop: "1px solid var(--border)",
+                      fontStyle: "italic",
+                    }}
+                  >
+                    No monsters added
+                  </div>
+                )}
+
+                {encounterStats && (
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "1fr 1fr",
+                      gap: 8,
+                      marginTop: 10,
+                      paddingTop: 10,
+                      borderTop: "1px solid var(--border)",
+                      fontSize: 11,
+                    }}
+                  >
+                    <div>
+                      <div
+                        style={{
+                          color: "var(--muted-foreground)",
+                          marginBottom: 2,
+                        }}
+                      >
+                        Total XP
+                      </div>
+                      <div
+                        style={{
+                          fontWeight: 600,
+                          fontVariantNumeric: "tabular-nums",
+                        }}
+                      >
+                        {encounterStats.totalXP.toLocaleString()}
+                      </div>
+                    </div>
+                    <div>
+                      <div
+                        style={{
+                          color: "var(--muted-foreground)",
+                          marginBottom: 2,
+                        }}
+                      >
+                        Adjusted XP
+                      </div>
+                      <div
+                        style={{
+                          fontWeight: 600,
+                          fontVariantNumeric: "tabular-nums",
+                        }}
+                      >
+                        {encounterStats.adjustedXP.toLocaleString()}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {isDm && (
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: 6,
+                      marginTop: 10,
+                      paddingTop: 10,
+                      borderTop: "1px solid var(--border)",
+                    }}
+                  >
+                    <button
+                      type="button"
+                      className="sc-btn sc-btn-sm sc-btn-ghost"
+                      style={{ flex: 1, justifyContent: "center" }}
+                      onClick={() => setEditingEncounter(encounter)}
+                    >
+                      <Edit size={12} />
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      className="sc-btn sc-btn-sm sc-btn-ghost"
+                      style={{ color: "var(--destructive)" }}
+                      onClick={() => setDeletingEncounterId(encounter.id)}
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                )}
+              </div>
             );
           })}
         </div>
