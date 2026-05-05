@@ -16,7 +16,7 @@ import {
 import { MapFormDialog } from "@/components/campaign/map-form-dialog";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
-import { Plus, Map as MapIcon, Edit, Trash2, Eye } from "lucide-react";
+import { Plus, Map as MapIcon, Edit, Trash2, Eye, LayoutGrid } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -28,6 +28,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import Link from "next/link";
+import { parseGridConfig } from "@/lib/vtt/grid-config";
 
 export default function MapsPage() {
   const params = useParams();
@@ -151,19 +152,27 @@ export default function MapsPage() {
   return (
     <div className="space-y-8">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <h1 className="font-serif text-3xl font-bold">Maps</h1>
           <p className="text-muted-foreground mt-1">
             Manage campaign maps and battle grids
           </p>
         </div>
-        {isDm && (
-          <Button onClick={() => setCreateDialogOpen(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Create Map
+        <div className="flex items-center gap-2">
+          <Button variant="outline" asChild>
+            <Link href={`/campaigns/${campaignId}/vtt`}>
+              <LayoutGrid className="h-4 w-4 mr-2" />
+              Open VTT
+            </Link>
           </Button>
-        )}
+          {isDm && (
+            <Button onClick={() => setCreateDialogOpen(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Create Map
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Maps Grid */}
@@ -178,7 +187,9 @@ export default function MapsPage() {
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {maps.map((map) => (
+          {maps.map((map) => {
+            const gc = parseGridConfig(map.grid_config);
+            return (
             <Card key={map.id} className="overflow-hidden">
               <CardContent className="p-0">
                 {map.image_url ? (
@@ -198,11 +209,11 @@ export default function MapsPage() {
                   <h3 className="font-semibold text-lg">{map.name}</h3>
                   <div className="text-sm text-muted-foreground space-y-1">
                     <p>
-                      Grid: {map.grid_size}ft {map.grid_type}
+                      Grid: {gc.feetPerSquare}ft {gc.gridType}
                     </p>
-                    {(map.width || map.height) && (
+                    {(gc.widthSquares || gc.heightSquares) && (
                       <p>
-                        Size: {map.width || "?"} × {map.height || "?"} squares
+                        Size: {gc.widthSquares ?? "?"} × {gc.heightSquares ?? "?"} squares
                       </p>
                     )}
                   </div>
@@ -236,7 +247,8 @@ export default function MapsPage() {
                 </div>
               </CardContent>
             </Card>
-          ))}
+          );
+          })}
         </div>
       )}
 

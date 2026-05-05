@@ -13,6 +13,8 @@ export interface MediaItem {
   audio_url: string | null;
   type: 'map' | 'token' | 'prop' | 'sound' | null;
   created_at: string | null;
+  grid_config?: Record<string, unknown> | null;
+  fog_data?: Record<string, unknown> | null;
 }
 
 // Legacy alias for backward compatibility during migration
@@ -37,7 +39,7 @@ export interface NPC {
   custom_species: string | null;
   hidden_from_players: boolean;
   scene_id: string | null; // Associated scene map for this NPC
-  metadata: Record<string, any> | null; // JSONB field for tags, associates, etc.
+  metadata: Record<string, unknown> | null; // JSONB field for tags, associates, etc.
   created_by: string;
   created_at: string | null;
   updated_at: string | null;
@@ -146,6 +148,51 @@ export function useCampaignMediaItems(
   return { items, loading, error, refetch: fetchItems };
 }
 
+const VTT_MEDIA_COLUMNS = "id, campaign_id, name, image_url, audio_url, type, created_at, grid_config, fog_data";
+
+export function useVttMediaItems(
+  campaignId: string | null,
+  types: Array<NonNullable<MediaItem["type"]>>,
+  enabled: boolean = true
+) {
+  const [items, setItems] = useState<MediaItem[]>([]);
+  const [loading, setLoading] = useState(enabled);
+  const [error, setError] = useState<Error | null>(null);
+
+  const fetchItems = useCallback(async () => {
+    if (!campaignId || !enabled || types.length === 0) {
+      setLoading(false);
+      if (!enabled) setItems([]);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const supabase = createClient();
+      const { data, error: fetchError } = await supabase
+        .from("media_items")
+        .select(VTT_MEDIA_COLUMNS)
+        .eq("campaign_id", campaignId)
+        .in("type", types)
+        .order("created_at", { ascending: false });
+
+      if (fetchError) throw fetchError;
+      setItems((data || []) as MediaItem[]);
+      setError(null);
+    } catch (err) {
+      setError(err as Error);
+    } finally {
+      setLoading(false);
+    }
+  }, [campaignId, enabled, types]);
+
+  useEffect(() => {
+    fetchItems();
+  }, [fetchItems]);
+
+  return { items, loading, error, refetch: fetchItems };
+}
+
 // Legacy hook for backward compatibility
 export function useCampaignMaps(campaignId: string | null) {
   const { items, loading, error, refetch } = useCampaignMediaItems(campaignId, 'map');
@@ -162,6 +209,8 @@ export function useCreateMediaItem() {
     image_url?: string | null;
     audio_url?: string | null;
     type?: 'map' | 'token' | 'prop' | 'sound' | null;
+    grid_config?: Record<string, unknown> | null;
+    fog_data?: Record<string, unknown> | null;
   }) => {
     try {
       setLoading(true);
@@ -216,11 +265,19 @@ export function useCreateMap() {
     width?: number | null;
     height?: number | null;
   }) => {
+    const { buildGridConfig } = await import("@/lib/vtt/grid-config");
+    const grid_config = buildGridConfig({
+      gridType: mapData.grid_type ?? "square",
+      feetPerSquare: mapData.grid_size ?? 5,
+      widthSquares: mapData.width ?? null,
+      heightSquares: mapData.height ?? null,
+    });
     return createMediaItem({
       campaign_id: mapData.campaign_id,
       name: mapData.name,
       image_url: mapData.image_url,
-      type: 'map',
+      type: "map",
+      grid_config,
     });
   };
   return { createMap, loading, error };
@@ -237,6 +294,8 @@ export function useUpdateMediaItem() {
       image_url?: string | null;
       audio_url?: string | null;
       type?: 'map' | 'token' | 'prop' | 'sound' | null;
+      grid_config?: Record<string, unknown> | null;
+      fog_data?: Record<string, unknown> | null;
     }
   ) => {
     try {
@@ -279,9 +338,17 @@ export function useUpdateMap() {
       height?: number | null;
     }
   ) => {
+    const { buildGridConfig } = await import("@/lib/vtt/grid-config");
+    const grid_config = buildGridConfig({
+      gridType: updates.grid_type ?? "square",
+      feetPerSquare: updates.grid_size ?? 5,
+      widthSquares: updates.width ?? null,
+      heightSquares: updates.height ?? null,
+    });
     return updateMediaItem(mapId, {
       name: updates.name,
       image_url: updates.image_url,
+      grid_config,
     });
   };
   return { updateMap, loading, error };
@@ -331,14 +398,15 @@ export function useCampaignNPCs(campaignId: string | null, isDm: boolean = false
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
-  const fetchNPCs = useCallback(async () => {
+  const fetchNPCs = useCallback(async (options?: { silent?: boolean }) => {
+    const silent = options?.silent === true;
     if (!campaignId) {
-      setLoading(false);
+      if (!silent) setLoading(false);
       return;
     }
 
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const supabase = createClient();
 
       const { data, error: fetchError } = await supabase
@@ -360,7 +428,7 @@ export function useCampaignNPCs(campaignId: string | null, isDm: boolean = false
     } catch (err) {
       setError(err as Error);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [campaignId, isDm]);
 
@@ -392,7 +460,7 @@ export function useCreateNPC() {
     custom_class?: string | null;
     custom_species?: string | null;
     hidden_from_players?: boolean;
-    metadata?: Record<string, any> | null;
+    metadata?: Record<string, unknown> | null;
     created_by: string;
   }) => {
     try {
@@ -443,7 +511,7 @@ export function useUpdateNPC() {
       custom_species?: string | null;
       hidden_from_players?: boolean;
       scene_id?: string | null;
-      metadata?: Record<string, any> | null;
+      metadata?: Record<string, unknown> | null;
     }
   ) => {
     try {
@@ -880,7 +948,13 @@ export function useUpdateQuest() {
       const supabase = createClient();
 
       // Update quest basic fields
-      const questUpdates: any = {};
+      const questUpdates: {
+        title?: string;
+        content?: string;
+        source?: string | null;
+        location?: string | null;
+        verified?: boolean;
+      } = {};
       if (updates.title !== undefined) questUpdates.title = updates.title;
       if (updates.content !== undefined) questUpdates.content = updates.content;
       if (updates.source !== undefined) questUpdates.source = updates.source;
@@ -888,7 +962,7 @@ export function useUpdateQuest() {
       if (updates.verified !== undefined) questUpdates.verified = updates.verified;
 
       if (Object.keys(questUpdates).length > 0) {
-        const { data, error: updateError } = await supabase
+        const { error: updateError } = await supabase
           .from('quests')
           .update(questUpdates)
           .eq('id', questId)
@@ -1520,4 +1594,3 @@ export function useDeleteBounty() {
 
   return { deleteBounty, loading, error };
 }
-

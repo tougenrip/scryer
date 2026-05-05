@@ -6,36 +6,34 @@ import { marked } from 'marked'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { X, Moon, MapPin, History, Users, Sparkles, Edit, Check } from 'lucide-react'
-import { usePantheonDeities, useUpdatePantheonDeity, useScenes, useScene, useLocationMarkers } from '@/hooks/useForgeContent'
+import { X, Sparkles, Edit, Check, ChevronLeft, Link2 } from 'lucide-react'
+import { toast } from 'sonner'
+import { usePantheonDeities, useUpdatePantheonDeity, type PantheonDeity } from '@/hooks/useForgeContent'
 import { createClient } from '@/lib/supabase/client'
-import type { PantheonDeity } from '@/hooks/useForgeContent'
-import { DeityFormDialog } from '@/components/forge/pantheon/deity-form-dialog'
-import { AtlasMap } from '@/components/forge/atlas/atlas-map'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { ManageTags } from '@/components/shared/manage-tags'
 import { ManageAssociates } from '@/components/shared/manage-associates'
 import { EntityHistory } from '@/components/shared/entity-history'
+import { normalizeMetadataTags } from '@/lib/utils/metadata-tags'
 
-const alignmentOptions = [
-  { value: "LG", label: "Lawful Good" },
-  { value: "NG", label: "Neutral Good" },
-  { value: "CG", label: "Chaotic Good" },
-  { value: "LN", label: "Lawful Neutral" },
-  { value: "N", label: "Neutral" },
-  { value: "CN", label: "Chaotic Neutral" },
-  { value: "LE", label: "Lawful Evil" },
-  { value: "NE", label: "Neutral Evil" },
-  { value: "CE", label: "Chaotic Evil" },
-]
-
-const domainOptions = [
-  "War", "Peace", "Life", "Death", "Light", "Darkness", "Nature", "Chaos",
-  "Order", "Wisdom", "Knowledge", "Trickery", "Tempest", "Forge", "Grave",
-  "Arcana", "Strength", "Beauty", "Love", "Hate", "Justice", "Mercy",
-  "Travel", "Commerce", "Secrets", "Music", "Poetry", "Healing"
+const DEITY_ALIGNMENTS: Array<NonNullable<PantheonDeity['alignment']>> = [
+  'LG',
+  'NG',
+  'CG',
+  'LN',
+  'N',
+  'CN',
+  'LE',
+  'NE',
+  'CE',
 ]
 
 export default function PantheonOverviewPage() {
@@ -44,25 +42,23 @@ export default function PantheonOverviewPage() {
   const { campaignId: campaignIdParam, deityId: deityIdParam } = params
   const campaignId = campaignIdParam as string
   const deityId = deityIdParam as string
-  const [userId, setUserId] = useState<string | null>(null)
   const [isDm, setIsDm] = useState(false)
   const [activeTab, setActiveTab] = useState('overview')
   const [tags, setTags] = useState<string[]>([])
   const [summary, setSummary] = useState<string>('')
   const [customLabel, setCustomLabel] = useState<string>('')
-  const [backlinks, setBacklinks] = useState<Array<{ type: string; name: string; id: string }>>([])
+  const [backlinks, setBacklinks] = useState<
+    Array<{ type: 'npc' | 'faction' | 'location' | 'quest'; name: string; id: string; relation?: string }>
+  >([])
   const [worshipLocations, setWorshipLocations] = useState<Array<{ id: string; name: string }>>([])
-  const [selectedSceneId, setSelectedSceneId] = useState<string | null>(null)
+  const [deityTitle, setDeityTitle] = useState('')
   const [editMode, setEditMode] = useState(false)
 
   // Debounce timer for saving description
   const saveTimerRef = useRef<NodeJS.Timeout | null>(null)
 
-  const { deities, loading } = usePantheonDeities(campaignId)
-  const { updateDeity, loading: updating } = useUpdatePantheonDeity()
-  const { scenes, loading: scenesLoading } = useScenes(campaignId)
-  const { scene, loading: sceneLoading } = useScene(selectedSceneId)
-  const { markers, loading: markersLoading } = useLocationMarkers(campaignId, selectedSceneId)
+  const { deities, loading, refetch: refetchDeities } = usePantheonDeities(campaignId)
+  const { updateDeity } = useUpdatePantheonDeity()
   const baseDeity = deities.find(d => d.id === deityId)
   // Local state to track optimistic updates
   const [optimisticDescription, setOptimisticDescription] = useState<string | null>(null)
@@ -70,6 +66,25 @@ export default function PantheonOverviewPage() {
     if (!baseDeity) return baseDeity
     return { ...baseDeity, description: optimisticDescription ?? baseDeity.description }
   }, [baseDeity, optimisticDescription])
+
+  useEffect(() => {
+    if (deity) setDeityTitle(deity.title ?? '')
+  }, [deity])
+
+  const handleDeityAlignmentChange = useCallback(
+    async (value: string) => {
+      if (!deity) return
+      const alignment =
+        value === 'none' ? null : (value as NonNullable<PantheonDeity['alignment']>)
+      const res = await updateDeity(deityId, { alignment })
+      if (!res.success) {
+        toast.error('Could not update alignment')
+        return
+      }
+      await refetchDeities({ silent: true })
+    },
+    [deity, deityId, updateDeity, refetchDeities]
+  )
 
   // Markdown content state for editing
   const [markdownContent, setMarkdownContent] = useState<string>('')
@@ -134,9 +149,9 @@ export default function PantheonOverviewPage() {
     // Save after 1 second of no typing
     saveTimerRef.current = setTimeout(async () => {
       const htmlContent = markdownToHtml(value)
-      // Optimistically update local state
       setOptimisticDescription(htmlContent)
-      await updateDeity(deityId, { description: htmlContent })
+      const res = await updateDeity(deityId, { description: htmlContent })
+      if (res.success) await refetchDeities({ silent: true })
     }, 1000)
   }
 
@@ -161,10 +176,12 @@ export default function PantheonOverviewPage() {
       // Save immediately and update local state
       const htmlContent = markdownToHtml(markdownContent)
       setOptimisticDescription(htmlContent)
-      updateDeity(deityId, { description: htmlContent })
+      void updateDeity(deityId, { description: htmlContent }).then((res) => {
+        if (res.success) void refetchDeities({ silent: true })
+      })
     }
     previousEditModeRef.current = editMode
-  }, [editMode, isDm, deity, markdownContent, deityId, updateDeity])
+  }, [editMode, isDm, deity, markdownContent, deityId, updateDeity, refetchDeities])
 
   // Reset optimistic description when deity data updates from server
   useEffect(() => {
@@ -182,19 +199,11 @@ export default function PantheonOverviewPage() {
     }
   }, [])
 
-  // Load saved scene_id from database
-  useEffect(() => {
-    if (deity?.scene_id) {
-      setSelectedSceneId(deity.scene_id)
-    }
-  }, [deity?.scene_id])
-
   useEffect(() => {
     async function getUser() {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
-        setUserId(user.id)
         // Check if user is DM
         const { data: campaign } = await supabase
           .from('campaigns')
@@ -223,9 +232,6 @@ export default function PantheonOverviewPage() {
 
       if (locations) {
         setWorshipLocations(locations)
-        locations.forEach(loc => {
-          setBacklinks(prev => [...prev, { type: 'location', name: loc.name, id: loc.id }])
-        })
       }
     }
     loadWorshipLocations()
@@ -242,35 +248,35 @@ export default function PantheonOverviewPage() {
     }
   }, [deity])
 
-  // Load tags and associates from metadata
   useEffect(() => {
     if (deity) {
-      // Load tags from metadata
-      const tagsArray = deity.metadata?.tags || []
-      setTags(tagsArray)
+      setTags(normalizeMetadataTags(deity.metadata?.tags))
 
-      // Load associates from metadata
-      const metadataAssociates = deity.metadata?.associates || []
-      const associatesArray: Array<{ type: string; name: string; id: string }> = []
-      
-      metadataAssociates.forEach((assoc: any) => {
-        associatesArray.push({ type: assoc.type, id: assoc.id, name: '' })
-      })
-      
-      setBacklinks(associatesArray)
+      if (deity.metadata?.custom_label) {
+        setCustomLabel(String(deity.metadata.custom_label))
+      } else {
+        setCustomLabel('')
+      }
     }
   }, [deity])
 
-  // Load associate names from IDs
+  // Load associate names from IDs (do not reset backlinks on unrelated deity refetches — e.g. identity fields)
   useEffect(() => {
     async function loadAssociateNames() {
       if (!deity) return
       
       const metadataAssociates = deity.metadata?.associates || []
-      if (metadataAssociates.length === 0) return
+      if (metadataAssociates.length === 0) {
+        setBacklinks([])
+        return
+      }
       
       const supabase = createClient()
-      const linksWithNames: Array<{ type: string; name: string; id: string }> = []
+      const linksWithNames: Array<{
+        type: 'npc' | 'faction' | 'location' | 'quest'
+        name: string
+        id: string
+      }> = []
 
       for (const assoc of metadataAssociates) {
         if (!assoc.id) continue
@@ -305,16 +311,20 @@ export default function PantheonOverviewPage() {
         }
       }
 
-      if (linksWithNames.length > 0) {
-        setBacklinks(linksWithNames)
-      }
+      setBacklinks(linksWithNames)
     }
     loadAssociateNames()
-  }, [deity?.metadata?.associates])
+  }, [deity?.id, deity?.metadata?.associates])
+
+  const copyPageUrl = () => {
+    if (typeof window === 'undefined') return
+    void navigator.clipboard.writeText(window.location.href)
+    toast.success('Link copied')
+  }
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center">
+      <div className="flex h-full min-h-[50vh] items-center justify-center">
         <div className="text-center">
           <p className="text-lg font-semibold">Loading deity...</p>
         </div>
@@ -324,9 +334,9 @@ export default function PantheonOverviewPage() {
 
   if (!deity) {
     return (
-      <div className="flex h-screen items-center justify-center">
+      <div className="flex h-full min-h-[50vh] items-center justify-center">
         <div className="text-center">
-          <p className="text-lg font-semibold mb-2">Deity not found</p>
+          <p className="mb-2 text-lg font-semibold">Deity not found</p>
           <Button onClick={() => router.push(`/campaigns/${campaignId}/forge?tab=pantheon`)}>
             Back to Pantheon
           </Button>
@@ -335,8 +345,7 @@ export default function PantheonOverviewPage() {
     )
   }
 
-  // Build features from domain, symbol, and holy days
-  const features = []
+  const features: { name: string; description: string; icon: string }[] = []
   if (deity.domain && deity.domain.length > 0) {
     features.push({
       name: 'Domains',
@@ -360,115 +369,186 @@ export default function PantheonOverviewPage() {
   }
 
   return (
-    <div className="flex h-full bg-background overflow-hidden">
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Header with illustration */}
-        <div className="relative w-full h-64 md:h-80 overflow-hidden flex-shrink-0">
+    <div className="sc-fade-in relative min-h-full bg-background">
+      <div className="relative h-[280px] w-full shrink-0 overflow-hidden">
         {deity.image_url ? (
-          <img
-            src={deity.image_url}
-            alt={deity.name}
-            className="w-full h-full object-cover"
-          />
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element -- dynamic campaign URLs */}
+            <img
+              src={deity.image_url}
+              alt=""
+              className="absolute inset-0 h-full w-full object-cover"
+              aria-hidden
+            />
+            <div className="entity-hero-gradient absolute inset-0" />
+          </>
         ) : (
-          <div className="w-full h-full bg-gradient-to-br from-purple-900 via-violet-900 to-indigo-900" />
+          <>
+            <div className="ph-img absolute inset-0" aria-hidden />
+            <div className="entity-hero-gradient absolute inset-0" />
+          </>
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/50 to-transparent" />
-        <div className="absolute bottom-0 left-0 right-0 p-6 md:p-8">
-          <div className="flex items-center gap-2 mb-4">
-            <Moon className="h-5 w-5 text-foreground" />
-            <h1 className="text-3xl md:text-4xl font-bold text-foreground">
-              {deity.name}
-              {deity.title && <span className="text-xl font-normal text-muted-foreground ml-2">({deity.title})</span>}
-            </h1>
-            {isDm && (
-              <Button
-                variant={editMode ? "default" : "outline"}
-                size="sm"
-                onClick={() => setEditMode(!editMode)}
-                className="ml-4"
-              >
-                {editMode ? (
-                  <>
-                    <Check className="h-4 w-4 mr-2" />
-                    Done
-                  </>
-                ) : (
-                  <>
-                    <Edit className="h-4 w-4 mr-2" />
-                    Edit
-                  </>
-                )}
-              </Button>
-            )}
-          </div>
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="bg-background/80 backdrop-blur-sm inline-flex h-9 w-fit items-center justify-center rounded-lg p-[3px] text-muted-foreground">
-              <TabsTrigger value="overview">Overview</TabsTrigger>
-              <TabsTrigger value="map">Map</TabsTrigger>
-              <TabsTrigger value="history">History</TabsTrigger>
-              <TabsTrigger value="associates">Associates</TabsTrigger>
-            </TabsList>
-          </Tabs>
-        </div>
-        <div className="absolute top-4 right-4 flex items-center gap-2">
+
+        <div className="absolute left-0 right-0 top-0 z-10 flex items-center gap-2 px-5 pt-4">
+          <Button
+            variant="secondary"
+            size="sm"
+            className="h-8 gap-1.5 bg-background/80 text-xs backdrop-blur-sm"
+            onClick={() => router.push(`/campaigns/${campaignId}/forge?tab=pantheon`)}
+          >
+            <ChevronLeft className="h-3.5 w-3.5" />
+            Pantheon
+          </Button>
+          <div className="flex-1" />
+          <Button
+            variant="secondary"
+            size="sm"
+            className="h-8 gap-1.5 bg-background/80 text-xs backdrop-blur-sm"
+            onClick={copyPageUrl}
+          >
+            <Link2 className="h-3.5 w-3.5" />
+            Copy link
+          </Button>
+          {isDm && (
+            <Button
+              variant="secondary"
+              size="sm"
+              className="h-8 gap-1.5 bg-background/80 text-xs backdrop-blur-sm"
+              onClick={() => setEditMode(!editMode)}
+            >
+              {editMode ? (
+                <>
+                  <Check className="h-3.5 w-3.5" />
+                  Done
+                </>
+              ) : (
+                <>
+                  <Edit className="h-3.5 w-3.5" />
+                  Edit
+                </>
+              )}
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="icon"
+            className="h-8 w-8 bg-background/80 backdrop-blur-sm"
             onClick={() => router.push(`/campaigns/${campaignId}/forge?tab=pantheon`)}
+            aria-label="Close"
           >
-            <X className="h-5 w-5" />
+            <X className="h-4 w-4" />
           </Button>
         </div>
       </div>
 
-        {/* Scrollable Content with Right Sidebar */}
-        <div className="flex-1 flex overflow-hidden">
-          {/* Main Content Area */}
-          <div className="flex-1 overflow-y-auto">
-            <div className="container mx-auto px-4 py-8 max-w-4xl">
-              <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                <TabsContent value="overview" className="space-y-6 mt-0">
-                {/* Origins/Description - Editable with Markdown (includes heading) */}
-                <div>
-                  {isDm && editMode ? (
-                    <Textarea
-                      value={markdownContent}
-                      onChange={(e) => handleMarkdownChange(e.target.value)}
-                      className="min-h-[200px] rounded-md p-4 font-mono text-sm transition-colors border border-border bg-muted/30 focus:border-ring focus:ring-1 focus:ring-ring/50 resize-none"
-                      placeholder="## Heading&#10;&#10;Write your description in markdown format...&#10;&#10;**Bold text**&#10;*Italic text*&#10;- List item"
-                    />
-                  ) : (
-                    <div className="max-w-none text-foreground [&_h1]:text-2xl [&_h1]:font-bold [&_h1]:mt-6 [&_h1]:mb-4 [&_h2]:text-xl [&_h2]:font-bold [&_h2]:mt-5 [&_h2]:mb-3 [&_h3]:text-lg [&_h3]:font-semibold [&_h3]:mt-4 [&_h3]:mb-2 [&_h4]:text-base [&_h4]:font-semibold [&_h4]:mt-3 [&_h4]:mb-2 [&_p]:leading-relaxed [&_p]:mb-4 [&_strong]:font-bold [&_em]:italic [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:mb-4 [&_ol]:list-decimal [&_ol]:pl-6 [&_ol]:mb-4 [&_li]:mb-1">
-                      <div 
-                        dangerouslySetInnerHTML={{ __html: getHtmlContent() || '<p>No description available.</p>' }}
-                      />
-                    </div>
-                  )}
+      <div className="relative z-10 mx-auto max-w-[1280px] px-4 pb-10 sm:px-8 -mt-20">
+        <div className="grid grid-cols-1 gap-7 lg:grid-cols-[1fr_320px]">
+          <div>
+            <div className="mb-8 flex flex-col gap-5 sm:flex-row sm:items-end">
+              {deity.image_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={deity.image_url}
+                  alt={deity.name}
+                  className="h-[120px] w-[120px] shrink-0 rounded-[14px] border-2 border-border object-cover shadow-xl"
+                />
+              ) : (
+                <div
+                  className="flex h-[120px] w-[120px] shrink-0 items-center justify-center rounded-[14px] border border-stone-700/70 bg-gradient-to-br from-purple-900 via-violet-900 to-indigo-950 shadow-xl shadow-black/50"
+                  aria-hidden
+                >
+                  <Sparkles className="h-14 w-14 text-white/90" />
                 </div>
+              )}
+              <div className="min-w-0 flex-1">
+                <div className="sc-label mb-1">Deity</div>
+                <h1 className="font-serif text-3xl font-bold tracking-tight sm:text-[42px] sm:leading-[1.05]">
+                  {deity.name}
+                  {deity.title ? (
+                    <span className="ml-2 text-xl font-normal text-muted-foreground">({deity.title})</span>
+                  ) : null}
+                </h1>
+                <div className="mt-2.5 flex flex-wrap gap-1.5">
+                  {tags.map((t) => (
+                    <span key={t} className="sc-badge">
+                      {t}
+                    </span>
+                  ))}
+                  {deity.domain?.map((domain) => (
+                    <span key={domain} className="sc-badge">
+                      {domain}
+                    </span>
+                  ))}
+                  {deity.alignment ? <span className="sc-badge">{deity.alignment}</span> : null}
+                  {deity.symbol ? (
+                    <span className="sc-badge">
+                      🔮 {deity.symbol}
+                    </span>
+                  ) : null}
+                </div>
+                {isDm && editMode && (
+                  <div className="mt-4 max-w-xl">
+                    <ManageTags
+                      campaignId={campaignId}
+                      entityId={deityId}
+                      entityType="pantheon"
+                      currentTags={tags}
+                      onUpdate={(newTags) => setTags(newTags)}
+                      isDm
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
 
-                {/* Features/Items */}
-                {features.length > 0 && (
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+              <TabsList className="mb-6 inline-flex h-auto w-full flex-wrap justify-start gap-1 rounded-lg bg-muted/40 p-1 sm:w-auto">
+                <TabsTrigger value="overview" className="text-xs sm:text-sm">
+                  Overview
+                </TabsTrigger>
+                <TabsTrigger value="history" className="text-xs sm:text-sm">
+                  History
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="overview" className="mt-0 space-y-8">
+                {isDm && editMode ? (
+                  <Textarea
+                    value={markdownContent}
+                    onChange={(e) => handleMarkdownChange(e.target.value)}
+                    className="min-h-[220px] resize-none rounded-md border border-border bg-muted/30 p-4 font-mono text-sm transition-colors focus:border-ring focus:ring-1 focus:ring-ring/50"
+                    placeholder="## Heading&#10;&#10;Write your description in markdown..."
+                  />
+                ) : (
+                  <div className="prose-entity">
+                    <div
+                      className="contents"
+                      dangerouslySetInnerHTML={{
+                        __html: getHtmlContent() || '<p>No description available.</p>',
+                      }}
+                    />
+                  </div>
+                )}
+
+                {features.length > 0 ? (
                   <div className="space-y-4">
                     {features.map((feature, index) => (
-                      <div key={index} className="flex gap-4 p-4 rounded-lg bg-muted/50">
-                        <div className="flex-shrink-0 w-16 h-16 rounded-lg bg-gradient-to-br from-purple-500/20 to-indigo-500/20 flex items-center justify-center">
+                      <div key={index} className="flex gap-4 rounded-lg bg-muted/50 p-4">
+                        <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-purple-500/20 to-indigo-500/20">
                           <span className="text-2xl">{feature.icon}</span>
                         </div>
-                        <div className="flex-1">
-                          <h4 className="font-semibold text-lg mb-1">{feature.name}</h4>
+                        <div className="min-w-0 flex-1">
+                          <h4 className="mb-1 text-lg font-semibold">{feature.name}</h4>
                           <p className="text-sm text-muted-foreground">{feature.description}</p>
                         </div>
                       </div>
                     ))}
                   </div>
-                )}
+                ) : null}
 
-                {/* Worship Locations */}
-                {worshipLocations.length > 0 && (
+                {worshipLocations.length > 0 ? (
                   <div>
-                    <h3 className="text-xl font-bold mb-3">Places of Worship</h3>
+                    <h3 className="mb-3 text-xl font-bold">Places of Worship</h3>
                     <div className="flex flex-wrap gap-2">
                       {worshipLocations.map((loc) => (
                         <Badge
@@ -482,181 +562,129 @@ export default function PantheonOverviewPage() {
                       ))}
                     </div>
                   </div>
-                )}
-
-                {/* Domain, Alignment, Symbol */}
-                <div className="flex flex-wrap gap-2">
-                  {deity.domain && deity.domain.length > 0 && (
-                    <>
-                      {deity.domain.map((domain, idx) => (
-                        <Badge key={idx} variant="secondary">{domain}</Badge>
-                      ))}
-                    </>
-                  )}
-                  {deity.alignment && <Badge variant="outline">{deity.alignment}</Badge>}
-                  {deity.symbol && <Badge variant="outline">🔮 {deity.symbol}</Badge>}
-                </div>
+                ) : null}
               </TabsContent>
 
-              <TabsContent value="map" className="mt-0">
-                <div className="space-y-4">
-                  <div className="flex items-center gap-4">
-                    <Label htmlFor="scene-select" className="text-sm font-medium">Select Scene</Label>
-                    <Select
-                      value={selectedSceneId || ''}
-                      onValueChange={async (value) => {
-                        const newSceneId = value || null
-                        setSelectedSceneId(newSceneId)
-                        // Save to database
-                        if (deity && isDm) {
-                          await updateDeity(deityId, {
-                            scene_id: newSceneId
-                          })
-                        }
-                      }}
-                    >
-                      <SelectTrigger id="scene-select" className="w-64">
-                        <SelectValue placeholder="Choose a scene..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {scenesLoading ? (
-                          <SelectItem value="loading" disabled>Loading scenes...</SelectItem>
-                        ) : scenes.length === 0 ? (
-                          <SelectItem value="none" disabled>No scenes available</SelectItem>
-                        ) : (
-                          scenes.map((scene) => (
-                            <SelectItem key={scene.id} value={scene.id}>
-                              {scene.name}
-                            </SelectItem>
-                          ))
-                        )}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {selectedSceneId && scene ? (
-                    <div className="border rounded-lg overflow-hidden">
-                      <AtlasMap
-                        imageUrl={scene.image_url}
-                        markers={markers || []}
-                        isDm={isDm}
-                      />
-                    </div>
-                  ) : selectedSceneId && sceneLoading ? (
-                    <div className="text-center py-12 text-muted-foreground">
-                      <p>Loading scene...</p>
-                    </div>
-                  ) : !selectedSceneId ? (
-                    <div className="text-center py-12 text-muted-foreground">
-                      <MapPin className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                      <p>Select a scene to view the map</p>
-                    </div>
-                  ) : null}
-                </div>
-              </TabsContent>
-
-                  <TabsContent value="history" className="mt-0">
-                <EntityHistory 
-                  campaignId={campaignId} 
-                  entityId={deityId} 
-                  entityType="pantheon"
-                  isDm={isDm}
-                  editMode={editMode}
-                  />
-                  </TabsContent>
-
-                  <TabsContent value="associates" className="mt-0">
-                <ManageAssociates
+              <TabsContent value="history" className="mt-0">
+                <EntityHistory
                   campaignId={campaignId}
                   entityId={deityId}
                   entityType="pantheon"
-                  currentAssociates={backlinks as Array<{ type: 'npc' | 'faction' | 'location' | 'quest'; name: string; id: string }>}
-                  onUpdate={(associates) => setBacklinks(associates)}
                   isDm={isDm}
                   editMode={editMode}
-                  />
-                </TabsContent>
-              </Tabs>
-            </div>
+                />
+              </TabsContent>
+            </Tabs>
           </div>
 
-          {/* Right Sidebar - Always Visible */}
-          <div className="w-80 border-l border-border bg-background overflow-y-auto flex-shrink-0">
-            <div className="p-6 space-y-6">
-              {/* Summary */}
-              <div>
-                <h3 className="text-sm font-semibold mb-3 uppercase tracking-wide">SUMMARY</h3>
-                {isDm && editMode ? (
-                  <Textarea
-                    value={summary}
-                    onChange={(e) => setSummary(e.target.value)}
-                    onBlur={async () => {
-                      if (!deity) return
-                      const supabase = createClient()
-                      const currentMetadata = deity.metadata || {}
-                      await supabase
-                        .from('pantheon_deities')
-                        .update({
-                          metadata: { ...currentMetadata, summary: summary.trim() || null }
-                        })
-                        .eq('id', deityId)
-                    }}
-                    placeholder="Enter a brief summary of this deity..."
-                    className="min-h-[100px] text-sm resize-none"
-                  />
-                ) : (
-                  <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">
-                    {summary || 'There is no summary.'}
-                  </p>
-                )}
-              </div>
+          <aside className="flex flex-col gap-4 lg:-mt-5">
+            <div className="sc-card p-4">
+              <div className="sc-label mb-2.5">Identity</div>
+              {isDm && editMode ? (
+                <div className="space-y-3">
+                  <div>
+                    <div className="mb-1 text-xs text-muted-foreground">Title</div>
+                    <Input
+                      value={deityTitle}
+                      onChange={(e) => setDeityTitle(e.target.value)}
+                      onBlur={async () => {
+                        if (!deity) return
+                        const trimmed = deityTitle.trim()
+                        const next = trimmed || null
+                        if (next === (deity.title ?? null)) return
+                        const res = await updateDeity(deityId, { title: next })
+                        if (!res.success) {
+                          toast.error('Could not update title')
+                          return
+                        }
+                        await refetchDeities({ silent: true })
+                      }}
+                      placeholder="e.g. God of Storms"
+                      className="h-9 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <div className="mb-1 text-xs text-muted-foreground">Alignment</div>
+                    <Select
+                      value={deity.alignment ?? 'none'}
+                      onValueChange={(v) => void handleDeityAlignmentChange(v)}
+                    >
+                      <SelectTrigger className="h-9 w-full text-xs">
+                        <SelectValue placeholder="None" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">— None —</SelectItem>
+                        {DEITY_ALIGNMENTS.map(a => (
+                          <SelectItem key={a} value={a}>
+                            {a}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="flex justify-between gap-4 border-b border-dashed border-border/60 py-1.5 text-xs last:border-b-0">
+                    <span className="text-muted-foreground">Title</span>
+                    <span className="max-w-[60%] text-right font-medium">{deity.title ?? '—'}</span>
+                  </div>
+                  <div className="flex justify-between gap-4 border-b border-dashed border-border/60 py-1.5 text-xs last:border-b-0">
+                    <span className="text-muted-foreground">Alignment</span>
+                    <span className="max-w-[60%] text-right font-medium">{deity.alignment ?? '—'}</span>
+                  </div>
+                </>
+              )}
+            </div>
 
-              {/* Tags */}
-              <ManageTags
+            <div className="sc-card p-4">
+              <div className="sc-label mb-2.5">Summary</div>
+              {isDm && editMode ? (
+                <Textarea
+                  value={summary}
+                  onChange={(e) => setSummary(e.target.value)}
+                  onBlur={async () => {
+                    if (!deity) return
+                    const supabase = createClient()
+                    const currentMetadata = deity.metadata || {}
+                    await supabase
+                      .from('pantheon_deities')
+                      .update({
+                        metadata: { ...currentMetadata, summary: summary.trim() || null },
+                      })
+                      .eq('id', deityId)
+                    await refetchDeities({ silent: true })
+                  }}
+                  placeholder="Short summary..."
+                  className="min-h-[100px] resize-none text-sm"
+                />
+              ) : (
+                <p className="whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">
+                  {summary || 'No summary yet.'}
+                </p>
+              )}
+            </div>
+
+            {customLabel ? (
+              <div className="sc-card p-4">
+                <div className="sc-label mb-2.5">Custom label</div>
+                <p className="text-sm">{customLabel}</p>
+              </div>
+            ) : null}
+
+            <div className="sc-card p-4">
+              <ManageAssociates
                 campaignId={campaignId}
                 entityId={deityId}
                 entityType="pantheon"
-                currentTags={tags}
-                onUpdate={(newTags) => setTags(newTags)}
-                isDm={isDm && editMode}
+                currentAssociates={backlinks}
+                onUpdate={(associates) => setBacklinks(associates)}
+                isDm={isDm}
+                editMode={editMode}
+                layout="npc-sidebar"
               />
-
-            {/* Custom Label */}
-            {customLabel && (
-              <div>
-                <h3 className="text-sm font-semibold mb-3 uppercase tracking-wide">CUSTOM LABEL</h3>
-                <div className="p-3 rounded-lg bg-muted/50">
-                  <p className="text-sm">{customLabel}</p>
-                </div>
-              </div>
-            )}
-
-              {/* Backlinks */}
-              {backlinks.length > 0 && (
-                <div>
-                  <h3 className="text-sm font-semibold mb-3 uppercase tracking-wide">BACKLINKS</h3>
-                  <div className="space-y-2">
-                    {backlinks.map((link) => (
-                      <div
-                        key={link.id}
-                        className="flex items-center gap-2 text-sm cursor-pointer hover:text-foreground text-muted-foreground transition-colors"
-                        onClick={() => {
-                          if (link.type === 'location') {
-                            router.push(`/campaigns/${campaignId}/locations/${link.id}`)
-                          } else if (link.type === 'quest') {
-                            router.push(`/campaigns/${campaignId}/quests/${link.id}`)
-                          }
-                        }}
-                      >
-                        <span className="text-xs">•</span>
-                        <span>{link.name}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
-          </div>
+          </aside>
         </div>
       </div>
     </div>

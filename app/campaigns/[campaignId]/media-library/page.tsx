@@ -1,7 +1,9 @@
 "use client";
 
+export const dynamic = "force-dynamic";
+
 import { useEffect, useState, useMemo } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -31,14 +33,34 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-type MediaType = 'all' | 'map' | 'token' | 'prop' | 'sound';
+type MediaType = "all" | "map" | "token" | "prop" | "sound";
 
 export default function MediaLibraryPage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const campaignId = params.campaignId as string;
   // const [userId, setUserId] = useState<string | null>(null);
   const [isDm, setIsDm] = useState(false);
-  const [activeTab, setActiveTab] = useState<MediaType>('all');
+  const typeParam = searchParams.get("type");
+  const initialTab: MediaType =
+    typeParam === "map" ||
+    typeParam === "token" ||
+    typeParam === "prop" ||
+    typeParam === "sound"
+      ? typeParam
+      : typeParam === "samples"
+        ? "map"
+        : "all";
+
+  const [activeTab, setActiveTab] = useState<MediaType>(initialTab);
+
+  useEffect(() => {
+    if (typeParam === "map" || typeParam === "token" || typeParam === "prop" || typeParam === "sound") {
+      setActiveTab(typeParam);
+    } else if (typeParam === "samples") {
+      setActiveTab("map");
+    }
+  }, [typeParam]);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<MediaItem | null>(null);
   const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
@@ -54,8 +76,8 @@ export default function MediaLibraryPage() {
   
   // Filter items client-side based on active tab
   const items = useMemo(() => {
-    if (activeTab === 'all') return allItems;
-    return allItems.filter(item => item.type === activeTab);
+    if (activeTab === "all") return allItems;
+    return allItems.filter((item) => item.type === activeTab);
   }, [allItems, activeTab]);
   const { createMediaItem, loading: creating } = useCreateMediaItem();
   const { updateMediaItem } = useUpdateMediaItem(); // loading: updating unused
@@ -227,7 +249,8 @@ export default function MediaLibraryPage() {
         <div>
           <h1 className="font-serif text-3xl font-bold">Media Library</h1>
           <p className="text-muted-foreground mt-1">
-            Manage maps, tokens, and props for your campaign
+            Battlemaps, tokens, props, and audio for this campaign. Starter maps live in the VTT
+            under Assets → Samples.
           </p>
         </div>
         {isDm && (
@@ -240,9 +263,9 @@ export default function MediaLibraryPage() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as MediaType)}>
-        <TabsList>
+        <TabsList className="flex flex-wrap h-auto gap-1">
           <TabsTrigger value="all">All</TabsTrigger>
-          <TabsTrigger value="map">Maps</TabsTrigger>
+          <TabsTrigger value="map">Battlemaps</TabsTrigger>
           <TabsTrigger value="token">Tokens</TabsTrigger>
           <TabsTrigger value="prop">Props</TabsTrigger>
           <TabsTrigger value="sound">Sounds</TabsTrigger>
@@ -437,4 +460,3 @@ export default function MediaLibraryPage() {
     </div>
   );
 }
-

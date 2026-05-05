@@ -2,11 +2,8 @@
 
 import { useState, useMemo } from "react";
 import { Scene } from "@/hooks/useForgeContent";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Input } from "@/components/ui/input";
-import { Plus, Map, Image as ImageIcon, Edit2, Trash2, Pen, Search } from "lucide-react";
+import { Plus, Map, Edit2, Trash2, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 
@@ -66,147 +63,129 @@ export function SceneList({
 
   if (scenes.length === 0) {
     return (
-      <Card>
-        <CardContent className="p-6">
-          <div className="flex flex-col items-center justify-center py-8 text-center">
-            <Map className="h-12 w-12 text-muted-foreground/50 mb-4" />
-            <p className="text-muted-foreground mb-2">No scenes yet</p>
-            {isDm && (
-              <Button onClick={onCreateScene} size="sm" className="mt-2">
-                <Plus className="h-4 w-4 mr-2" />
-                Create First Scene
-              </Button>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+      <div className="sc-card" style={{ padding: 24 }}>
+        <div className="flex flex-col items-center justify-center py-8 text-center">
+          <Map className="h-12 w-12 text-muted-foreground/50 mb-4" />
+          <p className="text-muted-foreground mb-2">No scenes yet</p>
+          {isDm && (
+            <button type="button" className="sc-btn sc-btn-primary sc-btn-sm mt-2" onClick={onCreateScene}>
+              <Plus size={12} />
+              Scene
+            </button>
+          )}
+        </div>
+      </div>
     );
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
       {isDm && (
-        <Button
-          onClick={onCreateScene}
-          className="w-full"
-          variant="outline"
-          size="sm"
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Create Scene
-        </Button>
+        <button type="button" className="sc-btn sc-btn-primary sc-btn-sm w-full justify-center" onClick={onCreateScene}>
+          <Plus size={12} />
+          Scene
+        </button>
       )}
 
-      {/* Search Bar */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder="Search scenes..."
+      <div style={{ position: "relative" }}>
+        <Search
+          size={12}
+          className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+        />
+        <input
+          className="sc-input"
+          placeholder="Search scenes…"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="pl-9"
+          style={{ paddingLeft: 30, fontSize: 12 }}
         />
       </div>
 
-      <div className="space-y-2">
+      <div className="flex flex-col gap-2">
         {filteredScenes.length === 0 ? (
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex flex-col items-center justify-center py-4 text-center">
-                <Search className="h-8 w-8 text-muted-foreground/50 mb-2" />
-                <p className="text-muted-foreground text-sm">
-                  No scenes found matching "{searchQuery}"
-                </p>
-              </div>
-            </CardContent>
-          </Card>
+          <div className="sc-card p-6 text-center text-sm text-muted-foreground">
+            No scenes match &ldquo;{searchQuery}&rdquo;
+          </div>
         ) : (
-          filteredScenes.map((scene) => {
-          const isSelected = selectedSceneId === scene.id;
-          return (
-            <Card
-              key={scene.id}
-              className={cn(
-                "cursor-pointer transition-all hover:border-primary/50",
-                isSelected && "border-primary bg-primary/5"
-              )}
-              onClick={() => onSelectScene(scene.id)}
-            >
-              <CardContent className="p-4">
-                <div className="flex items-start gap-3 flex-wrap">
-                  {/* Thumbnail or icon */}
-                  <div className="shrink-0">
-                    {scene.image_url ? (
-                      <img
-                        src={scene.image_url}
-                        alt={scene.name}
-                        className="w-16 h-16 rounded object-cover border border-border"
-                      />
-                    ) : (
-                      <div className="w-16 h-16 rounded bg-muted border border-border flex items-center justify-center">
-                        <ImageIcon className="h-6 w-6 text-muted-foreground" />
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Scene info */}
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold text-sm truncate">{scene.name}</h3>
-                    {scene.description && (
-                      <p className="text-xs text-muted-foreground line-clamp-2 mt-1">
-                        {scene.description}
-                      </p>
-                    )}
-                    {!scene.image_url && (
-                      <p className="text-xs text-muted-foreground mt-1">
-                        No map image
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Actions */}
+          filteredScenes.map((scene, index) => {
+            const isSelected = selectedSceneId === scene.id;
+            const statusLabel = scene.image_url ? "Ready" : "Draft";
+            return (
+              <div
+                key={scene.id}
+                role="button"
+                tabIndex={0}
+                className={cn(
+                  "sc-card sc-card-hover flex cursor-pointer flex-col gap-3 p-3.5 transition-colors sm:grid sm:grid-cols-[52px_1fr_auto] sm:items-center sm:gap-4",
+                )}
+                style={
+                  isSelected
+                    ? {
+                        borderColor: "var(--primary)",
+                        background: "color-mix(in srgb, var(--primary) 8%, var(--card))",
+                      }
+                    : undefined
+                }
+                onClick={() => onSelectScene(scene.id)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    onSelectScene(scene.id);
+                  }
+                }}
+              >
+                <div className="text-center sm:w-[52px]">
+                  <div className="sc-label mb-0.5">#</div>
+                  <div className="font-serif text-lg leading-none text-foreground">{index + 1}</div>
+                </div>
+                <div className="min-w-0 border-border sm:border-l sm:pl-4">
+                  <div className="font-serif text-[15px] leading-snug">{scene.name}</div>
+                  <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
+                    {scene.description?.trim() || (scene.image_url ? "Map ready." : "Add a map image in the editor.")}
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+                  <span
+                    className={cn("sc-badge text-[10px]", scene.image_url ? "sc-badge-primary" : "")}
+                  >
+                    {statusLabel}
+                  </span>
+                  <button
+                    type="button"
+                    className="sc-btn sc-btn-sm"
+                    onClick={(e) => handleOpenEditor(scene.id, e)}
+                  >
+                    Open
+                  </button>
                   {isDm && (
-                    <div className="shrink-0 flex items-center gap-1 flex-wrap" onClick={(e) => e.stopPropagation()}>
-                        <Button
-                        variant="outline"
-                          size="sm"
-                        className="h-8 px-2"
-                          onClick={(e) => handleOpenEditor(scene.id, e)}
-                        title="Editor"
-                        >
-                        <Pen className="h-3 w-3 sm:mr-1.5" />
-                        <span className="text-xs hidden sm:inline">Editor</span>
-                        </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 w-8 p-0"
+                    <>
+                      <button
+                        type="button"
+                        className="sc-btn sc-btn-sm sc-btn-ghost sc-btn-icon"
+                        title="Edit details"
                         onClick={(e) => {
                           e.stopPropagation();
                           onEditScene(scene);
                         }}
-                        title="Edit scene"
                       >
-                        <Edit2 className="h-3 w-3" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                        <Edit2 className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        className="sc-btn sc-btn-sm sc-btn-ghost sc-btn-icon text-destructive"
+                        title="Delete"
                         onClick={(e) => {
                           e.stopPropagation();
                           onDeleteScene(scene);
                         }}
-                        title="Delete scene"
                       >
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
-                    </div>
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </>
                   )}
                 </div>
-              </CardContent>
-            </Card>
-          );
+              </div>
+            );
           })
         )}
       </div>

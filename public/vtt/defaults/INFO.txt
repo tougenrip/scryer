@@ -1,0 +1,14 @@
+Default VTT assets (Scryer)
+
+Maps:   /vtt/defaults/maps/placeholder-grid.svg
+Tokens: /vtt/defaults/tokens/placeholder-pawn.svg
+
+Sample battlemaps and sample tokens (shared with all users):
+  VTT → Assets (left bookmark) → Samples → Maps / Tokens.
+  Files live under public/vtt/samples/battlemaps/ and lib/vtt/sample-*.ts.
+
+To use in a campaign:
+1. VTT → Assets → Samples or Library (your Media Library uploads).
+2. Or Forge → Scenes for narrative scenes linked to the VTT.
+
+DMs can "Push" a scene from the VTT Assets panel so players follow the active map (campaigns.active_vtt_map_id).

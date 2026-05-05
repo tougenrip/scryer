@@ -1,14 +1,53 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Edit, Trash2, CheckCircle2, XCircle, Circle, ChevronDown, ChevronRight, EyeOff } from "lucide-react";
-import { Quest, QuestStep, QuestObjective } from "@/hooks/useCampaignContent";
+import {
+  Edit,
+  Trash2,
+  CheckCircle2,
+  XCircle,
+  Circle,
+  ChevronDown,
+  ChevronRight,
+  EyeOff,
+  Users,
+  BadgeCheck,
+} from "lucide-react";
+import { Quest, QuestObjective } from "@/hooks/useCampaignContent";
 import { cn } from "@/lib/utils";
 import { useUpdateQuestObjective } from "@/hooks/useCampaignContent";
 import { toast } from "sonner";
+
+/** Matches forge handoff: Active | Offered | Completed (dimmed when done). */
+function questStatusMeta(quest: Quest): { label: string; dim?: boolean } {
+  const steps = quest.steps ?? [];
+  const objectives = steps.flatMap((s) => s.objectives ?? []);
+  if (objectives.length === 0) {
+    return { label: "Active" };
+  }
+  const allPending = objectives.every((o) => o.status === "pending");
+  if (allPending) return { label: "Offered" };
+  const allSuccess = objectives.every((o) => o.status === "success");
+  if (allSuccess) return { label: "Completed", dim: true };
+  return { label: "Active" };
+}
+
+const QUEST_CATEGORY_LABELS = [
+  "Urgent",
+  "Mystery",
+  "Side",
+  "Faction",
+  "Story",
+] as const;
+
+/** Stable thematic tag until quests gain a `category` column. */
+function questCategoryLabel(questId: string): string {
+  let h = 0;
+  for (let i = 0; i < questId.length; i++) {
+    h = (h * 31 + questId.charCodeAt(i)) >>> 0;
+  }
+  return QUEST_CATEGORY_LABELS[h % QUEST_CATEGORY_LABELS.length];
+}
 
 interface QuestNoteProps {
   quest: Quest;
@@ -18,7 +57,7 @@ interface QuestNoteProps {
   onUpdate?: () => void;
 }
 
-export function QuestNote({ quest, isDm, onEdit, onDelete, onUpdate }: QuestNoteProps) {
+export function QuestNote({ quest, isDm, onEdit, onDelete }: QuestNoteProps) {
   const [expandedSteps, setExpandedSteps] = useState<Set<string>>(new Set());
   const [localQuest, setLocalQuest] = useState<Quest>(quest);
   const { updateObjective } = useUpdateQuestObjective();
@@ -111,72 +150,136 @@ export function QuestNote({ quest, isDm, onEdit, onDelete, onUpdate }: QuestNote
     }
   };
 
+  const status = questStatusMeta(localQuest);
+  const category = questCategoryLabel(localQuest.id);
+
   return (
-    <Card className="h-full flex flex-col">
-      <CardHeader>
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex-1 min-w-0">
-            <CardTitle className="font-serif mb-2">{localQuest.title}</CardTitle>
-            <CardDescription className="line-clamp-2">
-              {localQuest.content}
-            </CardDescription>
-          </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
-            {localQuest.verified && (
-              <Badge variant="default" className="bg-green-600 text-white">
-                <CheckCircle2 className="h-3 w-3 mr-1" />
-                Verified
-              </Badge>
-            )}
-            {isDm && (
-              <div className="flex gap-1">
-                {onEdit && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onEdit(localQuest);
-                    }}
-                  >
-                    <Edit className="h-4 w-4" />
-                  </Button>
-                )}
-                {onDelete && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-destructive hover:text-destructive"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onDelete(localQuest.id);
-                    }}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                )}
-              </div>
-            )}
-          </div>
+    <div
+      className="sc-card sc-card-hover relative flex h-full flex-col"
+      style={{ padding: 14, cursor: "default" }}
+    >
+      {isDm && (onEdit || onDelete) && (
+        <div
+          className="absolute flex gap-1"
+          style={{ top: 10, right: 10 }}
+        >
+          {onEdit && (
+            <button
+              type="button"
+              className="sc-btn sc-btn-sm sc-btn-ghost sc-btn-icon"
+              onClick={(e) => {
+                e.stopPropagation();
+                onEdit(localQuest);
+              }}
+              aria-label="Edit quest"
+            >
+              <Edit className="h-3.5 w-3.5" />
+            </button>
+          )}
+          {onDelete && (
+            <button
+              type="button"
+              className="sc-btn sc-btn-sm sc-btn-ghost sc-btn-icon"
+              style={{ color: "var(--destructive)" }}
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete(localQuest.id);
+              }}
+              aria-label="Delete quest"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          )}
         </div>
-        {(localQuest.source || localQuest.location) && (
-          <div className="flex flex-wrap gap-2 mt-2 text-xs text-muted-foreground">
-            {localQuest.source && (
-              <span>Source: {localQuest.source}</span>
-            )}
-            {localQuest.location && (
-              <span>Location: {localQuest.location}</span>
-            )}
-          </div>
+      )}
+
+      <div
+        style={{
+          display: "flex",
+          gap: 6,
+          marginBottom: 8,
+          flexWrap: "wrap",
+          paddingRight: isDm ? 72 : 0,
+        }}
+      >
+        <span className="sc-badge sc-badge-primary" style={{ fontSize: 10 }}>
+          {category}
+        </span>
+        <span
+          className="sc-badge"
+          style={{
+            fontSize: 10,
+            opacity: status.dim ? 0.5 : 1,
+          }}
+        >
+          {status.label}
+        </span>
+        {localQuest.verified && (
+          <span
+            className="inline-flex shrink-0 items-center"
+            title="Verified"
+            style={{ color: "var(--primary)", opacity: 0.88 }}
+          >
+            <BadgeCheck className="h-3.5 w-3.5" aria-label="Verified quest" />
+          </span>
         )}
-      </CardHeader>
-      
-      <CardContent className="flex-1 overflow-y-auto">
+      </div>
+
+      <div className="min-w-0 pr-1" style={{ marginBottom: 10 }}>
+        <div
+          className="font-serif leading-snug"
+          style={{
+            fontSize: 17,
+            marginBottom: 4,
+            textTransform: "uppercase",
+            letterSpacing: "0.04em",
+            lineHeight: 1.25,
+          }}
+        >
+          {localQuest.title}
+        </div>
+        <p
+          className="line-clamp-3"
+          style={{
+            fontSize: 12,
+            lineHeight: 1.55,
+            color: "var(--muted-foreground)",
+            margin: 0,
+          }}
+        >
+          {localQuest.content}
+        </p>
+      </div>
+
+      {(localQuest.source || localQuest.location) && (
+        <div
+          style={{
+            fontSize: 11,
+            color: "var(--muted-foreground)",
+            display: "flex",
+            alignItems: "center",
+            gap: 5,
+            marginBottom: 10,
+          }}
+        >
+          <Users size={11} className="shrink-0 opacity-80" />
+          <span>
+            Given by {localQuest.source?.trim() || "—"}
+            {localQuest.location ? ` · ${localQuest.location}` : ""}
+          </span>
+        </div>
+      )}
+
+      <div
+        className={cn(
+          "min-h-0 flex-1 overflow-y-auto",
+          (localQuest.steps?.length ?? 0) > 0 && "border-t border-border pt-3",
+        )}
+      >
         {/* Steps and Objectives */}
         {localQuest.steps && localQuest.steps.length > 0 ? (
           <div className="space-y-3">
-            <h4 className="text-sm font-semibold text-foreground">Quest Steps</h4>
+            <div className="sc-label">Quest steps</div>
             {localQuest.steps.map((step) => {
               const isExpanded = expandedSteps.has(step.id);
               const completedObjectives = step.objectives?.filter(o => o.status !== 'pending').length || 0;
@@ -185,29 +288,30 @@ export function QuestNote({ quest, isDm, onEdit, onDelete, onUpdate }: QuestNote
               return (
                 <div
                   key={step.id}
-                  className="border rounded-lg p-3 bg-muted/30"
+                  className="sc-card"
+                  style={{ padding: 12 }}
                 >
                   <div
-                    className="flex items-center gap-2 cursor-pointer"
+                    className="flex cursor-pointer items-center gap-2"
                     onClick={() => toggleStepExpansion(step.id)}
                   >
                     {isExpanded ? (
-                      <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
                     ) : (
-                      <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
                     )}
-                    <span className="text-sm font-semibold flex-1">
+                    <span className="flex-1 text-sm font-semibold">
                       {step.name ? step.name : `Step ${step.step_order}`}
                     </span>
                     {totalObjectives > 0 && (
-                      <Badge variant="secondary" className="text-xs">
+                      <span className="sc-badge" style={{ fontSize: 10 }}>
                         {completedObjectives}/{totalObjectives}
-                      </Badge>
+                      </span>
                     )}
                   </div>
                   
                   {isExpanded && (
-                    <div className="mt-3 pl-6 space-y-3">
+                    <div className="mt-3 space-y-3 pl-6">
                       {step.description && (
                         <p className="text-sm text-muted-foreground">
                           {step.description}
@@ -216,16 +320,17 @@ export function QuestNote({ quest, isDm, onEdit, onDelete, onUpdate }: QuestNote
                       
                       {step.objectives && step.objectives.length > 0 ? (
                         <div className="space-y-2">
-                          <h5 className="text-xs font-semibold text-muted-foreground uppercase">Objectives</h5>
+                          <div className="sc-label">Objectives</div>
                           {step.objectives.map((objective) => (
                             <button
                               key={objective.id}
                               type="button"
                               className={cn(
-                                "w-full text-left space-y-1 p-2 rounded-md border bg-background",
-                                isDm && "cursor-pointer hover:bg-muted/50 transition-colors",
+                                "sc-card w-full space-y-1 text-left",
+                                isDm && "cursor-pointer transition-colors hover:border-primary/35",
                                 !isDm && "cursor-default"
                               )}
+                              style={{ padding: 8 }}
                               onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
@@ -240,7 +345,9 @@ export function QuestNote({ quest, isDm, onEdit, onDelete, onUpdate }: QuestNote
                                   {getStatusIcon(objective.status)}
                                 </div>
                                 {objective.is_hidden && isDm && (
-                                  <EyeOff className="h-3 w-3 text-amber-600 flex-shrink-0" title="Hidden objective (DM only)" />
+                                  <span className="inline-flex shrink-0" title="Hidden objective (DM only)">
+                                    <EyeOff className="h-3 w-3 text-amber-600" />
+                                  </span>
                                 )}
                                 {objective.name && (
                                   <span className={cn("text-sm font-semibold", getStatusColor(objective.status))}>
@@ -266,11 +373,14 @@ export function QuestNote({ quest, isDm, onEdit, onDelete, onUpdate }: QuestNote
             })}
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground text-center py-4">
+          <p
+            className="py-3 text-center text-sm"
+            style={{ color: "var(--muted-foreground)" }}
+          >
             No steps added yet
           </p>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

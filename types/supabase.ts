@@ -397,6 +397,7 @@ export type Database = {
       campaigns: {
         Row: {
           active_playlist_id: string | null
+          active_vtt_map_id: string | null
           active_weather_id: string | null
           created_at: string | null
           description: string | null
@@ -409,6 +410,7 @@ export type Database = {
         }
         Insert: {
           active_playlist_id?: string | null
+          active_vtt_map_id?: string | null
           active_weather_id?: string | null
           created_at?: string | null
           description?: string | null
@@ -421,6 +423,7 @@ export type Database = {
         }
         Update: {
           active_playlist_id?: string | null
+          active_vtt_map_id?: string | null
           active_weather_id?: string | null
           created_at?: string | null
           description?: string | null
@@ -437,6 +440,13 @@ export type Database = {
             columns: ["active_playlist_id"]
             isOneToOne: false
             referencedRelation: "playlists"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaigns_active_vtt_map_id_fkey"
+            columns: ["active_vtt_map_id"]
+            isOneToOne: false
+            referencedRelation: "media_items"
             referencedColumns: ["id"]
           },
           {
@@ -3606,6 +3616,7 @@ export type Database = {
           hp_current: number | null
           hp_max: number | null
           id: string
+          image_url: string | null
           map_id: string | null
           monster_index: string | null
           monster_source: string | null
@@ -3625,6 +3636,7 @@ export type Database = {
           hp_current?: number | null
           hp_max?: number | null
           id?: string
+          image_url?: string | null
           map_id?: string | null
           monster_index?: string | null
           monster_source?: string | null
@@ -3644,6 +3656,7 @@ export type Database = {
           hp_current?: number | null
           hp_max?: number | null
           id?: string
+          image_url?: string | null
           map_id?: string | null
           monster_index?: string | null
           monster_source?: string | null
@@ -3665,6 +3678,51 @@ export type Database = {
           },
           {
             foreignKeyName: "tokens_map_id_fkey"
+            columns: ["map_id"]
+            isOneToOne: false
+            referencedRelation: "media_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vtt_messages: {
+        Row: {
+          body: string
+          campaign_id: string
+          created_at: string
+          id: string
+          map_id: string | null
+          payload: Json | null
+          user_id: string
+        }
+        Insert: {
+          body?: string
+          campaign_id: string
+          created_at?: string
+          id?: string
+          map_id?: string | null
+          payload?: Json | null
+          user_id: string
+        }
+        Update: {
+          body?: string
+          campaign_id?: string
+          created_at?: string
+          id?: string
+          map_id?: string | null
+          payload?: Json | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vtt_messages_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vtt_messages_map_id_fkey"
             columns: ["map_id"]
             isOneToOne: false
             referencedRelation: "media_items"

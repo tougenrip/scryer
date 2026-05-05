@@ -5,7 +5,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "import:srd": "node scripts/import-5e-bits-srd.cjs",
+    "bulk-import-media": "node scripts/bulk-import-campaign-media.cjs"
   },
   "dependencies": {
     "@3d-dice/dice-box": "^1.1.4",
@@ -68,6 +70,7 @@
     "reactflow": "^11.11.4",
     "recharts": "2.15.4",
     "rpg-awesome": "^0.2.0",
+    "sharp": "^0.33.5",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.3.0",
     "tippy.js": "^6.3.7",

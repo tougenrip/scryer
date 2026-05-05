@@ -1,5 +1,7 @@
 "use client";
 
+export const dynamic = "force-dynamic";
+
 import React, { useState, useEffect, useRef } from "react";
 import type { Equipment } from "@/hooks/useDndContent";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -432,6 +434,14 @@ function getClassVisual(cls: DndClass): {
 }
 
 export default function CharacterCreatorPage() {
+  return (
+    <React.Suspense fallback={<div className="flex min-h-screen items-center justify-center">Loading character creator...</div>}>
+      <CharacterCreatorContent />
+    </React.Suspense>
+  );
+}
+
+function CharacterCreatorContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const campaignId = searchParams.get("campaignId");

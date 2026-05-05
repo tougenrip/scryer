@@ -1,9 +1,8 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { Card, CardContent } from "@/components/ui/card";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Calendar, ChevronRight, ChevronLeft, Clock, Cloud } from "lucide-react";
+import { Calendar, ChevronRight, ChevronLeft, Cloud } from "lucide-react";
 import {
   useCampaignCalendar,
   useCreateCampaignCalendar,
@@ -12,17 +11,21 @@ import {
 } from "@/hooks/useForgeContent";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { CalendarDisplay } from "./calendar-display";
 import { CalendarMonthSettings } from "./calendar-month-settings";
-import { CalendarDatePicker } from "./calendar-date-picker";
 import { CalendarEventFormDialog } from "./calendar-event-form-dialog";
 import { CalendarEventListDialog } from "./calendar-event-list-dialog";
 import { CalendarWeatherManager } from "./calendar-weather-manager";
 import { useCalendarEvents, useCreateCalendarEvent, useUpdateCalendarEvent, useDeleteCalendarEvent } from "@/hooks/useCalendarEvents";
 import { createClient } from "@/lib/supabase/client";
 import { CalendarEvent } from "@/hooks/useForgeContent";
+import { ForgeTabHeader } from "@/components/forge/forge-tab-header";
+import { CalendarSidebar } from "@/components/forge/calendar/calendar-sidebar";
+import {
+  absCampaignDate,
+  getEventsOccurringOnDay,
+} from "@/lib/calendar-campaign-dates";
 
 interface CalendarTabProps {
   campaignId: string;
@@ -120,7 +123,9 @@ export function CalendarTab({ campaignId, isDm }: CalendarTabProps) {
 
   const handleMonthNamesUpdate = async (monthNames: string[], seasonMonths?: Record<'spring' | 'summer' | 'autumn' | 'winter', number[]>) => {
     if (!calendar) return;
-    const updates: any = {
+    const updates: Partial<
+      Pick<CampaignCalendar, "custom_month_names" | "custom_season_months">
+    > = {
       custom_month_names: monthNames,
     };
     if (seasonMonths) {
@@ -176,48 +181,49 @@ export function CalendarTab({ campaignId, isDm }: CalendarTabProps) {
     }
   };
 
-  // Helper function to calculate days between two dates (simplified version)
-  const calculateDaysBetween = (year1: number, month1: number, day1: number, year2: number, month2: number, day2: number): number => {
-    const DAYS_PER_MONTH = 30;
-    const days1 = (year1 - 1) * 360 + (month1 - 1) * DAYS_PER_MONTH + (day1 - 1);
-    const days2 = (year2 - 1) * 360 + (month2 - 1) * DAYS_PER_MONTH + (day2 - 1);
-    return days2 - days1;
-  };
+  const todayEvents = useMemo(() => {
+    const c = localCalendar || calendar;
+    if (!c) return [];
+    return getEventsOccurringOnDay(
+      events,
+      c.current_year,
+      c.current_month,
+      c.current_day,
+    );
+  }, [events, localCalendar, calendar]);
+
+  const upcomingEvents = useMemo(() => {
+    const c = localCalendar || calendar;
+    if (!c) return [];
+    const nowAbs = absCampaignDate(
+      c.current_year,
+      c.current_month,
+      c.current_day,
+    );
+    return events
+      .filter((e) => {
+        const abs = absCampaignDate(
+          e.event_year,
+          e.event_month,
+          e.event_day,
+        );
+        return abs > nowAbs;
+      })
+      .sort(
+        (a, b) =>
+          absCampaignDate(a.event_year, a.event_month, a.event_day) -
+          absCampaignDate(b.event_year, b.event_month, b.event_day),
+      )
+      .slice(0, 12);
+  }, [events, localCalendar, calendar]);
 
   const handleDayClick = (day: number) => {
     const currentCalendar = localCalendar || calendar;
     const month = viewingMonth ?? currentCalendar?.current_month ?? 1;
     const year = viewingYear ?? currentCalendar?.current_year ?? 1;
     setSelectedDay({ year, month, day });
-    
-    // Get events for this day (matching logic from calendar-display)
-    const dayEvents = events.filter(event => {
-      if (!event.is_repeatable) {
-        return event.event_year === year && event.event_month === month && event.event_day === day;
-      }
-      
-      const daysFromEvent = calculateDaysBetween(event.event_year, event.event_month, event.event_day, year, month, day);
-      if (daysFromEvent < 0) return false;
-      
-      if (event.repeat_end_year && event.repeat_end_month && event.repeat_end_day) {
-        const daysFromEnd = calculateDaysBetween(event.repeat_end_year, event.repeat_end_month, event.repeat_end_day, year, month, day);
-        if (daysFromEnd < 0) return false;
-      }
-      
-      if (event.repeat_type === 'yearly') {
-        const yearDiff = year - event.event_year;
-        return event.event_month === month && event.event_day === day && yearDiff >= 0 && yearDiff % event.repeat_interval === 0;
-      } else if (event.repeat_type === 'monthly') {
-        const monthDiff = (year - event.event_year) * 12 + (month - event.event_month);
-        return event.event_day === day && monthDiff >= 0 && monthDiff % event.repeat_interval === 0;
-      } else if (event.repeat_type === 'weekly') {
-        return daysFromEvent % (7 * event.repeat_interval) === 0;
-      } else if (event.repeat_type === 'daily') {
-        return daysFromEvent % event.repeat_interval === 0;
-      }
-      
-      return false;
-    });
+
+    const dayEvents = getEventsOccurringOnDay(events, year, month, day);
     
     if (dayEvents.length > 0) {
       // Show event list dialog if there are events
@@ -413,7 +419,7 @@ export function CalendarTab({ campaignId, isDm }: CalendarTabProps) {
 
   if (loading) {
     return (
-      <div style={{ padding: "16px 20px" }}>
+      <div className="forge-tab-root">
         <Skeleton className="h-6 w-64 mb-2" />
         <Skeleton className="h-3 w-80 mb-4" />
         <div className="sc-card" style={{ padding: 14 }}>
@@ -425,15 +431,11 @@ export function CalendarTab({ campaignId, isDm }: CalendarTabProps) {
 
   if (!calendar) {
     return (
-      <div style={{ padding: "16px 20px" }}>
-        <div style={{ marginBottom: 14 }}>
-          <div className="font-serif" style={{ fontSize: 20 }}>
-            Campaign Calendar
-          </div>
-          <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
-            Track time, weather, and moon phases
-          </div>
-        </div>
+      <div className="forge-tab-root sc-fade-in">
+        <ForgeTabHeader
+          title="Campaign Calendar"
+          subtitle={`${DAYS_PER_MONTH} days per month · moon cycle ${MOON_CYCLE_DAYS} days`}
+        />
         <div className="sc-card" style={{ padding: 40 }}>
           <div
             style={{
@@ -462,28 +464,12 @@ export function CalendarTab({ campaignId, isDm }: CalendarTabProps) {
   }
 
   return (
-    <div style={{ padding: "16px 20px" }}>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: 14,
-          flexWrap: "wrap",
-          gap: 10,
-        }}
-      >
-        <div>
-          <div className="font-serif" style={{ fontSize: 20 }}>
-            Campaign Calendar
-          </div>
-          <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
-            Track time, weather, and moon phases
-          </div>
-        </div>
-        
-        {/* Quick Actions */}
-        <div className="flex items-center gap-2">
+    <div className="forge-tab-root sc-fade-in">
+      <ForgeTabHeader
+        title="Campaign Calendar"
+        subtitle={`${DAYS_PER_MONTH}-day months · ${events.length} event${events.length === 1 ? "" : "s"} · seasons & moon`}
+        actions={
+        <div className="flex flex-wrap items-center gap-2">
           {/* Go to Current Date Button - Show when not viewing current month/year */}
           {(localCalendar || calendar) && (() => {
             const currentCalendar = localCalendar || calendar;
@@ -574,56 +560,73 @@ export function CalendarTab({ campaignId, isDm }: CalendarTabProps) {
             </>
           )}
         </div>
-      </div>
+        }
+      />
 
-      {/* Display Options */}
-      <div className="flex items-center gap-4 p-4 bg-muted/50 rounded-lg">
-        <div className="flex items-center gap-2">
-          <Switch
-            id="show-weather"
-            checked={showWeather}
-            onCheckedChange={setShowWeather}
-          />
-          <Label htmlFor="show-weather" className="text-sm cursor-pointer">
-            Show Weather
-          </Label>
-        </div>
-        <div className="flex items-center gap-2">
-          <Switch
-            id="show-seasons"
-            checked={showSeasons}
-            onCheckedChange={setShowSeasons}
-          />
-          <Label htmlFor="show-seasons" className="text-sm cursor-pointer">
-            Show Seasons
-          </Label>
+      {/* Display toggles — single compact row */}
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-border pb-2">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-0">
+          <label
+            htmlFor="show-weather"
+            className="inline-flex cursor-pointer items-center gap-1.5"
+          >
+            <Switch
+              id="show-weather"
+              checked={showWeather}
+              onCheckedChange={setShowWeather}
+            />
+            <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              Weather
+            </span>
+          </label>
+          <label
+            htmlFor="show-seasons"
+            className="inline-flex cursor-pointer items-center gap-1.5"
+          >
+            <Switch
+              id="show-seasons"
+              checked={showSeasons}
+              onCheckedChange={setShowSeasons}
+            />
+            <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              Seasons
+            </span>
+          </label>
         </div>
         {isDm && (
-          <Button
-            variant="outline"
-            size="sm"
+          <button
+            type="button"
+            className="sc-btn sc-btn-sm shrink-0"
             onClick={() => setWeatherManagerOpen(true)}
-            className="ml-auto"
           >
-            <Cloud className="h-4 w-4 mr-2" />
-            Generate Weather
-          </Button>
+            <Cloud size={12} />
+            Gen weather
+          </button>
         )}
       </div>
 
-      {/* Calendar Grid Display */}
-      <CalendarDisplay
-        calendar={localCalendar || calendar}
-        viewingMonth={viewingMonth}
-        viewingYear={viewingYear}
-        onMonthChange={handleMonthChange}
-        onYearChange={isDm ? handleYearChange : undefined}
-        onDayClick={handleDayClick}
-        events={events}
-        isDm={isDm}
-        showWeather={showWeather}
-        showSeasons={showSeasons}
-      />
+      {/* Tenday grid + Today / Upcoming */}
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-start">
+        <div className="min-w-0 flex-1">
+          <CalendarDisplay
+            calendar={localCalendar || calendar}
+            viewingMonth={viewingMonth}
+            viewingYear={viewingYear}
+            onMonthChange={handleMonthChange}
+            onYearChange={isDm ? handleYearChange : undefined}
+            onDayClick={handleDayClick}
+            events={events}
+            isDm={isDm}
+            showWeather={showWeather}
+            showSeasons={showSeasons}
+          />
+        </div>
+        <CalendarSidebar
+          calendar={localCalendar || calendar}
+          todayEvents={todayEvents}
+          upcomingEvents={upcomingEvents}
+        />
+      </div>
 
       {/* Weather Manager Dialog */}
       {calendar && (
@@ -650,37 +653,12 @@ export function CalendarTab({ campaignId, isDm }: CalendarTabProps) {
           <CalendarEventListDialog
             open={eventListDialogOpen}
             onOpenChange={setEventListDialogOpen}
-            events={events.filter(event => {
-              const year = selectedDay.year;
-              const month = selectedDay.month;
-              const day = selectedDay.day;
-              
-              if (!event.is_repeatable) {
-                return event.event_year === year && event.event_month === month && event.event_day === day;
-              }
-              
-              const daysFromEvent = calculateDaysBetween(event.event_year, event.event_month, event.event_day, year, month, day);
-              if (daysFromEvent < 0) return false;
-              
-              if (event.repeat_end_year && event.repeat_end_month && event.repeat_end_day) {
-                const daysFromEnd = calculateDaysBetween(event.repeat_end_year, event.repeat_end_month, event.repeat_end_day, year, month, day);
-                if (daysFromEnd < 0) return false;
-              }
-              
-              if (event.repeat_type === 'yearly') {
-                const yearDiff = year - event.event_year;
-                return event.event_month === month && event.event_day === day && yearDiff >= 0 && yearDiff % event.repeat_interval === 0;
-              } else if (event.repeat_type === 'monthly') {
-                const monthDiff = (year - event.event_year) * 12 + (month - event.event_month);
-                return event.event_day === day && monthDiff >= 0 && monthDiff % event.repeat_interval === 0;
-              } else if (event.repeat_type === 'weekly') {
-                return daysFromEvent % (7 * event.repeat_interval) === 0;
-              } else if (event.repeat_type === 'daily') {
-                return daysFromEvent % event.repeat_interval === 0;
-              }
-              
-              return false;
-            })}
+            events={getEventsOccurringOnDay(
+              events,
+              selectedDay.year,
+              selectedDay.month,
+              selectedDay.day,
+            )}
             calendar={calendar}
             day={selectedDay.day}
             month={selectedDay.month}

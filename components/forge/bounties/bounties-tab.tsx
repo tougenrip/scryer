@@ -26,6 +26,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { ForgeTabHeader } from "@/components/forge/forge-tab-header";
 
 interface BountiesTabProps {
   campaignId: string;
@@ -125,7 +126,7 @@ export function BountiesTab({ campaignId, isDm }: BountiesTabProps) {
 
   if (loading) {
     return (
-      <div style={{ padding: "16px 20px" }}>
+      <div className="forge-tab-root">
         <div
           style={{
             display: "grid",
@@ -202,49 +203,35 @@ export function BountiesTab({ campaignId, isDm }: BountiesTabProps) {
   );
 
   return (
-    <div style={{ padding: "16px 20px" }}>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: 14,
-          flexWrap: "wrap",
-          gap: 10,
-        }}
-      >
-        <div>
-          <div className="font-serif" style={{ fontSize: 20 }}>
-            The Bounty Board
-          </div>
-          <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
-            {bounties.length} posting{bounties.length === 1 ? "" : "s"} — track
-            targets, rewards, and claims
-          </div>
-        </div>
-        {isDm && userId && (
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            {canUseAI && (
+    <div className="forge-tab-root sc-fade-in">
+      <ForgeTabHeader
+        title="The Bounty Board"
+        subtitle={`Posted rewards · ${bounties.length} notice${bounties.length === 1 ? "" : "s"}`}
+        actions={
+          isDm && userId ? (
+            <>
+              {canUseAI && (
+                <button
+                  type="button"
+                  className="sc-btn sc-btn-sm"
+                  onClick={() => setAiDialogOpen(true)}
+                >
+                  <Sparkles size={12} />
+                  AI
+                </button>
+              )}
               <button
                 type="button"
-                className="sc-btn sc-btn-sm"
-                onClick={() => setAiDialogOpen(true)}
+                className="sc-btn sc-btn-primary sc-btn-sm"
+                onClick={() => setCreateDialogOpen(true)}
               >
-                <Sparkles size={12} />
-                AI
+                <Plus size={12} />
+                Post bounty
               </button>
-            )}
-            <button
-              type="button"
-              className="sc-btn sc-btn-primary sc-btn-sm"
-              onClick={() => setCreateDialogOpen(true)}
-            >
-              <Plus size={12} />
-              Post bounty
-            </button>
-          </div>
-        )}
-      </div>
+            </>
+          ) : null
+        }
+      />
 
       {bounties.length === 0 ? (
         <div className="sc-card" style={{ padding: 40 }}>

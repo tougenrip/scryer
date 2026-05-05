@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter, Cinzel, Kalam } from "next/font/google";
+import { Inter, Cinzel, Kalam, JetBrains_Mono } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 import { Toaster } from "@/components/ui/sonner";
 import { DiceRollerProvider } from "@/components/dice/dice-roller-provider";
@@ -26,6 +26,7 @@ const inter = Inter({
   variable: "--font-inter",
   display: "swap",
   subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700"],
 });
 
 const cinzel = Cinzel({
@@ -42,6 +43,13 @@ const kalam = Kalam({
   weight: ["300", "400", "700"],
 });
 
+const jetbrainsMono = JetBrains_Mono({
+  variable: "--font-jetbrains-mono",
+  display: "swap",
+  subsets: ["latin"],
+  weight: ["400", "500"],
+});
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -49,7 +57,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${inter.variable} ${cinzel.variable} ${kalam.variable} font-sans antialiased`}>
+      <body
+        className={`${inter.variable} ${cinzel.variable} ${kalam.variable} ${jetbrainsMono.variable}`}
+      >
         <ThemeProvider
           attribute="data-theme"
           defaultTheme="dark"

@@ -1,42 +1,45 @@
-import { useEffect } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useVttStore } from '@/lib/store/vtt-store';
 import { Token } from '@/types/vtt';
+import { cleanVttDisplayName } from '@/lib/vtt/display-name';
 
-export function useVttTokens(mapId: string | null) {
-  const supabase = createClient();
+type TokenRow = Token & {
+  character?: { image_url: string | null; name: string | null } | null;
+};
+
+export function useVttTokens(mapId: string | null, campaignId?: string | null) {
+  const supabase = useMemo(() => createClient(), []);
   const { setTokens, addToken, updateToken, removeToken } = useVttStore();
 
   useEffect(() => {
-    if (!mapId) {
+    if (!mapId || !campaignId) {
         setTokens([]);
         return;
     }
 
     const fetchTokens = async () => {
-      // Fetch tokens with character image info
-      const { data, error } = await supabase
-        .from('tokens')
-        .select(`
-          *,
-          character:characters(image_url, name)
-        `)
-        .eq('map_id', mapId);
+      const params = new URLSearchParams({ campaignId, mapId });
+      const response = await fetch(`/api/vtt/tokens?${params.toString()}`);
+      const payload = (await response.json().catch(() => null)) as {
+        tokens?: TokenRow[];
+        error?: string;
+        details?: string;
+      } | null;
 
-      if (error) {
-        console.error('Error fetching tokens:', error);
+      if (!response.ok) {
+        console.error('Error fetching tokens:', payload);
         return;
       }
       
-      const formattedTokens = data.map((t: any) => ({
+      const formattedTokens = (payload?.tokens ?? []).map((t) => ({
         ...t,
-        // Use character image/name if available and token properties are null?
-        // Or just map character image to a temporary field.
-        image_url: t.character?.image_url,
-        name: t.name || t.character?.name || 'Unknown',
+        image_url: t.image_url || t.character?.image_url || null,
+        name: cleanVttDisplayName(t.name || t.character?.name),
       }));
       
       setTokens(formattedTokens as Token[]);
+      window.dispatchEvent(new CustomEvent('vtt:tokens-changed', { detail: { mapId } }));
     };
 
     fetchTokens();
@@ -53,7 +56,7 @@ export function useVttTokens(mapId: string | null) {
         },
         async (payload) => {
           if (payload.eventType === 'INSERT') {
-            const newToken = payload.new as any;
+            const newToken = payload.new as TokenRow;
             // If it has a character_id, we might need to fetch the character info
             if (newToken.character_id) {
                const { data: charData } = await supabase
@@ -63,16 +66,18 @@ export function useVttTokens(mapId: string | null) {
                  .single();
                
                if (charData) {
-                 newToken.image_url = charData.image_url;
-                 newToken.name = newToken.name || charData.name;
+                 newToken.image_url = newToken.image_url || charData.image_url;
+                 newToken.name = cleanVttDisplayName(newToken.name || charData.name);
                }
             }
+            newToken.name = cleanVttDisplayName(newToken.name);
             addToken(newToken as Token);
+            window.dispatchEvent(new CustomEvent('vtt:tokens-changed', { detail: { mapId, tokenId: newToken.id } }));
           } else if (payload.eventType === 'UPDATE') {
             // For updates, we preserve existing non-DB fields (like image_url) from store if not provided?
             // But payload.new is the whole record.
             // We need to re-attach derived fields.
-             const newToken = payload.new as any;
+             const newToken = payload.new as TokenRow;
              if (newToken.character_id) {
                  const { data: charData } = await supabase
                  .from('characters')
@@ -80,13 +85,16 @@ export function useVttTokens(mapId: string | null) {
                  .eq('id', newToken.character_id)
                  .single();
                  if (charData) {
-                     newToken.image_url = charData.image_url;
-                     newToken.name = newToken.name || charData.name;
+                     newToken.image_url = newToken.image_url || charData.image_url;
+                     newToken.name = cleanVttDisplayName(newToken.name || charData.name);
                  }
              }
+            newToken.name = cleanVttDisplayName(newToken.name);
             updateToken(payload.new.id, newToken as Token);
+            window.dispatchEvent(new CustomEvent('vtt:tokens-changed', { detail: { mapId, tokenId: newToken.id } }));
           } else if (payload.eventType === 'DELETE') {
             removeToken(payload.old.id);
+            window.dispatchEvent(new CustomEvent('vtt:tokens-changed', { detail: { mapId, tokenId: payload.old.id, deleted: true } }));
           }
         }
       )
@@ -95,25 +103,66 @@ export function useVttTokens(mapId: string | null) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [mapId, setTokens, addToken, updateToken, removeToken, supabase]);
+  }, [campaignId, mapId, setTokens, addToken, updateToken, removeToken, supabase]);
 
-  const updateTokenPosition = async (id: string, updates: Partial<Token>) => {
+  const updateTokenPosition = useCallback(async (id: string, updates: Partial<Token>) => {
     // We only send DB columns. Filter out 'image_url' etc.
-    const { image_url, ...dbUpdates } = updates;
+    const dbUpdates = Object.fromEntries(
+      Object.entries(updates).filter(([key, value]) => key !== 'image_url' && value !== undefined)
+    );
     
     // Optimistic update in store
     updateToken(id, updates);
 
-    const { error } = await supabase
-      .from('tokens')
-      .update(dbUpdates)
-      .eq('id', id);
+    if (!campaignId) {
+      console.error('Error updating token: missing campaignId');
+      return;
+    }
 
-    if (error) {
-      console.error('Error updating token:', error);
+    const response = await fetch('/api/vtt/tokens', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        campaignId,
+        tokenId: id,
+        updates: dbUpdates,
+      }),
+    });
+
+    if (!response.ok) {
+      const payload = await response.json().catch(() => null);
+      console.error('Error updating token:', payload);
       // TODO: Revert on error
     }
-  };
+  }, [campaignId, updateToken]);
 
-  return { updateTokenPosition };
+  const deleteToken = useCallback(async (id: string) => {
+    if (!campaignId) {
+      console.error('Error deleting token: missing campaignId');
+      return false;
+    }
+
+    const response = await fetch('/api/vtt/tokens', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        campaignId,
+        tokenId: id,
+      }),
+    });
+
+    if (!response.ok) {
+      const payload = await response.json().catch(() => null);
+      console.error('Error deleting token:', payload);
+      return false;
+    }
+
+    removeToken(id);
+    if (mapId) {
+      window.dispatchEvent(new CustomEvent('vtt:tokens-changed', { detail: { mapId, tokenId: id, deleted: true } }));
+    }
+    return true;
+  }, [campaignId, mapId, removeToken]);
+
+  return { updateTokenPosition, deleteToken };
 }

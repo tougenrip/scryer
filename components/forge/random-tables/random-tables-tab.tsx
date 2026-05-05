@@ -1,13 +1,12 @@
 "use client";
 
 import { useState, useCallback, useMemo } from "react";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { ForgeTabHeader } from "@/components/forge/forge-tab-header";
 import {
   Dices,
   Copy,
@@ -687,77 +686,56 @@ export function RandomTablesTab({ campaignId, isDm }: RandomTablesTabProps) {
   }, [result]);
 
   return (
-    <div
-      style={{
-        padding: "16px 20px",
-        display: "flex",
-        flexDirection: "column",
-        gap: 14,
-      }}
-    >
-      {/* Header */}
-      <div>
-        <div
-          className="font-serif"
-          style={{
-            fontSize: 20,
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-          }}
-        >
-          <Dices size={18} style={{ color: "var(--primary)" }} />
-          Random Generators
-        </div>
-        <div
-          style={{
-            fontSize: 12,
-            color: "var(--muted-foreground)",
-            marginTop: 2,
-          }}
-        >
-          Roll tavern menus, shop inventories, treasure hoards, and more
-        </div>
-      </div>
+    <div className="forge-tab-root sc-fade-in flex flex-col gap-4">
+      <ForgeTabHeader
+        title="Random tables"
+        subtitle={`${GENERATORS.length} generators · quick-roll during session`}
+        actions={
+          <button type="button" className="sc-btn sc-btn-sm" onClick={copyAllToClipboard} disabled={!result}>
+            <Copy className="h-3.5 w-3.5" />
+            Import
+          </button>
+        }
+      />
 
-      {/* Generator Selection */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        {GENERATORS.map(gen => {
-          const Icon = gen.icon;
-          const isSelected = gen.id === selectedGeneratorId;
-          return (
-            <button
-              key={gen.id}
-              onClick={() => {
-                setSelectedGeneratorId(gen.id);
-                setResult(null);
-              }}
-              className={cn(
-                "relative flex items-center gap-3 p-4 rounded-xl border-2 transition-all text-left",
-                "hover:shadow-md hover:border-primary/40",
-                isSelected
-                  ? "border-primary bg-primary/5 shadow-sm"
-                  : "border-border bg-card hover:bg-accent/30"
-              )}
-            >
-              <div className={cn(
-                "w-10 h-10 rounded-lg flex items-center justify-center shrink-0",
-                isSelected ? "bg-primary/20" : "bg-muted"
-              )}>
-                <Icon className={cn("h-5 w-5", isSelected ? "text-primary" : "text-muted-foreground")} />
-              </div>
-              <div>
-                <h3 className="font-semibold text-sm">{gen.name}</h3>
-                <p className="text-xs text-muted-foreground line-clamp-1">{gen.description}</p>
-              </div>
-            </button>
-          );
-        })}
-      </div>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "minmax(200px, 240px) 1fr",
+          gap: 16,
+          alignItems: "start",
+        }}
+        className="max-lg:grid-cols-1"
+      >
+        <div className="sc-card p-2 lg:sticky lg:top-2 self-start">
+          {GENERATORS.map((gen) => {
+            const Icon = gen.icon;
+            const isSelected = gen.id === selectedGeneratorId;
+            return (
+              <button
+                key={gen.id}
+                type="button"
+                onClick={() => {
+                  setSelectedGeneratorId(gen.id);
+                  setResult(null);
+                }}
+                className={cn(
+                  "sidebar-link flex w-full items-center gap-2 rounded-md border-0 px-2.5 py-2 text-left",
+                  isSelected && "active",
+                )}
+              >
+                <span className="w-7 shrink-0 text-[10px] text-muted-foreground font-mono">•</span>
+                <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <span className="text-xs font-medium">{gen.name}</span>
+              </button>
+            );
+          })}
+        </div>
 
+        <div className="flex min-w-0 flex-col gap-4">
       {/* Tier Selection + Generate */}
-      <Card>
-        <CardContent className="p-6">
+      <div className="sc-card" style={{ padding: 18 }}>
+        <div className="p-0">
           <div className="flex flex-col md:flex-row items-start md:items-end gap-6">
             {/* Tier Slider */}
             <div className="flex-1 w-full space-y-3">
@@ -785,43 +763,41 @@ export function RandomTablesTab({ campaignId, isDm }: RandomTablesTabProps) {
             </div>
 
             {/* Generate Button */}
-            <Button
-              size="lg"
+            <button
+              type="button"
               className={cn(
-                "gap-2 px-8 font-semibold shrink-0 min-w-[160px]",
-                isRolling && "animate-pulse"
+                "sc-btn sc-btn-primary sc-btn-sm shrink-0 min-w-[140px] justify-center md:min-w-[160px]",
+                isRolling && "animate-pulse",
               )}
               onClick={handleGenerate}
               disabled={isRolling}
             >
-              <Dices className={cn("h-5 w-5", isRolling && "animate-spin")} />
-              {isRolling ? "Generating..." : "Generate"}
-            </Button>
+              <Dices className={cn("h-4 w-4", isRolling && "animate-spin")} />
+              {isRolling ? "Rolling…" : "Roll"}
+            </button>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Result Display */}
       {result && (
-        <Card className="overflow-hidden">
-          {/* Header bar */}
-          <div className="h-1.5 bg-gradient-to-r from-primary/40 via-primary to-primary/40" />
-          <CardContent className="p-6">
+        <div className="sc-card overflow-hidden">
+          <div className="h-1 bg-gradient-to-r from-primary/40 via-primary to-primary/40" />
+          <div className="p-6">
             {/* Title + Copy */}
             <div className="flex items-start justify-between mb-4">
               <div>
                 <h3 className="font-serif text-2xl font-bold">{result.title}</h3>
                 <p className="text-sm text-muted-foreground">{result.subtitle}</p>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-2 shrink-0"
+              <button
+                type="button"
+                className="sc-btn sc-btn-sm shrink-0"
                 onClick={copyAllToClipboard}
               >
                 <Copy className="h-3.5 w-3.5" />
-                Copy All
-              </Button>
+                Copy
+              </button>
             </div>
 
             {/* Flavor text */}
@@ -886,9 +862,11 @@ export function RandomTablesTab({ campaignId, isDm }: RandomTablesTabProps) {
                 </div>
               ))}
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       )}
+        </div>
+      </div>
     </div>
   );
 }

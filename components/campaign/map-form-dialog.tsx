@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Map } from "@/hooks/useCampaignContent";
+import { parseGridConfig } from "@/lib/vtt/grid-config";
 import { MapImageUpload } from "./map-image-upload";
 import { MapPreview } from "./map-preview";
 
@@ -70,10 +71,11 @@ export function MapFormDialog({
     if (map) {
       setName(map.name);
       setImageUrl(map.image_url);
-      setGridSize(map.grid_size);
-      setGridType(map.grid_type);
-      setWidth(map.width?.toString() || "");
-      setHeight(map.height?.toString() || "");
+      const gc = parseGridConfig(map.grid_config);
+      setGridSize(gc.feetPerSquare);
+      setGridType(gc.gridType);
+      setWidth(gc.widthSquares?.toString() || "");
+      setHeight(gc.heightSquares?.toString() || "");
     } else {
       setName("");
       setImageUrl(null);

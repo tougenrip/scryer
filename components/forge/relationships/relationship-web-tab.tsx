@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState, useEffect, useCallback, useRef } from "react";
-import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,6 +33,7 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { ForgeTabHeader } from "@/components/forge/forge-tab-header";
 import {
   Maximize2,
   Minimize2,
@@ -303,7 +303,7 @@ export function RelationshipWebTab({ campaignId, isDm }: RelationshipWebTabProps
 
   if (isLoading) {
     return (
-      <div style={{ padding: "16px 20px" }}>
+      <div className="forge-tab-root">
         <Skeleton className="h-6 w-56 mb-2" />
         <Skeleton className="h-3 w-80 mb-4" />
         <div className="sc-card" style={{ padding: 14 }}>
@@ -343,24 +343,39 @@ export function RelationshipWebTab({ campaignId, isDm }: RelationshipWebTabProps
       <div
         ref={containerRef}
         className={cn(
-          isFullscreen && "fixed inset-0 z-50 bg-background"
+          isFullscreen && "fixed inset-0 z-50 bg-background",
+          !isFullscreen && "forge-tab-root sc-fade-in",
         )}
-        style={!isFullscreen ? { padding: "16px 20px" } : undefined}
       >
         {!isFullscreen && (
-          <div style={{ marginBottom: 14 }}>
-            <div className="font-serif" style={{ fontSize: 20 }}>
-              Relationship Web
-            </div>
-            <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
-              Visualize bonds, alliances, and rivalries between NPCs, factions,
-              locations, and deities
-            </div>
-          </div>
+          <ForgeTabHeader
+            title="Relationship Web"
+            subtitle={
+              isDm
+                ? "Drag nodes · scroll to zoom · secret links stay DM-only."
+                : "Bonds and factions your characters can discover."
+            }
+            actions={
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                  <span className="h-0.5 w-3 bg-[#7ec27e]" />
+                  Ally
+                </span>
+                <span className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                  <span className="h-0.5 w-3 bg-destructive" />
+                  Enemy
+                </span>
+                <span className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                  <span className="h-0.5 w-3 bg-[#d6a85a]" />
+                  Rival
+                </span>
+              </div>
+            }
+          />
         )}
-        <Card className={cn("overflow-hidden", isFullscreen && "rounded-none border-0 h-full")}>
+        <div className={cn("sc-card overflow-hidden", isFullscreen && "rounded-none border-0 h-full")}>
           {/* Toolbar */}
-          <div className="flex items-center justify-between gap-2 px-4 py-2 border-b bg-muted/30">
+          <div className="flex items-center justify-between gap-2 border-b border-border bg-muted/30 px-4 py-2">
             <div className="flex items-center gap-1.5">
               <Filter className="h-4 w-4 text-muted-foreground" />
               {filterButtons.map(({ type, label, icon: Icon, count }) => (
@@ -400,7 +415,7 @@ export function RelationshipWebTab({ campaignId, isDm }: RelationshipWebTabProps
             </div>
           </div>
 
-          <CardContent className="p-0">
+          <div className="p-0">
             <div className={cn("flex w-full", isFullscreen ? "h-[calc(100vh-41px)]" : "h-[600px]")}>
               {isDm && (
                 <RelationshipBoardSidebar
@@ -430,8 +445,8 @@ export function RelationshipWebTab({ campaignId, isDm }: RelationshipWebTabProps
                 />
               </div>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
 
       {/* Connection Edit Dialog */}

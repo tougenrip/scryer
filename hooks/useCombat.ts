@@ -1,6 +1,10 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { RealtimeChannel } from '@supabase/supabase-js';
+import {
+  notifyVttCombatChanged,
+  VTT_COMBAT_CHANGED_EVENT,
+  type VttCombatChangedDetail,
+} from '@/lib/vtt/combat-events';
 
 export interface CombatEncounter {
   id: string;
@@ -27,6 +31,7 @@ export interface CombatParticipant {
 export interface TokenData {
   id: string;
   name: string | null;
+  image_url: string | null;
   character_id: string | null;
   monster_source: string | null;
   monster_index: string | null;
@@ -36,23 +41,165 @@ export interface TokenData {
     name: string;
     image_url: string | null;
   };
+  monster?: {
+    index: string;
+    name: string;
+    armor_class: number | null;
+    hit_points: number | null;
+    hit_dice: string | null;
+    speed: unknown;
+    damage_resistances: string[] | null;
+    damage_immunities: string[] | null;
+    damage_vulnerabilities: string[] | null;
+    condition_immunities: string[] | null;
+    senses: unknown;
+    type: string | null;
+    subtype: string | null;
+    challenge_rating: number | null;
+  } | null;
 }
 
-export function useCombat(campaignId: string, mapId?: string) {
+function toCombatError(err: unknown, fallback: string) {
+  if (err instanceof Error) return err;
+
+  if (err && typeof err === "object") {
+    const supabaseError = err as {
+      message?: string;
+      details?: string;
+      hint?: string;
+      code?: string;
+    };
+    const parts = [
+      supabaseError.message,
+      supabaseError.details,
+      supabaseError.hint,
+      supabaseError.code ? `Code: ${supabaseError.code}` : null,
+    ].filter(Boolean);
+
+    return new Error(parts.join(" | ") || fallback);
+  }
+
+  return new Error(typeof err === "string" ? err : fallback);
+}
+
+export function useCombat(campaignId: string, mapId?: string, enabled: boolean = true) {
   const [activeEncounter, setActiveEncounter] = useState<CombatEncounter | null>(null);
   const [participants, setParticipants] = useState<CombatParticipant[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  const activeEncounterRef = useRef<CombatEncounter | null>(null);
 
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
+
+  useEffect(() => {
+    activeEncounterRef.current = activeEncounter;
+  }, [activeEncounter]);
+
+  // Fetch participants for an encounter
+  const fetchParticipants = useCallback(async (encounterId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('combat_participants')
+        .select(`
+          id,
+          encounter_id,
+          token_id,
+          initiative_roll,
+          turn_order,
+          conditions,
+          notes,
+          token:tokens (
+            id,
+            name,
+            image_url,
+            character_id,
+            monster_source,
+            monster_index,
+            hp_current,
+            hp_max,
+            character:characters (
+              name,
+              image_url
+            )
+          )
+        `)
+        .eq('encounter_id', encounterId)
+        .order('turn_order', { ascending: true });
+
+      if (error) throw error;
+
+      const combatParticipants = (data ?? []) as unknown as CombatParticipant[];
+
+      if (!mapId) {
+        setParticipants(combatParticipants);
+        return;
+      }
+
+      const params = new URLSearchParams({ campaignId, mapId });
+      const response = await fetch(`/api/vtt/tokens?${params.toString()}`);
+      const payload = (await response.json().catch(() => null)) as {
+        tokens?: TokenData[];
+        error?: string;
+      } | null;
+
+      if (!response.ok) {
+        throw new Error(payload?.error || "Could not load combat token details.");
+      }
+
+      const tokensById = new Map((payload?.tokens ?? []).map((token) => [token.id, token]));
+      setParticipants(
+        combatParticipants.map((participant) => ({
+          ...participant,
+          token: tokensById.get(participant.token_id) ?? participant.token,
+        }))
+      );
+    } catch (err) {
+      const normalized = toCombatError(err, "Error fetching participants.");
+      console.error('Error fetching participants:', normalized.message);
+      setError(normalized);
+    }
+  }, [campaignId, mapId, supabase]);
+
+  useEffect(() => {
+    if (!enabled) return;
+
+    const handleTokensChanged = (event: Event) => {
+      const detail = (event as CustomEvent<{
+        mapId?: string | null;
+        tokenId?: string;
+        deleted?: boolean;
+      }>).detail;
+
+      if (mapId && detail?.mapId && detail.mapId !== mapId) return;
+
+      const currentEncounter = activeEncounterRef.current;
+      if (!currentEncounter) return;
+
+      if (detail?.deleted && detail.tokenId) {
+        setParticipants((prev) => prev.filter((participant) => participant.token_id !== detail.tokenId));
+      }
+
+      void fetchParticipants(currentEncounter.id);
+    };
+
+    window.addEventListener('vtt:tokens-changed', handleTokensChanged);
+    return () => window.removeEventListener('vtt:tokens-changed', handleTokensChanged);
+  }, [enabled, fetchParticipants, mapId]);
 
   // Fetch the active encounter for the campaign (and optionally map)
   const fetchEncounter = useCallback(async () => {
     try {
       setLoading(true);
+      if (!enabled) {
+        setActiveEncounter(null);
+        setParticipants([]);
+        setLoading(false);
+        return;
+      }
+
       let query = supabase
         .from('combat_encounters')
-        .select('*')
+        .select('id, campaign_id, map_id, name, active, round_number, current_turn_index, created_at')
         .eq('campaign_id', campaignId)
         .eq('active', true);
 
@@ -71,46 +218,34 @@ export function useCombat(campaignId: string, mapId?: string) {
         setParticipants([]);
       }
     } catch (err) {
-      setError(err as Error);
+      setError(toCombatError(err, "Error fetching encounter."));
     } finally {
       setLoading(false);
     }
-  }, [campaignId, mapId]);
+  }, [campaignId, enabled, fetchParticipants, mapId, supabase]);
 
-  // Fetch participants for an encounter
-  const fetchParticipants = async (encounterId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('combat_participants')
-        .select(`
-          *,
-          token:tokens (
-            id,
-            name,
-            character_id,
-            monster_source,
-            monster_index,
-            hp_current,
-            hp_max,
-            character:characters (
-              name,
-              image_url
-            )
-          )
-        `)
-        .eq('encounter_id', encounterId)
-        .order('turn_order', { ascending: true });
+  useEffect(() => {
+    if (!enabled) return;
 
-      if (error) throw error;
-      
-      // Transform data to match interface if needed
-      // Supabase returns nested objects, which matches our TokenData structure roughly
-      setParticipants(data as unknown as CombatParticipant[]);
-    } catch (err) {
-      console.error('Error fetching participants:', err);
-      setError(err as Error);
-    }
-  };
+    const handleCombatChanged = (event: Event) => {
+      const detail = (event as CustomEvent<VttCombatChangedDetail>).detail;
+      if (detail?.campaignId !== campaignId) return;
+      if (mapId && detail.mapId && detail.mapId !== mapId) return;
+
+      if (detail.active === false && activeEncounterRef.current?.id === detail.encounterId) {
+        setActiveEncounter(null);
+        activeEncounterRef.current = null;
+        setParticipants([]);
+        setLoading(false);
+        return;
+      }
+
+      void fetchEncounter();
+    };
+
+    window.addEventListener(VTT_COMBAT_CHANGED_EVENT, handleCombatChanged);
+    return () => window.removeEventListener(VTT_COMBAT_CHANGED_EVENT, handleCombatChanged);
+  }, [campaignId, enabled, fetchEncounter, mapId]);
 
   // Start a new encounter
   const startEncounter = async (name: string, mapId: string) => {
@@ -138,10 +273,17 @@ export function useCombat(campaignId: string, mapId?: string) {
       if (error) throw error;
       setActiveEncounter(data);
       setParticipants([]);
+      notifyVttCombatChanged({
+        campaignId,
+        mapId,
+        encounterId: data.id,
+        active: true,
+      });
       return data;
     } catch (err) {
-      setError(err as Error);
-      return null;
+      const normalized = toCombatError(err, "Failed to start combat.");
+      setError(normalized);
+      throw normalized;
     }
   };
 
@@ -155,10 +297,19 @@ export function useCombat(campaignId: string, mapId?: string) {
         .eq('id', activeEncounter.id);
 
       if (error) throw error;
+      const endedEncounter = activeEncounter;
       setActiveEncounter(null);
       setParticipants([]);
+      notifyVttCombatChanged({
+        campaignId,
+        mapId: endedEncounter.map_id,
+        encounterId: endedEncounter.id,
+        active: false,
+      });
     } catch (err) {
-      setError(err as Error);
+      const normalized = toCombatError(err, "Failed to end combat.");
+      setError(normalized);
+      throw normalized;
     }
   };
 
@@ -166,13 +317,21 @@ export function useCombat(campaignId: string, mapId?: string) {
   const addParticipant = async (tokenId: string, initiative: number) => {
     if (!activeEncounter) return;
     try {
-      // Calculate turn order (simple sort for now, can be reordered later)
-      // For now, just append or sort by initiative
+      const { data: maxRow } = await supabase
+        .from('combat_participants')
+        .select('turn_order')
+        .eq('encounter_id', activeEncounter.id)
+        .order('turn_order', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      const nextOrder = (maxRow?.turn_order ?? -1) + 1;
+
       const newParticipant = {
         encounter_id: activeEncounter.id,
         token_id: tokenId,
         initiative_roll: initiative,
-        turn_order: 0, // Should be calculated
+        turn_order: nextOrder,
       };
 
       const { error } = await supabase
@@ -180,9 +339,47 @@ export function useCombat(campaignId: string, mapId?: string) {
         .insert(newParticipant);
 
       if (error) throw error;
-      // Realtime subscription will update the list
+      await fetchParticipants(activeEncounter.id);
     } catch (err) {
-      setError(err as Error);
+      const normalized = toCombatError(err, "Failed to add token to combat.");
+      setError(normalized);
+      throw normalized;
+    }
+  };
+
+  // Add multiple participants
+  const addParticipants = async (encounterId: string, newParticipants: {token_id: string, initiative_roll: number}[]) => {
+    try {
+      const { data: maxRow } = await supabase
+        .from('combat_participants')
+        .select('turn_order')
+        .eq('encounter_id', encounterId)
+        .order('turn_order', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      const nextOrder = (maxRow?.turn_order ?? -1) + 1;
+
+      // Sort by initiative descending
+      const sorted = [...newParticipants].sort((a, b) => b.initiative_roll - a.initiative_roll);
+      
+      const rows = sorted.map((p, index) => ({
+        encounter_id: encounterId,
+        token_id: p.token_id,
+        initiative_roll: p.initiative_roll,
+        turn_order: nextOrder + index,
+      }));
+
+      const { error } = await supabase
+        .from('combat_participants')
+        .insert(rows);
+
+      if (error) throw error;
+      await fetchParticipants(encounterId);
+    } catch (err) {
+      const normalized = toCombatError(err, "Failed to add tokens to combat.");
+      setError(normalized);
+      throw normalized;
     }
   };
 
@@ -195,8 +392,11 @@ export function useCombat(campaignId: string, mapId?: string) {
         .eq('id', id);
 
       if (error) throw error;
+      if (activeEncounter) {
+        await fetchParticipants(activeEncounter.id);
+      }
     } catch (err) {
-      setError(err as Error);
+      setError(toCombatError(err, "Failed to update participant."));
     }
   };
 
@@ -209,8 +409,11 @@ export function useCombat(campaignId: string, mapId?: string) {
         .eq('id', id);
 
       if (error) throw error;
+      if (activeEncounter) {
+        await fetchParticipants(activeEncounter.id);
+      }
     } catch (err) {
-      setError(err as Error);
+      setError(toCombatError(err, "Failed to remove participant."));
     }
   };
 
@@ -223,8 +426,11 @@ export function useCombat(campaignId: string, mapId?: string) {
         .eq('id', id);
 
       if (error) throw error;
+      if (activeEncounter) {
+        await fetchParticipants(activeEncounter.id);
+      }
     } catch (err) {
-      setError(err as Error);
+      setError(toCombatError(err, "Failed to update token."));
     }
   };
 
@@ -254,7 +460,7 @@ export function useCombat(campaignId: string, mapId?: string) {
       if (error) throw error;
       setActiveEncounter(data);
     } catch (err) {
-      setError(err as Error);
+      setError(toCombatError(err, "Failed to advance turn."));
     }
   };
 
@@ -284,12 +490,20 @@ export function useCombat(campaignId: string, mapId?: string) {
       if (error) throw error;
       setActiveEncounter(data);
     } catch (err) {
-      setError(err as Error);
+      setError(toCombatError(err, "Failed to go to previous turn."));
     }
   };
 
-  // Subscribe to changes
+  // Subscribe to changes. Keep this independent from activeEncounter so the
+  // realtime channel does not get recreated on every combat state update.
   useEffect(() => {
+    if (!enabled) {
+      setActiveEncounter(null);
+      setParticipants([]);
+      setLoading(false);
+      return;
+    }
+
     fetchEncounter();
 
     const channel = supabase.channel(`combat-${campaignId}`)
@@ -306,13 +520,16 @@ export function useCombat(campaignId: string, mapId?: string) {
              // If we are looking for specific map, filter
              const newEncounter = payload.new as CombatEncounter;
              if (newEncounter.active && (!mapId || newEncounter.map_id === mapId)) {
+               const previousEncounter = activeEncounterRef.current;
                setActiveEncounter(newEncounter);
+               activeEncounterRef.current = newEncounter;
                // If it's a new encounter or ID changed, fetch participants
-               if (!activeEncounter || activeEncounter.id !== newEncounter.id) {
+               if (!previousEncounter || previousEncounter.id !== newEncounter.id) {
                  fetchParticipants(newEncounter.id);
                }
-             } else if (!newEncounter.active && activeEncounter && activeEncounter.id === newEncounter.id) {
+             } else if (!newEncounter.active && activeEncounterRef.current?.id === newEncounter.id) {
                setActiveEncounter(null);
+               activeEncounterRef.current = null;
                setParticipants([]);
              }
           }
@@ -327,11 +544,27 @@ export function useCombat(campaignId: string, mapId?: string) {
         },
         async (payload) => {
           // If we have an active encounter, check if this participant belongs to it
-          if (activeEncounter) {
+          const currentEncounter = activeEncounterRef.current;
+          if (currentEncounter) {
             const participant = (payload.new || payload.old) as CombatParticipant;
-            if (participant.encounter_id === activeEncounter.id) {
-              await fetchParticipants(activeEncounter.id);
+            if (participant.encounter_id === currentEncounter.id) {
+              await fetchParticipants(currentEncounter.id);
             }
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'tokens',
+          ...(mapId ? { filter: `map_id=eq.${mapId}` } : {}),
+        },
+        async () => {
+          const currentEncounter = activeEncounterRef.current;
+          if (currentEncounter) {
+            await fetchParticipants(currentEncounter.id);
           }
         }
       )
@@ -340,10 +573,7 @@ export function useCombat(campaignId: string, mapId?: string) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [campaignId, mapId, fetchEncounter]); // Added fetchEncounter to dependencies, need to be careful with infinite loops.
-  // Note: activeEncounter in dependency might cause issues if not handled carefully in effect. 
-  // actually fetchEncounter updates state, so it shouldn't be in dependency of the effect that calls it if it causes loop, 
-  // but here fetchEncounter is memoized on [campaignId, mapId].
+  }, [campaignId, enabled, fetchEncounter, fetchParticipants, mapId, supabase]);
 
   return {
     activeEncounter,
@@ -353,6 +583,7 @@ export function useCombat(campaignId: string, mapId?: string) {
     startEncounter,
     endEncounter,
     addParticipant,
+    addParticipants,
     updateParticipant,
     removeParticipant,
     updateToken,

@@ -3,52 +3,8 @@
 import { useState, useRef, useEffect, type ComponentType, type CSSProperties } from "react";
 import { cn } from "@/lib/utils";
 import { LocationMarker } from "@/hooks/useForgeContent";
-import { 
-  MapPin, 
-  X, 
-  Edit2, 
-  ZoomIn, 
-  ZoomOut, 
-  RotateCcw, 
-  Move,
-  Building2,
-  Home,
-  Castle,
-  UtensilsCrossed,
-  ShoppingBag,
-  Church,
-  DoorOpen,
-  TreePine,
-  Landmark,
-  Anchor,
-  Shield
-} from "lucide-react";
-import {
-  CircleIcon,
-  DiamondIcon,
-  SquareIcon,
-  AxeIcon,
-  PotionIcon,
-  MoonStarIcon,
-  StarIcon,
-  SwordIcon,
-  FlagIcon,
-  CastleIcon,
-  HouseIcon,
-  GlobeIcon,
-  MagicShopIcon,
-  ButcherIcon,
-  SchoolIcon,
-  EnemyIcon,
-  LootIcon,
-  QuestIcon,
-  SideQuestIcon,
-} from "./marker-icons";
-
-// Re-export shape icons for use as marker icons
-const SphereIcon = CircleIcon;
-const ShapeSquareIcon = SquareIcon;
-const ShapeDiamondIcon = DiamondIcon;
+import { ZoomIn, ZoomOut, RotateCcw } from "lucide-react";
+import { MARKER_PIN_ICON_MAP } from "./marker-pin-icon-registry";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import {
@@ -441,47 +397,6 @@ export function AtlasMap({
     };
   };
 
-  // Icon type definitions matching marker-form-dialog.tsx
-  const markerIcons: Record<
-    NonNullable<LocationMarker['icon_type']>,
-    ComponentType<{ className?: string }>
-  > = {
-    // Basic Shapes
-    sphere: SphereIcon,
-    shape_square: ShapeSquareIcon,
-    shape_diamond: ShapeDiamondIcon,
-    // Fantasy Icons
-    axe: AxeIcon,
-    potion: PotionIcon,
-    moon_star: MoonStarIcon,
-    star: StarIcon,
-    sword: SwordIcon,
-    flag: FlagIcon,
-    magic_shop: MagicShopIcon,
-    butcher: ButcherIcon,
-    school: SchoolIcon,
-    enemy: EnemyIcon,
-    loot: LootIcon,
-    quest: QuestIcon,
-    side_quest: SideQuestIcon,
-    // Location Icons
-    castle: CastleIcon,
-    house: HouseIcon,
-    globe: GlobeIcon,
-    // Legacy icons (keeping for backward compatibility)
-    city: Building2,
-    village: Home,
-    fort: Castle,
-    tavern: UtensilsCrossed,
-    shop: ShoppingBag,
-    temple: Church,
-    dungeon: DoorOpen,
-    cave: TreePine,
-    landmark: Landmark,
-    port: Anchor,
-    border: Shield,
-  };
-
   const getMarkerComponents = (
     backgroundShape: LocationMarker['background_shape'],
     iconType: LocationMarker['icon_type'],
@@ -513,7 +428,20 @@ export function AtlasMap({
       'castle': '#92400e', // Brown
       'house': '#92400e', // Brown
       'globe': '#8b5cf6', // Purple
-      // Legacy icons
+      'sphere': '#64748b',
+      'shape_square': '#64748b',
+      'shape_diamond': '#64748b',
+      // RPG scene
+      'camp': '#15803d',
+      'rest': '#22c55e',
+      'portal': '#a855f7',
+      'dragon': '#b91c1c',
+      'lair': '#7f1d1d',
+      'arcane': '#6366f1',
+      'hazard': '#ea580c',
+      'trap': '#78716c',
+      'shrine': '#d946ef',
+      // Places (design-system row)
       'city': '#3b82f6',
       'village': '#10b981',
       'fort': '#ef4444',
@@ -548,7 +476,9 @@ export function AtlasMap({
       }
     }
 
-    const IconComponent = iconType ? markerIcons[iconType] : Landmark;
+    const IconComponent = iconType
+      ? MARKER_PIN_ICON_MAP[iconType]
+      : MARKER_PIN_ICON_MAP.landmark;
     const glyphMode: 'pin' | 'standalone' = backgroundShape ? 'pin' : 'standalone';
 
     return {
@@ -690,12 +620,6 @@ export function AtlasMap({
                   large: { container: 56, icon: 17 },
                 };
                 const sizes = sizePixels[marker.size];
-                const sizeClasses = {
-                  small: { container: 'h-8 w-8', icon: 'h-2.5 w-2.5' },
-                  medium: { container: 'h-11 w-11', icon: 'h-3.5 w-3.5' },
-                  large: { container: 'h-14 w-14', icon: 'h-4 w-4' },
-                };
-                const sizeClassNames = sizeClasses[marker.size];
 
                 return (
                   <Tooltip key={marker.id} delayDuration={300}>
@@ -733,6 +657,9 @@ export function AtlasMap({
                             marker.background_shape,
                             box
                           );
+                          /** Frame SVG (teardrop/bookmark) is shifted down in its layer; glyph must use the same offset or it stays box-centered and looks high vs the fill. */
+                          const iconTranslateY =
+                            backgroundOnlyOffsetY + iconCentroidNudgeY;
                           const pinIconPx = Math.max(
                             6,
                             Math.round(sizes.icon * (hasFrame ? 0.9 : 1))
@@ -746,7 +673,7 @@ export function AtlasMap({
                                   color: pinGlyphColor,
                                   fill: pinGlyphColor,
                                   stroke: pinGlyphColor,
-                                  strokeWidth: 1,
+                                  strokeWidth: 2,
                                   strokeLinejoin: 'round',
                                   strokeLinecap: 'round',
                                 }
@@ -756,7 +683,7 @@ export function AtlasMap({
                                   color: '#ffffff',
                                   fill: '#ffffff',
                                   stroke: '#0a0a0a',
-                                  strokeWidth: 2.25,
+                                  strokeWidth: 5,
                                   paintOrder: 'stroke fill',
                                   strokeLinejoin: 'round',
                                   strokeLinecap: 'round',
@@ -796,18 +723,18 @@ export function AtlasMap({
                                   </div>
                                 )}
                                 <div
-                                  className="relative z-10 flex items-center justify-center"
+                                  className="relative z-10 flex w-full min-w-0 items-center justify-center leading-none [&_svg]:block"
                                   style={{
                                     transform:
-                                      iconCentroidNudgeY !== 0
-                                        ? `translateY(${iconCentroidNudgeY}px)`
+                                      iconTranslateY !== 0
+                                        ? `translateY(${iconTranslateY}px)`
                                         : undefined,
                                   }}
                                 >
                                   <IconComponent
                                     className={cn(
                                       glyphMode === 'standalone' && 'drop-shadow-sm',
-                                      sizeClassNames.icon
+                                      'shrink-0'
                                     )}
                                     style={iconStyle}
                                   />

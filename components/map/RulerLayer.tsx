@@ -6,10 +6,17 @@ interface RulerLayerProps {
   start: Vector2d | null;
   end: Vector2d | null;
   gridSize: number;
+  feetPerSquare: number;
   scale: number;
 }
 
-export const RulerLayer: React.FC<RulerLayerProps> = ({ start, end, gridSize, scale }) => {
+export const RulerLayer: React.FC<RulerLayerProps> = ({
+  start,
+  end,
+  gridSize,
+  feetPerSquare,
+  scale,
+}) => {
   if (!start || !end) return null;
 
   const dx = end.x - start.x;
@@ -18,9 +25,9 @@ export const RulerLayer: React.FC<RulerLayerProps> = ({ start, end, gridSize, sc
   // Calculate distance in pixels
   const pixelDistance = Math.sqrt(dx * dx + dy * dy);
   
-  // Convert to game units (5ft per grid cell)
-  // gridSize is pixels per cell
-  const gameDistance = Math.round((pixelDistance / gridSize) * 5 * 10) / 10; // Round to 1 decimal
+  // gridSize = pixels per cell; feetPerSquare from scene grid settings
+  const gameDistance =
+    Math.round((pixelDistance / gridSize) * feetPerSquare * 10) / 10;
 
   return (
     <Group>

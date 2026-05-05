@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600">
+  <rect width="800" height="600" fill="#2e261c"/>
+  <g stroke="#7a6548" stroke-width="1" opacity="0.4">
+    <defs>
+      <pattern id="g50" width="50" height="50" patternUnits="userSpaceOnUse">
+        <path d="M 50 0 L 0 0 0 50" fill="none"/>
+      </pattern>
+    </defs>
+    <rect width="800" height="600" fill="url(#g50)"/>
+  </g>
+  <text x="400" y="300" text-anchor="middle" fill="#a89878" font-family="system-ui,sans-serif" font-size="16">Sample: sandy arena (50px grid)</text>
+</svg>

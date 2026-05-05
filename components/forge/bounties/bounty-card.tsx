@@ -1,11 +1,7 @@
 "use client";
 
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Edit, Trash2, EyeOff } from "lucide-react";
 import { Bounty } from "@/hooks/useCampaignContent";
-import { cn } from "@/lib/utils";
 import {
   Select,
   SelectContent,
@@ -19,136 +15,152 @@ interface BountyCardProps {
   isDm: boolean;
   onEdit?: (bounty: Bounty) => void;
   onDelete?: (bountyId: string) => void;
-  onStatusChange?: (bountyId: string, status: 'available' | 'claimed' | 'completed') => void;
+  onStatusChange?: (bountyId: string, status: "available" | "claimed" | "completed") => void;
 }
+
+const parchment = "#d6a85a";
 
 export function BountyCard({ bounty, isDm, onEdit, onDelete, onStatusChange }: BountyCardProps) {
-  const getStatusBadge = (status: Bounty['status']) => {
-    switch (status) {
-      case 'available':
-        return <Badge variant="default" className="bg-green-600 text-white">Available</Badge>;
-      case 'claimed':
-        return <Badge variant="default" className="bg-yellow-600 text-white">Claimed</Badge>;
-      case 'completed':
-        return <Badge variant="default" className="bg-blue-600 text-white">Completed</Badge>;
-      default:
-        return null;
-    }
-  };
-
-  const getTargetTypeBadge = (type: Bounty['target_type']) => {
-    switch (type) {
-      case 'npc':
-        return <Badge variant="outline">NPC</Badge>;
-      case 'monster':
-        return <Badge variant="outline">Monster</Badge>;
-      case 'other':
-        return <Badge variant="outline">Other</Badge>;
-      default:
-        return null;
-    }
-  };
+  const closed = bounty.status === "completed";
 
   return (
-    <Card className="h-full flex flex-col">
-      <CardHeader>
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex-1 min-w-0">
-            <CardTitle className="font-serif mb-2">{bounty.title}</CardTitle>
-            <CardDescription className="line-clamp-1">
-              Target: {bounty.target_name}
-            </CardDescription>
-          </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
-            {getStatusBadge(bounty.status)}
-            {isDm && bounty.hidden_from_players && (
-              <EyeOff className="h-4 w-4 text-amber-600" title="Hidden from players" />
-            )}
-            {isDm && (
-              <div className="flex gap-1">
-                {onEdit && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onEdit(bounty);
-                    }}
-                  >
-                    <Edit className="h-4 w-4" />
-                  </Button>
-                )}
-                {onDelete && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-destructive hover:text-destructive"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onDelete(bounty.id);
-                    }}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-        <div className="flex flex-wrap gap-2 mt-2">
-          {getTargetTypeBadge(bounty.target_type)}
-          {(bounty.location || bounty.posted_by) && (
-            <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-              {bounty.location && (
-                <span>📍 {bounty.location}</span>
-              )}
-              {bounty.posted_by && (
-                <span>📋 {bounty.posted_by}</span>
-              )}
-            </div>
-          )}
-        </div>
-      </CardHeader>
-      
-      <CardContent className="flex-1 flex flex-col">
-        {bounty.description && (
-          <p className="text-sm text-muted-foreground mb-4 line-clamp-3">
-            {bounty.description}
-          </p>
-        )}
-        
-        {bounty.reward && (
-          <div className="mb-4">
-            <p className="text-xs font-semibold text-muted-foreground mb-1">Reward:</p>
-            <p className="text-sm font-medium text-foreground">{bounty.reward}</p>
-          </div>
-        )}
+    <div
+      className="sc-card relative flex h-full flex-col overflow-hidden"
+      style={{
+        background: `color-mix(in srgb, ${parchment} 6%, var(--card))`,
+        borderColor: `color-mix(in srgb, ${parchment} 25%, var(--border))`,
+        opacity: closed ? 0.55 : 1,
+        padding: 16,
+      }}
+    >
+      <div
+        style={{
+          position: "absolute",
+          top: -6,
+          left: 10,
+          right: 10,
+          height: 12,
+          borderTop: `2px dashed color-mix(in srgb, ${parchment} 40%, transparent)`,
+        }}
+      />
 
-        {isDm && onStatusChange && (
-          <div className="mt-auto pt-4 border-t">
-            <label className="text-xs font-semibold text-muted-foreground mb-2 block">
-              Status
-            </label>
-            <Select
-              value={bounty.status}
-              onValueChange={(value: 'available' | 'claimed' | 'completed') => {
-                onStatusChange(bounty.id, value);
-              }}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="available">Available</SelectItem>
-                <SelectItem value="claimed">Claimed</SelectItem>
-                <SelectItem value="completed">Completed</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+      <div className="mb-2.5 text-center">
+        <div
+          style={{
+            fontFamily: "var(--font-serif)",
+            fontSize: 11,
+            letterSpacing: "0.3em",
+            color: parchment,
+          }}
+        >
+          WANTED
+        </div>
+        <div
+          className="font-serif"
+          style={{
+            fontSize: 13,
+            letterSpacing: "0.15em",
+            color: "var(--muted-foreground)",
+          }}
+        >
+          — {bounty.status === "available" ? "ALIVE PREFERRED" : bounty.status.toUpperCase()} —
+        </div>
+      </div>
+
+      <div
+        style={{
+          height: 80,
+          marginBottom: 10,
+          borderRadius: 6,
+          background: `repeating-linear-gradient(135deg, color-mix(in srgb, var(--foreground) 7%, transparent) 0 8px, transparent 8px 16px)`,
+          border: "1px solid var(--border)",
+          display: "grid",
+          placeItems: "center",
+          fontSize: 10,
+          color: "var(--muted-foreground)",
+          fontFamily: "ui-monospace, monospace",
+        }}
+      >
+        portrait
+      </div>
+
+      <div className="font-serif text-center text-base mb-1.5 leading-tight">{bounty.target_name}</div>
+      {bounty.title && (
+        <div className="text-center text-[11px] text-muted-foreground mb-1 line-clamp-2">{bounty.title}</div>
+      )}
+
+      {bounty.description && (
+        <p
+          className="mb-3 text-center text-[11px] leading-relaxed text-muted-foreground line-clamp-4"
+          style={{ minHeight: 0 }}
+        >
+          {bounty.description}
+        </p>
+      )}
+
+      <div
+        className="mt-auto flex items-center justify-between gap-2 border-t border-dashed pt-2.5"
+        style={{ borderColor: `color-mix(in srgb, ${parchment} 30%, transparent)` }}
+      >
+        <span className="text-[10px] text-muted-foreground">
+          {bounty.posted_by ? `Posted by ${bounty.posted_by}` : "—"}
+        </span>
+        {bounty.reward && (
+          <span className="font-serif text-sm" style={{ color: parchment }}>
+            {bounty.reward}
+          </span>
         )}
-      </CardContent>
-    </Card>
+      </div>
+
+      {isDm && (
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-border pt-2">
+          <div className="flex items-center gap-1">
+            {bounty.hidden_from_players && (
+              <EyeOff className="h-3.5 w-3.5 text-amber-600" title="Hidden from players" />
+            )}
+            {onStatusChange && (
+              <Select
+                value={bounty.status}
+                onValueChange={(value: "available" | "claimed" | "completed") => {
+                  onStatusChange(bounty.id, value);
+                }}
+              >
+                <SelectTrigger className="sc-input h-8 w-[130px] text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="available">Available</SelectItem>
+                  <SelectItem value="claimed">Claimed</SelectItem>
+                  <SelectItem value="completed">Completed</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
+          </div>
+          <div className="flex gap-1">
+            {onEdit && (
+              <button
+                type="button"
+                className="sc-btn sc-btn-sm sc-btn-ghost sc-btn-icon"
+                onClick={() => onEdit(bounty)}
+                aria-label="Edit bounty"
+              >
+                <Edit className="h-3.5 w-3.5" />
+              </button>
+            )}
+            {onDelete && (
+              <button
+                type="button"
+                className="sc-btn sc-btn-sm sc-btn-ghost sc-btn-icon"
+                style={{ color: "var(--destructive)" }}
+                onClick={() => onDelete(bounty.id)}
+                aria-label="Delete bounty"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
-

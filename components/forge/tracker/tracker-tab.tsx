@@ -12,6 +12,7 @@ import {
 } from "@/hooks/useForgeContent";
 import { toast } from "sonner";
 import { TimelineEntryFormDialog } from "./timeline-entry-form-dialog";
+import { ForgeTabHeader } from "@/components/forge/forge-tab-header";
 import { TimelineCanvas } from "./timeline-canvas-flow";
 import {
   AlertDialog,
@@ -245,7 +246,7 @@ export function CampaignTrackerTab({ campaignId, isDm }: CampaignTrackerTabProps
 
   if (loading) {
     return (
-      <div style={{ padding: "16px 20px" }}>
+      <div className="forge-tab-root">
         <div style={{ marginBottom: 14 }}>
           <Skeleton className="h-6 w-56" />
         </div>
@@ -257,27 +258,27 @@ export function CampaignTrackerTab({ campaignId, isDm }: CampaignTrackerTabProps
   }
 
   return (
-    <div style={{ padding: "16px 20px" }}>
-      {/* Header */}
+    <div className="forge-tab-root sc-fade-in">
+      <ForgeTabHeader
+        title="Timeline"
+        subtitle={`${timeline.length} entr${timeline.length === 1 ? "y" : "ies"} · canvas view · scroll to zoom`}
+      />
       <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: 14,
-          flexWrap: "wrap",
-          gap: 10,
-        }}
+        className="mb-3 flex flex-wrap gap-4 text-[11px] text-muted-foreground"
+        style={{ alignItems: "center" }}
       >
-        <div>
-          <div className="font-serif" style={{ fontSize: 20 }}>
-            Campaign Timeline
-          </div>
-          <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
-            {timeline.length} entr{timeline.length === 1 ? "y" : "ies"} — plan
-            sessions and branch alternate paths
-          </div>
-        </div>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="inline-block h-0.5 w-2.5 bg-[#7ec27e]" />
+          Main path
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="inline-block h-0.5 w-2.5 bg-[#d6a85a]" />
+          Branches
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="inline-block h-0.5 w-2.5 bg-primary" />
+          Selected
+        </span>
       </div>
 
       {/* Timeline Canvas */}

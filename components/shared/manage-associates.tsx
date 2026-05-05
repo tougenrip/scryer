@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { X, Plus } from "lucide-react";
+import { X, Plus, User, MapPin, ScrollText, Shield } from "lucide-react";
 import { useCampaignNPCs, useCampaignQuests } from "@/hooks/useCampaignContent";
 import { useWorldLocations, useFactions } from "@/hooks/useForgeContent";
 import { createClient } from "@/lib/supabase/client";
@@ -17,6 +18,19 @@ interface Associate {
   id: string;
   type: 'npc' | 'faction' | 'location' | 'quest';
   name: string;
+  relation?: string;
+}
+
+type AssociateRaw = { type: string; id: string; relation?: string };
+
+function mergeAssociateRelations(
+  associates: Associate[],
+  previousRaw: AssociateRaw[]
+): AssociateRaw[] {
+  return associates.map((a) => {
+    const prev = previousRaw.find((p) => p.id === a.id && p.type === a.type);
+    return prev?.relation ? { type: a.type, id: a.id, relation: prev.relation } : { type: a.type, id: a.id };
+  });
 }
 
 interface ManageAssociatesProps {
@@ -27,6 +41,8 @@ interface ManageAssociatesProps {
   onUpdate: (associates: Associate[]) => void;
   isDm?: boolean;
   editMode?: boolean;
+  /** Handoff sidebar: icon | name | relation, compact header */
+  layout?: "default" | "npc-sidebar";
 }
 
 export function ManageAssociates({ 
@@ -36,8 +52,10 @@ export function ManageAssociates({
   currentAssociates, 
   onUpdate, 
   isDm = false,
-  editMode = false
+  editMode = false,
+  layout = "default",
 }: ManageAssociatesProps) {
+  const router = useRouter();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedNpcIds, setSelectedNpcIds] = useState<string[]>([]);
   const [selectedFactionIds, setSelectedFactionIds] = useState<string[]>([]);
@@ -110,8 +128,10 @@ export function ManageAssociates({
       .single();
 
     const currentMetadata = entity?.metadata || {};
+    const previousRaw = (currentMetadata.associates || []) as AssociateRaw[];
+    const withRelations = mergeAssociateRelations(newAssociates, previousRaw);
     const updateData = {
-      metadata: { ...currentMetadata, associates: associatesArray }
+      metadata: { ...currentMetadata, associates: withRelations },
     };
 
     const { error } = await supabase
@@ -124,7 +144,10 @@ export function ManageAssociates({
       throw error;
     }
 
-    onUpdate(newAssociates);
+    onUpdate(newAssociates.map((a) => {
+      const r = withRelations.find((w) => w.id === a.id && w.type === a.type);
+      return r?.relation ? { ...a, relation: r.relation } : a;
+    }));
     setIsDialogOpen(false);
     toast.success("Associates updated");
   };
@@ -134,13 +157,8 @@ export function ManageAssociates({
       a => !(a.id === associateId && a.type === associateType)
     );
 
-    const supabase = createClient();
-    const associatesArray = newAssociates.map(a => ({ type: a.type, id: a.id }));
-
-    let updateData: any = {};
     const supabaseQuery = createClient();
     
-    // Get current entity metadata
     let tableName = '';
     if (entityType === 'npc') tableName = 'npcs';
     else if (entityType === 'faction') tableName = 'factions';
@@ -154,22 +172,301 @@ export function ManageAssociates({
         .eq('id', entityId)
         .single();
 
-      updateData.metadata = { ...(entity?.metadata || {}), associates: associatesArray };
-      
+      const previousRaw = ((entity?.metadata as Record<string, unknown>)?.associates || []) as AssociateRaw[];
+      const associatesArray = mergeAssociateRelations(newAssociates, previousRaw);
+
       const { error } = await supabaseQuery
         .from(tableName)
-        .update(updateData)
+        .update({
+          metadata: { ...((entity?.metadata as object) || {}), associates: associatesArray },
+        })
         .eq('id', entityId);
       
       if (error) {
         toast.error("Failed to remove associate");
         return;
       }
+
+      onUpdate(
+        newAssociates.map((a) => {
+          const r = associatesArray.find((p) => p.id === a.id && p.type === a.type);
+          return r?.relation ? { ...a, relation: r.relation } : a;
+        })
+      );
+    } else {
+      onUpdate(newAssociates);
     }
 
-    onUpdate(newAssociates);
     toast.success("Associate removed");
   };
+
+  const sidebarRelationLabel = (link: Associate) => {
+    if (link.relation?.trim()) return link.relation.trim();
+    switch (link.type) {
+      case "npc":
+        return "NPC";
+      case "faction":
+        return "Faction";
+      case "location":
+        return "Location";
+      case "quest":
+        return "Quest";
+      default:
+        return "";
+    }
+  };
+
+  const sidebarIcon = (type: Associate["type"]) => {
+    switch (type) {
+      case "faction":
+        return Shield;
+      case "location":
+        return MapPin;
+      case "quest":
+        return ScrollText;
+      default:
+        return User;
+    }
+  };
+
+  const navigateToAssociate = (link: Associate) => {
+    if (link.type === "npc") router.push(`/campaigns/${campaignId}/npcs/${link.id}`);
+    else if (link.type === "faction") router.push(`/campaigns/${campaignId}/factions/${link.id}`);
+    else if (link.type === "location") router.push(`/campaigns/${campaignId}/locations/${link.id}`);
+    else if (link.type === "quest") router.push(`/campaigns/${campaignId}/quests/${link.id}`);
+  };
+
+  const associatesManagementDialog =
+    isDm ? (
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Manage Associates</DialogTitle>
+            <DialogDescription>
+              Select entities to associate with this {entityType}. Changes will be saved immediately.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-6 py-4">
+            {/* NPCs */}
+            {entityType !== "npc" && (
+              <div className="space-y-2">
+                <Label>NPCs</Label>
+                <ScrollArea className="h-32 rounded-md border p-3">
+                  {npcs && npcs.length > 0 ? (
+                    <div className="space-y-2">
+                      {npcs.map((npc) => {
+                        if (npc.id === entityId) return null;
+                        const isSelected = selectedNpcIds.includes(npc.id);
+                        return (
+                          <div key={npc.id} className="flex items-center space-x-2">
+                            <Checkbox
+                              id={`npc-${npc.id}`}
+                              checked={isSelected}
+                              onCheckedChange={(checked) => {
+                                if (checked) {
+                                  setSelectedNpcIds([...selectedNpcIds, npc.id]);
+                                } else {
+                                  setSelectedNpcIds(selectedNpcIds.filter((id) => id !== npc.id));
+                                }
+                              }}
+                            />
+                            <Label htmlFor={`npc-${npc.id}`} className="cursor-pointer font-normal">
+                              {npc.name}
+                            </Label>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No NPCs available</p>
+                  )}
+                </ScrollArea>
+              </div>
+            )}
+
+            {/* Factions */}
+            {entityType !== "faction" && (
+              <div className="space-y-2">
+                <Label>Factions</Label>
+                <ScrollArea className="h-32 rounded-md border p-3">
+                  {factions && factions.length > 0 ? (
+                    <div className="space-y-2">
+                      {factions.map((faction) => {
+                        if (faction.id === entityId) return null;
+                        const isSelected = selectedFactionIds.includes(faction.id);
+                        return (
+                          <div key={faction.id} className="flex items-center space-x-2">
+                            <Checkbox
+                              id={`faction-${faction.id}`}
+                              checked={isSelected}
+                              onCheckedChange={(checked) => {
+                                if (checked) {
+                                  setSelectedFactionIds([...selectedFactionIds, faction.id]);
+                                } else {
+                                  setSelectedFactionIds(selectedFactionIds.filter((id) => id !== faction.id));
+                                }
+                              }}
+                            />
+                            <Label htmlFor={`faction-${faction.id}`} className="cursor-pointer font-normal">
+                              {faction.name}
+                            </Label>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No factions available</p>
+                  )}
+                </ScrollArea>
+              </div>
+            )}
+
+            {/* Locations */}
+            {entityType !== "location" && (
+              <div className="space-y-2">
+                <Label>Locations</Label>
+                <ScrollArea className="h-32 rounded-md border p-3">
+                  {locations && locations.length > 0 ? (
+                    <div className="space-y-2">
+                      {locations.map((location) => {
+                        if (location.id === entityId) return null;
+                        const isSelected = selectedLocationIds.includes(location.id);
+                        return (
+                          <div key={location.id} className="flex items-center space-x-2">
+                            <Checkbox
+                              id={`location-${location.id}`}
+                              checked={isSelected}
+                              onCheckedChange={(checked) => {
+                                if (checked) {
+                                  setSelectedLocationIds([...selectedLocationIds, location.id]);
+                                } else {
+                                  setSelectedLocationIds(selectedLocationIds.filter((id) => id !== location.id));
+                                }
+                              }}
+                            />
+                            <Label htmlFor={`location-${location.id}`} className="cursor-pointer font-normal">
+                              {location.name}
+                            </Label>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No locations available</p>
+                  )}
+                </ScrollArea>
+              </div>
+            )}
+
+            {/* Quests */}
+            <div className="space-y-2">
+              <Label>Quests</Label>
+              <ScrollArea className="h-32 rounded-md border p-3">
+                {quests && quests.length > 0 ? (
+                  <div className="space-y-2">
+                    {quests.map((quest) => {
+                      const isSelected = selectedQuestIds.includes(quest.id);
+                      return (
+                        <div key={quest.id} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`quest-${quest.id}`}
+                            checked={isSelected}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                setSelectedQuestIds([...selectedQuestIds, quest.id]);
+                              } else {
+                                setSelectedQuestIds(selectedQuestIds.filter((id) => id !== quest.id));
+                              }
+                            }}
+                          />
+                          <Label htmlFor={`quest-${quest.id}`} className="cursor-pointer font-normal">
+                            {quest.title}
+                          </Label>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No quests available</p>
+                )}
+              </ScrollArea>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSave}>Save Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    ) : null;
+
+  if (layout === "npc-sidebar") {
+    return (
+      <>
+        <div className="mb-2.5 flex items-center justify-between">
+          <div className="sc-label">Relationships</div>
+          {isDm && editMode && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 gap-1 px-2 text-xs"
+              onClick={() => setIsDialogOpen(true)}
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Add
+            </Button>
+          )}
+        </div>
+        {currentAssociates.length === 0 ? (
+          <p className="text-[11px] text-muted-foreground">No linked entities.</p>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {currentAssociates.map((link) => {
+              const IconC = sidebarIcon(link.type);
+              return (
+                <div
+                  key={`${link.type}-${link.id}`}
+                  className="group flex cursor-pointer items-center gap-2 text-xs text-muted-foreground transition-colors hover:text-foreground"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => navigateToAssociate(link)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") navigateToAssociate(link);
+                  }}
+                >
+                  <IconC className="h-[13px] w-[13px] shrink-0 opacity-80" aria-hidden />
+                  <span className="min-w-0 flex-1 font-medium text-foreground">{link.name}</span>
+                  <span className="shrink-0 text-[10px] text-muted-foreground">{sidebarRelationLabel(link)}</span>
+                  {isDm && editMode && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 shrink-0 opacity-0 group-hover:opacity-100"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRemove(link.id, link.type);
+                      }}
+                      aria-label="Remove link"
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {associatesManagementDialog}
+      </>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -177,7 +474,7 @@ export function ManageAssociates({
         <h2 className="text-2xl font-bold">Associated Entities</h2>
         {isDm && editMode && (
           <Button onClick={() => setIsDialogOpen(true)} size="sm">
-            <Plus className="h-4 w-4 mr-2" />
+            <Plus className="mr-2 h-4 w-4" />
             Manage Associates
           </Button>
         )}
@@ -190,13 +487,12 @@ export function ManageAssociates({
           {currentAssociates.map((link) => (
             <div
               key={`${link.type}-${link.id}`}
-              className="p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors flex items-center justify-between group"
+              className="group flex items-center justify-between rounded-lg bg-muted/50 p-3 transition-colors hover:bg-muted"
             >
-              <div 
-                className="flex items-center gap-2 cursor-pointer flex-1"
-                onClick={() => {
-                  // Navigation handled by router in parent
-                }}
+              <div
+                className="flex flex-1 cursor-pointer items-center gap-2"
+                onClick={() => navigateToAssociate(link)}
+                role="presentation"
               >
                 <Badge variant="outline">{link.type.toUpperCase()}</Badge>
                 <span className="font-medium">{link.name}</span>
@@ -206,7 +502,7 @@ export function ManageAssociates({
                   variant="ghost"
                   size="sm"
                   onClick={() => handleRemove(link.id, link.type)}
-                  className="opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="opacity-0 transition-opacity group-hover:opacity-100"
                 >
                   <X className="h-4 w-4" />
                 </Button>
@@ -216,175 +512,7 @@ export function ManageAssociates({
         </div>
       )}
 
-      {/* Manage Associates Dialog */}
-      {isDm && (
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Manage Associates</DialogTitle>
-              <DialogDescription>
-                Select entities to associate with this {entityType}. Changes will be saved immediately.
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className="space-y-6 py-4">
-              {/* NPCs */}
-              {entityType !== 'npc' && (
-                <div className="space-y-2">
-                  <Label>NPCs</Label>
-                  <ScrollArea className="h-32 border rounded-md p-3">
-                    {npcs && npcs.length > 0 ? (
-                      <div className="space-y-2">
-                        {npcs.map((npc) => {
-                          if (npc.id === entityId) return null;
-                          const isSelected = selectedNpcIds.includes(npc.id);
-                          return (
-                            <div key={npc.id} className="flex items-center space-x-2">
-                              <Checkbox
-                                id={`npc-${npc.id}`}
-                                checked={isSelected}
-                                onCheckedChange={(checked) => {
-                                  if (checked) {
-                                    setSelectedNpcIds([...selectedNpcIds, npc.id]);
-                                  } else {
-                                    setSelectedNpcIds(selectedNpcIds.filter(id => id !== npc.id));
-                                  }
-                                }}
-                              />
-                              <Label htmlFor={`npc-${npc.id}`} className="font-normal cursor-pointer">
-                                {npc.name}
-                              </Label>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">No NPCs available</p>
-                    )}
-                  </ScrollArea>
-                </div>
-              )}
-
-              {/* Factions */}
-              {entityType !== 'faction' && (
-                <div className="space-y-2">
-                  <Label>Factions</Label>
-                  <ScrollArea className="h-32 border rounded-md p-3">
-                    {factions && factions.length > 0 ? (
-                      <div className="space-y-2">
-                        {factions.map((faction) => {
-                          if (faction.id === entityId) return null;
-                          const isSelected = selectedFactionIds.includes(faction.id);
-                          return (
-                            <div key={faction.id} className="flex items-center space-x-2">
-                              <Checkbox
-                                id={`faction-${faction.id}`}
-                                checked={isSelected}
-                                onCheckedChange={(checked) => {
-                                  if (checked) {
-                                    setSelectedFactionIds([...selectedFactionIds, faction.id]);
-                                  } else {
-                                    setSelectedFactionIds(selectedFactionIds.filter(id => id !== faction.id));
-                                  }
-                                }}
-                              />
-                              <Label htmlFor={`faction-${faction.id}`} className="font-normal cursor-pointer">
-                                {faction.name}
-                              </Label>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">No factions available</p>
-                    )}
-                  </ScrollArea>
-                </div>
-              )}
-
-              {/* Locations */}
-              {entityType !== 'location' && (
-                <div className="space-y-2">
-                  <Label>Locations</Label>
-                  <ScrollArea className="h-32 border rounded-md p-3">
-                    {locations && locations.length > 0 ? (
-                      <div className="space-y-2">
-                        {locations.map((location) => {
-                          if (location.id === entityId) return null;
-                          const isSelected = selectedLocationIds.includes(location.id);
-                          return (
-                            <div key={location.id} className="flex items-center space-x-2">
-                              <Checkbox
-                                id={`location-${location.id}`}
-                                checked={isSelected}
-                                onCheckedChange={(checked) => {
-                                  if (checked) {
-                                    setSelectedLocationIds([...selectedLocationIds, location.id]);
-                                  } else {
-                                    setSelectedLocationIds(selectedLocationIds.filter(id => id !== location.id));
-                                  }
-                                }}
-                              />
-                              <Label htmlFor={`location-${location.id}`} className="font-normal cursor-pointer">
-                                {location.name}
-                              </Label>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">No locations available</p>
-                    )}
-                  </ScrollArea>
-                </div>
-              )}
-
-              {/* Quests */}
-              <div className="space-y-2">
-                <Label>Quests</Label>
-                <ScrollArea className="h-32 border rounded-md p-3">
-                  {quests && quests.length > 0 ? (
-                    <div className="space-y-2">
-                      {quests.map((quest) => {
-                        const isSelected = selectedQuestIds.includes(quest.id);
-                        return (
-                          <div key={quest.id} className="flex items-center space-x-2">
-                            <Checkbox
-                              id={`quest-${quest.id}`}
-                              checked={isSelected}
-                              onCheckedChange={(checked) => {
-                                if (checked) {
-                                  setSelectedQuestIds([...selectedQuestIds, quest.id]);
-                                } else {
-                                  setSelectedQuestIds(selectedQuestIds.filter(id => id !== quest.id));
-                                }
-                              }}
-                            />
-                            <Label htmlFor={`quest-${quest.id}`} className="font-normal cursor-pointer">
-                              {quest.title}
-                            </Label>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">No quests available</p>
-                  )}
-                </ScrollArea>
-              </div>
-            </div>
-
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
-                Cancel
-              </Button>
-              <Button onClick={handleSave}>
-                Save Changes
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
+      {associatesManagementDialog}
     </div>
   );
 }

@@ -26,8 +26,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Faction, useWorldLocations } from "@/hooks/useForgeContent";
 import { useCampaignNPCs } from "@/hooks/useCampaignContent";
 import { FactionImageUpload } from "./faction-image-upload";
-import { Search, X, Plus } from "lucide-react";
+import { X, Plus } from "lucide-react";
 import { NameGeneratorButton } from "@/components/shared/name-generator-button";
+import { Slider } from "@/components/ui/slider";
+import {
+  FACTION_INFLUENCE_ORDER,
+  FACTION_INFLUENCE_PCT,
+  factionInfluenceFromSliderIndex,
+  factionInfluenceSliderIndex,
+} from "@/lib/faction-influence";
 
 interface FactionFormDialogProps {
   open: boolean;
@@ -153,6 +160,14 @@ export function FactionFormDialog({
     );
   }, [locations, locationSearch]);
 
+  const influenceHint = useMemo(() => {
+    const idx = factionInfluenceSliderIndex(influenceLevel);
+    if (idx === 0) return "Not set";
+    const tier = FACTION_INFLUENCE_ORDER[idx - 1]!;
+    const pct = FACTION_INFLUENCE_PCT[tier];
+    return `${tier.charAt(0).toUpperCase()}${tier.slice(1)} · ~${pct}%`;
+  }, [influenceLevel]);
+
   const handleAddGoal = () => {
     if (newGoal.trim() && !goals.includes(newGoal.trim())) {
       setGoals([...goals, newGoal.trim()]);
@@ -197,9 +212,6 @@ export function FactionFormDialog({
       resources,
     });
   };
-
-  const selectedLeader = npcs.find(npc => npc.id === leaderNpcId);
-  const selectedHeadquarters = locations.find(loc => loc.id === headquartersLocationId);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -387,24 +399,39 @@ export function FactionFormDialog({
                   </Select>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="influence">Scope/Reach</Label>
-                  <Select
-                    value={influenceLevel || "none"}
-                    onValueChange={(v) => setInfluenceLevel(v === "none" ? null : v as Faction['influence_level'])}
+                <div className="space-y-3">
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <Label htmlFor="influence-slider">Influence & reach</Label>
+                    <span
+                      className="text-xs text-muted-foreground tabular-nums"
+                      id="influence-slider-hint"
+                    >
+                      {influenceHint}
+                    </span>
+                  </div>
+                  <Slider
+                    id="influence-slider"
+                    min={0}
+                    max={5}
+                    step={1}
+                    value={[factionInfluenceSliderIndex(influenceLevel)]}
+                    onValueChange={([v]) =>
+                      setInfluenceLevel(factionInfluenceFromSliderIndex(v))
+                    }
+                    disabled={loading}
+                    aria-labelledby="influence-slider-hint"
+                  />
+                  <div
+                    className="flex justify-between text-[10px] text-muted-foreground"
+                    aria-hidden
                   >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select scope" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">No scope set</SelectItem>
-                      <SelectItem value="local">Local</SelectItem>
-                      <SelectItem value="regional">Regional</SelectItem>
-                      <SelectItem value="continental">Continental</SelectItem>
-                      <SelectItem value="global">Global</SelectItem>
-                      <SelectItem value="multiverse">Multiverse</SelectItem>
-                    </SelectContent>
-                  </Select>
+                    <span>Unset</span>
+                    <span>Multiverse</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Drag to set how far this faction&apos;s power reaches. Leftmost
+                    clears reach (same as no scope).
+                  </p>
                 </div>
               </div>
 

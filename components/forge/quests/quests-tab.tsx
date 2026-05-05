@@ -14,6 +14,7 @@ import { QuestFormDialog } from "@/components/campaign/quest-form-dialog";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { Plus, ScrollText, Sparkles } from "lucide-react";
+import { ForgeTabHeader } from "@/components/forge/forge-tab-header";
 import { AIGenerationDialog } from "@/components/ai/ai-generation-dialog";
 import { useOllamaSafe } from "@/contexts/ollama-context";
 import {
@@ -31,6 +32,8 @@ interface QuestBoardTabProps {
   campaignId: string;
   isDm: boolean;
 }
+
+const QUESTS_HEADER_TITLE_STYLE = { letterSpacing: "0.07em" as const };
 
 export function QuestBoardTab({ campaignId, isDm }: QuestBoardTabProps) {
   const [userId, setUserId] = useState<string | null>(null);
@@ -124,7 +127,19 @@ export function QuestBoardTab({ campaignId, isDm }: QuestBoardTabProps) {
 
   if (loading) {
     return (
-      <div style={{ padding: "16px 20px" }}>
+      <div className="forge-tab-root">
+        <ForgeTabHeader
+          title="QUESTS"
+          titleStyle={QUESTS_HEADER_TITLE_STYLE}
+          actions={
+            isDm ? (
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <Skeleton className="h-7 w-14 rounded-md" />
+                <Skeleton className="h-7 w-[88px] rounded-md" />
+              </div>
+            ) : null
+          }
+        />
         <div
           style={{
             display: "grid",
@@ -134,9 +149,13 @@ export function QuestBoardTab({ campaignId, isDm }: QuestBoardTabProps) {
         >
           {[1, 2, 3].map((i) => (
             <div key={i} className="sc-card" style={{ padding: 14 }}>
-              <Skeleton className="h-6 w-32 mb-2" />
-              <Skeleton className="h-4 w-full mb-2" />
-              <Skeleton className="h-4 w-5/6" />
+              <div className="mb-2 flex gap-1.5">
+                <Skeleton className="h-5 w-14 rounded-full" />
+                <Skeleton className="h-5 w-16 rounded-full" />
+              </div>
+              <Skeleton className="mb-1 h-5 w-3/4" />
+              <Skeleton className="mb-2 h-3 w-full" />
+              <Skeleton className="h-3 w-5/6" />
             </div>
           ))}
         </div>
@@ -145,49 +164,35 @@ export function QuestBoardTab({ campaignId, isDm }: QuestBoardTabProps) {
   }
 
   return (
-    <div style={{ padding: "16px 20px" }}>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: 14,
-          flexWrap: "wrap",
-          gap: 10,
-        }}
-      >
-        <div>
-          <div className="font-serif" style={{ fontSize: 20 }}>
-            Quest Board
-          </div>
-          <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
-            {quests.length} quest{quests.length === 1 ? "" : "s"} — hooks, side
-            quests, and long-term arcs
-          </div>
-        </div>
-        {isDm && userId && (
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            {canUseAI && (
+    <div className="forge-tab-root sc-fade-in">
+      <ForgeTabHeader
+        title="QUESTS"
+        titleStyle={QUESTS_HEADER_TITLE_STYLE}
+        actions={
+          isDm && userId ? (
+            <>
+              {canUseAI && (
+                <button
+                  type="button"
+                  className="sc-btn sc-btn-sm"
+                  onClick={() => setAiDialogOpen(true)}
+                >
+                  <Sparkles size={12} />
+                  AI
+                </button>
+              )}
               <button
                 type="button"
-                className="sc-btn sc-btn-sm"
-                onClick={() => setAiDialogOpen(true)}
+                className="sc-btn sc-btn-primary sc-btn-sm"
+                onClick={() => setCreateDialogOpen(true)}
               >
-                <Sparkles size={12} />
-                AI
+                <Plus size={12} />
+                New quest
               </button>
-            )}
-            <button
-              type="button"
-              className="sc-btn sc-btn-primary sc-btn-sm"
-              onClick={() => setCreateDialogOpen(true)}
-            >
-              <Plus size={12} />
-              New quest
-            </button>
-          </div>
-        )}
-      </div>
+            </>
+          ) : null
+        }
+      />
 
       {quests.length === 0 ? (
         <div className="sc-card" style={{ padding: 40 }}>
@@ -277,7 +282,7 @@ export function QuestBoardTab({ campaignId, isDm }: QuestBoardTabProps) {
         generatorType="quest"
         title="Generate Quest with AI"
         description="Create a quest with hooks, objectives, complications, and rewards"
-        onGenerated={(content) => {
+        onGenerated={() => {
           setAiDialogOpen(false);
           setCreateDialogOpen(true);
         }}

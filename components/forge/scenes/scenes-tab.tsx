@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ForgeTabHeader } from "@/components/forge/forge-tab-header";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -311,25 +311,22 @@ export function ScenesTab({ campaignId, isDm }: ScenesTabProps) {
 
   if (loading) {
     return (
-      <Card>
-        <CardContent className="p-6">
-          <Skeleton className="h-96 w-full" />
-        </CardContent>
-      </Card>
+      <div className="forge-tab-root">
+        <Skeleton className="h-8 w-48 mb-4" />
+        <Skeleton className="h-96 w-full rounded-lg" />
+      </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="font-serif text-2xl font-semibold">Scenes</h2>
-        <p className="text-muted-foreground text-sm">
-          Create and manage multiple scene maps with markers for cities, landmarks, and points of interest
-        </p>
-      </div>
+    <div className="forge-tab-root sc-fade-in space-y-4">
+      <ForgeTabHeader
+        title="Scenes"
+        subtitle={`${scenes.length} scene${scenes.length === 1 ? "" : "s"} · sorted for play at the table`}
+      />
 
       {/* Main Content: Scene List + Map View */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-4">
         {/* Scene List Sidebar */}
         <div className="lg:col-span-1">
           <SceneList
@@ -347,8 +344,7 @@ export function ScenesTab({ campaignId, isDm }: ScenesTabProps) {
 
         {/* Map View */}
         <div className="lg:col-span-3">
-          <Card>
-            <CardContent className="p-6">
+          <div className="sc-card" style={{ padding: 16 }}>
               {!selectedScene ? (
                 <div className="flex flex-col items-center justify-center py-24 bg-muted rounded-lg">
                   <Map className="h-24 w-24 text-muted-foreground/50 mb-4" />
@@ -420,8 +416,7 @@ export function ScenesTab({ campaignId, isDm }: ScenesTabProps) {
                   />
                 </div>
               )}
-            </CardContent>
-          </Card>
+          </div>
         </div>
       </div>
 

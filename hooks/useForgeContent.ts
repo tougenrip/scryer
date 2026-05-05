@@ -21,7 +21,7 @@ export interface WorldLocation {
   map_level: number;
   marker_color: string | null;
   status: string | null; // Location status (syncs with marker if linked)
-  metadata: Record<string, any>; // Stores: ruler_owner_id, population, demographics, faction_ids
+  metadata: Record<string, unknown>; // Stores: ruler_owner_id, population, demographics, faction_ids
   hidden_from_players: boolean; // If true, only DM can see this location
   dm_notes: string | null; // DM-only notes that are not visible to players
   scene_id: string | null; // Associated scene map for this location
@@ -106,6 +106,15 @@ export interface LocationMarker {
     | 'loot'
     | 'quest'
     | 'side_quest'
+    | 'camp'
+    | 'portal'
+    | 'dragon'
+    | 'lair'
+    | 'arcane'
+    | 'hazard'
+    | 'trap'
+    | 'rest'
+    | 'shrine'
     | null; // Mandatory icon
   status_icon: string | null; // Can be predefined or custom text
   name: string | null;
@@ -129,7 +138,7 @@ export interface PantheonDeity {
   worshipers_location_ids: string[];
   holy_days: string[];
   scene_id: string | null; // Associated scene map for this deity
-  metadata: Record<string, any> | null; // JSONB field for tags, associates, etc.
+  metadata: Record<string, unknown> | null; // JSONB field for tags, associates, etc.
   created_at: string | null;
   updated_at: string | null;
 }
@@ -167,7 +176,7 @@ export interface CampaignCalendar {
   season: 'spring' | 'summer' | 'autumn' | 'winter' | null;
   moon_phase: 'new' | 'waxing_crescent' | 'first_quarter' | 'waxing_gibbous' | 'full' | 'waning_gibbous' | 'last_quarter' | 'waning_crescent' | null;
   moon_phase_day: number | null;
-  weather: Record<string, any>;
+  weather: Record<string, unknown>;
   custom_month_names: string[];
   custom_weekday_names: string[];
   custom_season_months: Record<'spring' | 'summer' | 'autumn' | 'winter', number[]> | null;
@@ -213,7 +222,7 @@ export interface Faction {
   public_agenda: string | null;
   scene_id: string | null; // Associated scene map for this faction
   secret_agenda: string | null;
-  metadata: Record<string, any> | null; // JSONB field for tags, associates, etc.
+  metadata: Record<string, unknown> | null; // JSONB field for tags, associates, etc.
   created_at: string | null;
   updated_at: string | null;
 }
@@ -253,14 +262,15 @@ export function useWorldLocations(campaignId: string | null, isDm: boolean = fal
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
-  const fetchLocations = useCallback(async () => {
+  const fetchLocations = useCallback(async (options?: { silent?: boolean }) => {
+    const silent = options?.silent === true;
     if (!campaignId) {
-      setLoading(false);
+      if (!silent) setLoading(false);
       return;
     }
 
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const supabase = createClient();
 
       const { data, error: fetchError } = await supabase
@@ -282,7 +292,7 @@ export function useWorldLocations(campaignId: string | null, isDm: boolean = fal
     } catch (err) {
       setError(err as Error);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [campaignId, isDm]);
 
@@ -309,7 +319,7 @@ export function useCreateWorldLocation() {
     map_level?: number;
     marker_color?: string | null;
     status?: string | null;
-    metadata?: Record<string, any>;
+    metadata?: Record<string, unknown>;
     hidden_from_players?: boolean;
     dm_notes?: string | null;
   }) => {
@@ -332,9 +342,9 @@ export function useCreateWorldLocation() {
 
       setError(null);
       return { success: true, data };
-    } catch (err: any) {
+    } catch (err: unknown) {
       // Preserve the original error structure (Supabase errors are PostgREST errors)
-      const error = err instanceof Error ? err : new Error(err?.message || JSON.stringify(err));
+      const error = err instanceof Error ? err : new Error(String(err));
       setError(error);
       return { success: false, error: err }; // Return original error to preserve structure
     } finally {
@@ -357,7 +367,7 @@ export function useUpdateWorldLocation() {
       setLoading(true);
       const supabase = createClient();
 
-      const updateData: any = { ...updates };
+      const updateData: Partial<Omit<WorldLocation, 'id' | 'campaign_id' | 'created_at'>> = { ...updates };
       // Remove undefined fields
       Object.keys(updateData).forEach(key => {
         if (updateData[key] === undefined) {
@@ -624,14 +634,15 @@ export function useDeleteLocationMarker() {
 // SCENES HOOKS
 // ============================================
 
-export function useScenes(campaignId: string | null) {
+export function useScenes(campaignId: string | null, enabled: boolean = true) {
   const [scenes, setScenes] = useState<Scene[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(enabled);
   const [error, setError] = useState<Error | null>(null);
 
   const fetchScenes = useCallback(async () => {
-    if (!campaignId) {
+    if (!campaignId || !enabled) {
       setLoading(false);
+      if (!enabled) setScenes([]);
       return;
     }
 
@@ -641,7 +652,7 @@ export function useScenes(campaignId: string | null) {
 
       const { data, error: fetchError } = await supabase
         .from('scenes')
-        .select('*')
+        .select('id, campaign_id, name, description, image_url, conditions, created_at, updated_at')
         .eq('campaign_id', campaignId)
         .order('created_at', { ascending: true });
 
@@ -653,7 +664,7 @@ export function useScenes(campaignId: string | null) {
     } finally {
       setLoading(false);
     }
-  }, [campaignId]);
+  }, [campaignId, enabled]);
 
   useEffect(() => {
     fetchScenes();
@@ -1002,14 +1013,15 @@ export function usePantheonDeities(campaignId: string | null) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
-  const fetchDeities = useCallback(async () => {
+  const fetchDeities = useCallback(async (options?: { silent?: boolean }) => {
+    const silent = options?.silent === true;
     if (!campaignId) {
-      setLoading(false);
+      if (!silent) setLoading(false);
       return;
     }
 
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const supabase = createClient();
 
       const { data, error: fetchError } = await supabase
@@ -1024,7 +1036,7 @@ export function usePantheonDeities(campaignId: string | null) {
     } catch (err) {
       setError(err as Error);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [campaignId]);
 
@@ -1386,7 +1398,7 @@ export function useCreateCampaignCalendar() {
     season?: CampaignCalendar['season'];
     moon_phase?: CampaignCalendar['moon_phase'];
     moon_phase_day?: number | null;
-    weather?: Record<string, any>;
+    weather?: Record<string, unknown>;
     custom_month_names?: string[];
     custom_weekday_names?: string[];
     custom_season_months?: Record<'spring' | 'summer' | 'autumn' | 'winter', number[]>;
@@ -1478,14 +1490,15 @@ export function useFactions(campaignId: string | null) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
-  const fetchFactions = useCallback(async () => {
+  const fetchFactions = useCallback(async (options?: { silent?: boolean }) => {
+    const silent = options?.silent === true;
     if (!campaignId) {
-      setLoading(false);
+      if (!silent) setLoading(false);
       return;
     }
 
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const supabase = createClient();
 
       const { data, error: fetchError } = await supabase
@@ -1500,7 +1513,7 @@ export function useFactions(campaignId: string | null) {
     } catch (err) {
       setError(err as Error);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [campaignId]);
 
@@ -1890,4 +1903,3 @@ export function useDeleteRelationshipStrengthOverride() {
 
   return { deleteOverride, loading, error };
 }
-

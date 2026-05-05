@@ -1,0 +1,237 @@
+
+> dev
+> next dev
+
+ ⚠ Found lockfile missing swc dependencies, patching...
+ ⨯ Failed to patch lockfile, please try uninstalling and reinstalling next in this workspace
+[TypeError: Cannot read properties of undefined (reading 'os')]
+ ⚠ Found lockfile missing swc dependencies, patching...
+   ▲ Next.js 15.5.9
+   - Local:        http://localhost:3000
+   - Network:      http://192.168.56.1:3000
+   - Environments: .env.local
+
+ ✓ Starting...
+ ⨯ Failed to patch lockfile, please try uninstalling and reinstalling next in this workspace
+[TypeError: Cannot read properties of undefined (reading 'os')]
+ ✓ Ready in 4.8s
+ ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+ ○ Compiling /campaigns/[campaignId]/vtt ...
+ ✓ Compiled /campaigns/[campaignId]/vtt in 23.2s (1562 modules)
+ ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+ GET /campaigns/18994392-d13f-49e1-adf7-107282631753/vtt?map=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 23276ms
+ ✓ Compiled in 1755ms (693 modules)
+ GET /campaigns/18994392-d13f-49e1-adf7-107282631753/vtt?map=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 246ms
+ ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+ GET /campaigns/18994392-d13f-49e1-adf7-107282631753/vtt?map=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 51ms
+ GET /campaigns/test/vtt 200 in 10480ms
+ GET /campaigns/18994392-d13f-49e1-adf7-107282631753/vtt?map=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 3332ms
+ ○ Compiling /favicon.ico ...
+ ✓ Compiled /favicon.ico in 1346ms (850 modules)
+ GET /favicon.ico 200 in 1634ms
+ ○ Compiling /api/vtt/tokens ...
+ ✓ Compiled /api/vtt/tokens in 1365ms (1588 modules)
+ POST /api/vtt/tokens 200 in 1536ms
+ POST /api/vtt/tokens 200 in 2848ms
+ POST /api/vtt/tokens 200 in 613ms
+ POST /api/vtt/tokens 200 in 394ms
+ ✓ Compiled in 969ms (1512 modules)
+ ⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+Several Konva instances detected. It is not recommended to use multiple Konva instances in the same environment.
+ GET /campaigns/18994392-d13f-49e1-adf7-107282631753/vtt?map=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 1513ms
+ ✓ Compiled /favicon.ico in 334ms (850 modules)
+ GET /favicon.ico 200 in 577ms
+ ✓ Compiled in 2.6s (1543 modules)
+ GET /campaigns/18994392-d13f-49e1-adf7-107282631753/vtt?map=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 372ms
+ ✓ Compiled in 2.8s (1543 modules)
+ GET /campaigns/18994392-d13f-49e1-adf7-107282631753/vtt?map=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 315ms
+ ⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+ ✓ Compiled in 524ms (1529 modules)
+Several Konva instances detected. It is not recommended to use multiple Konva instances in the same environment.
+ GET /campaigns/18994392-d13f-49e1-adf7-107282631753/vtt?map=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 1318ms
+ GET /favicon.ico 200 in 73ms
+ ✓ Compiled in 1710ms (1543 modules)
+ GET /campaigns/18994392-d13f-49e1-adf7-107282631753/vtt?map=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 243ms
+ ✓ Compiled in 1946ms (693 modules)
+ GET /campaigns/18994392-d13f-49e1-adf7-107282631753/vtt?map=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 292ms
+ ✓ Compiled in 3.4s (1512 modules)
+ ○ Compiling /api/vtt/tokens ...
+ ✓ Compiled /api/vtt/tokens in 908ms (907 modules)
+ GET /campaigns/18994392-d13f-49e1-adf7-107282631753/vtt?map=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 695ms
+ GET /api/vtt/tokens?campaignId=18994392-d13f-49e1-adf7-107282631753&mapId=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 3191ms
+ PATCH /api/vtt/tokens 200 in 1030ms
+ PATCH /api/vtt/tokens 200 in 540ms
+ PATCH /api/vtt/tokens 200 in 987ms
+ PATCH /api/vtt/tokens 200 in 508ms
+ PATCH /api/vtt/tokens 200 in 501ms
+ PATCH /api/vtt/tokens 200 in 505ms
+ PATCH /api/vtt/tokens 200 in 747ms
+ PATCH /api/vtt/tokens 200 in 513ms
+ PATCH /api/vtt/tokens 200 in 513ms
+ PATCH /api/vtt/tokens 200 in 467ms
+ PATCH /api/vtt/tokens 200 in 488ms
+ PATCH /api/vtt/tokens 200 in 480ms
+ PATCH /api/vtt/tokens 200 in 484ms
+ PATCH /api/vtt/tokens 200 in 453ms
+ PATCH /api/vtt/tokens 200 in 471ms
+ PATCH /api/vtt/tokens 200 in 471ms
+ PATCH /api/vtt/tokens 200 in 447ms
+ PATCH /api/vtt/tokens 200 in 678ms
+ PATCH /api/vtt/tokens 200 in 448ms
+ PATCH /api/vtt/tokens 200 in 461ms
+ ✓ Compiled in 2.8s (1526 modules)
+ GET /campaigns/18994392-d13f-49e1-adf7-107282631753/vtt?map=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 342ms
+ ✓ Compiled in 972ms (1526 modules)
+ GET /campaigns/18994392-d13f-49e1-adf7-107282631753/vtt?map=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 235ms
+ ✓ Compiled in 1449ms (1526 modules)
+ GET /campaigns/18994392-d13f-49e1-adf7-107282631753/vtt?map=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 293ms
+Several Konva instances detected. It is not recommended to use multiple Konva instances in the same environment.
+ GET /campaigns/18994392-d13f-49e1-adf7-107282631753/vtt?map=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 1168ms
+ ✓ Compiled /favicon.ico in 510ms (850 modules)
+ GET /favicon.ico 200 in 756ms
+ ○ Compiling /api/vtt/tokens ...
+ ✓ Compiled /api/vtt/tokens in 1272ms (909 modules)
+ GET /api/vtt/tokens?campaignId=18994392-d13f-49e1-adf7-107282631753&mapId=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 2284ms
+ GET /api/vtt/tokens?campaignId=18994392-d13f-49e1-adf7-107282631753&mapId=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 478ms
+ ✓ Compiled in 1850ms (1602 modules)
+ GET /campaigns/18994392-d13f-49e1-adf7-107282631753/vtt?map=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 1342ms
+ ✓ Compiled in 1387ms (693 modules)
+ GET /campaigns/18994392-d13f-49e1-adf7-107282631753/vtt?map=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 114ms
+ ✓ Compiled in 3.7s (1526 modules)
+ GET /campaigns/18994392-d13f-49e1-adf7-107282631753/vtt?map=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 502ms
+ ✓ Compiled in 1499ms (1526 modules)
+ GET /campaigns/18994392-d13f-49e1-adf7-107282631753/vtt?map=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 378ms
+ ✓ Compiled in 604ms (1512 modules)
+ ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+Several Konva instances detected. It is not recommended to use multiple Konva instances in the same environment.
+ GET /campaigns/18994392-d13f-49e1-adf7-107282631753/vtt?map=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 1138ms
+ ✓ Compiled /favicon.ico in 306ms (850 modules)
+ GET /favicon.ico 200 in 536ms
+ ○ Compiling /api/vtt/tokens ...
+ ✓ Compiled /api/vtt/tokens in 557ms (909 modules)
+ GET /api/vtt/tokens?campaignId=18994392-d13f-49e1-adf7-107282631753&mapId=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 1456ms
+ GET /api/vtt/tokens?campaignId=18994392-d13f-49e1-adf7-107282631753&mapId=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 376ms
+ ✓ Compiled in 1647ms (1602 modules)
+ GET /campaigns/18994392-d13f-49e1-adf7-107282631753/vtt?map=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 422ms
+ PATCH /api/vtt/tokens 200 in 1061ms
+ PATCH /api/vtt/tokens 200 in 470ms
+ PATCH /api/vtt/tokens 200 in 495ms
+ PATCH /api/vtt/tokens 200 in 463ms
+ PATCH /api/vtt/tokens 200 in 469ms
+ PATCH /api/vtt/tokens 200 in 575ms
+ PATCH /api/vtt/tokens 200 in 475ms
+ PATCH /api/vtt/tokens 200 in 455ms
+ ✓ Compiled in 3.6s (1600 modules)
+ GET /campaigns/18994392-d13f-49e1-adf7-107282631753/vtt?map=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 467ms
+ PATCH /api/vtt/tokens 200 in 2390ms
+ ✓ Compiled in 3.2s (1598 modules)
+ GET /campaigns/18994392-d13f-49e1-adf7-107282631753/vtt?map=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 287ms
+ ✓ Compiled in 1379ms (1524 modules)
+ GET /campaigns/18994392-d13f-49e1-adf7-107282631753/vtt?map=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 472ms
+ ✓ Compiled in 1230ms (692 modules)
+ GET /campaigns/18994392-d13f-49e1-adf7-107282631753/vtt?map=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 118ms
+ ○ Compiling /api/vtt/samples ...
+ ✓ Compiled /api/vtt/samples in 1963ms (1580 modules)
+ GET /campaigns/18994392-d13f-49e1-adf7-107282631753/vtt?map=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 671ms
+ GET /api/vtt/samples 200 in 2959ms
+ GET /api/vtt/samples 200 in 165ms
+ GET /api/vtt/samples 200 in 251ms
+ GET /api/vtt/samples 200 in 145ms
+ GET /api/vtt/samples 200 in 167ms
+ GET /api/vtt/samples 200 in 161ms
+ GET /api/vtt/samples 200 in 365ms
+ GET /api/vtt/samples 200 in 133ms
+ ✓ Compiled in 2.9s (1510 modules)
+ ✓ Compiled in 829ms (1510 modules)
+ ⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+Several Konva instances detected. It is not recommended to use multiple Konva instances in the same environment.
+ GET /campaigns/18994392-d13f-49e1-adf7-107282631753/vtt?map=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 1471ms
+ ✓ Compiled /favicon.ico in 469ms (849 modules)
+ GET /favicon.ico 200 in 749ms
+ ○ Compiling /api/vtt/tokens ...
+ ✓ Compiled /api/vtt/tokens in 814ms (908 modules)
+ GET /campaigns/18994392-d13f-49e1-adf7-107282631753/vtt?map=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 637ms
+ GET /favicon.ico 200 in 61ms
+ ✓ Compiled in 2.6s (1600 modules)
+ GET /api/vtt/tokens?campaignId=18994392-d13f-49e1-adf7-107282631753&mapId=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 4481ms
+ GET /campaigns/18994392-d13f-49e1-adf7-107282631753/vtt?map=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 523ms
+ GET /api/vtt/tokens?campaignId=18994392-d13f-49e1-adf7-107282631753&mapId=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 1432ms
+ ✓ Compiled in 1406ms (1600 modules)
+ GET /campaigns/18994392-d13f-49e1-adf7-107282631753/vtt?map=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 209ms
+ ✓ Compiled in 504ms (1586 modules)
+ ✓ Compiled in 1502ms (1600 modules)
+ GET /campaigns/18994392-d13f-49e1-adf7-107282631753/vtt?map=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 223ms
+ ✓ Compiled in 2.1s (1600 modules)
+ GET /campaigns/18994392-d13f-49e1-adf7-107282631753/vtt?map=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 286ms
+ ✓ Compiled in 1626ms (1600 modules)
+ GET /campaigns/18994392-d13f-49e1-adf7-107282631753/vtt?map=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 216ms
+Several Konva instances detected. It is not recommended to use multiple Konva instances in the same environment.
+ GET /campaigns/18994392-d13f-49e1-adf7-107282631753/vtt?map=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 997ms
+ GET /favicon.ico 200 in 58ms
+ GET /api/vtt/tokens?campaignId=18994392-d13f-49e1-adf7-107282631753&mapId=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 1102ms
+ GET /api/vtt/tokens?campaignId=18994392-d13f-49e1-adf7-107282631753&mapId=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 731ms
+ ✓ Compiled in 4.1s (1524 modules)
+ GET /campaigns/18994392-d13f-49e1-adf7-107282631753/vtt?map=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 614ms
+ ○ Compiling /api/vtt/tokens ...
+ ✓ Compiled /api/vtt/tokens in 687ms (906 modules)
+ POST /api/vtt/tokens 200 in 1752ms
+ POST /api/vtt/tokens 200 in 2363ms
+ ✓ Compiled in 4.3s (1524 modules)
+ GET /campaigns/18994392-d13f-49e1-adf7-107282631753/vtt?map=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 727ms
+ ✓ Compiled /api/vtt/tokens in 445ms (906 modules)
+ GET /api/vtt/tokens?campaignId=18994392-d13f-49e1-adf7-107282631753&mapId=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 2990ms
+ ✓ Compiled in 2.6s (1524 modules)
+ GET /campaigns/18994392-d13f-49e1-adf7-107282631753/vtt?map=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 633ms
+ ✓ Compiled /api/vtt/tokens in 404ms (906 modules)
+ GET /api/vtt/tokens?campaignId=18994392-d13f-49e1-adf7-107282631753&mapId=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 3078ms
+ GET /api/vtt/tokens?campaignId=18994392-d13f-49e1-adf7-107282631753&mapId=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 2142ms
+Several Konva instances detected. It is not recommended to use multiple Konva instances in the same environment.
+ GET /api/vtt/tokens?campaignId=18994392-d13f-49e1-adf7-107282631753&mapId=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 2086ms
+ GET /campaigns/18994392-d13f-49e1-adf7-107282631753/vtt?map=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 1464ms
+ ○ Compiling /favicon.ico ...
+ ✓ Compiled /favicon.ico in 696ms (908 modules)
+ GET /favicon.ico 200 in 822ms
+ GET /api/vtt/tokens?campaignId=18994392-d13f-49e1-adf7-107282631753&mapId=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 932ms
+ GET /api/vtt/tokens?campaignId=18994392-d13f-49e1-adf7-107282631753&mapId=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 694ms
+ GET /api/vtt/tokens?campaignId=18994392-d13f-49e1-adf7-107282631753&mapId=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 664ms
+ GET /api/vtt/tokens?campaignId=18994392-d13f-49e1-adf7-107282631753&mapId=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 728ms
+ GET /api/vtt/tokens?campaignId=18994392-d13f-49e1-adf7-107282631753&mapId=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 700ms
+ GET /api/vtt/tokens?campaignId=18994392-d13f-49e1-adf7-107282631753&mapId=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 924ms
+ ✓ Compiled in 6s (1522 modules)
+ GET /campaigns/18994392-d13f-49e1-adf7-107282631753/vtt?map=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 1851ms
+ ✓ Compiled in 1927ms (691 modules)
+ GET /campaigns/18994392-d13f-49e1-adf7-107282631753/vtt?map=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 172ms
+ ✓ Compiled in 3.8s (1522 modules)
+ GET /campaigns/18994392-d13f-49e1-adf7-107282631753/vtt?map=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 564ms
+ ○ Compiling /api/vtt/tokens ...
+ ✓ Compiled /api/vtt/tokens in 697ms (905 modules)
+ GET /api/vtt/tokens?campaignId=18994392-d13f-49e1-adf7-107282631753&mapId=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 3120ms
+ GET /api/vtt/tokens?campaignId=18994392-d13f-49e1-adf7-107282631753&mapId=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 1120ms
+ ✓ Compiled in 12.7s (1522 modules)
+ GET /campaigns/18994392-d13f-49e1-adf7-107282631753/vtt?map=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 1895ms
+ ⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+Several Konva instances detected. It is not recommended to use multiple Konva instances in the same environment.
+ GET /campaigns/18994392-d13f-49e1-adf7-107282631753/vtt?map=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 2737ms
+ ○ Compiling /favicon.ico ...
+ ✓ Compiled /favicon.ico in 1214ms (848 modules)
+ GET /favicon.ico 200 in 1929ms
+ ○ Compiling /api/vtt/tokens ...
+ ✓ Compiled /api/vtt/tokens in 868ms (907 modules)
+ GET /api/vtt/tokens?campaignId=18994392-d13f-49e1-adf7-107282631753&mapId=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 5446ms
+ GET /api/vtt/tokens?campaignId=18994392-d13f-49e1-adf7-107282631753&mapId=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 877ms
+ ✓ Compiled in 2.7s (1598 modules)
+ GET /campaigns/18994392-d13f-49e1-adf7-107282631753/vtt?map=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 368ms
+ GET /api/vtt/tokens?campaignId=18994392-d13f-49e1-adf7-107282631753&mapId=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 3078ms
+ GET /api/vtt/tokens?campaignId=18994392-d13f-49e1-adf7-107282631753&mapId=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 815ms
+ ✓ Compiled in 4.7s (1522 modules)
+ ✓ Compiled in 2.7s (691 modules)
+ GET /campaigns/18994392-d13f-49e1-adf7-107282631753/vtt?map=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 1334ms
+ ⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+Several Konva instances detected. It is not recommended to use multiple Konva instances in the same environment.
+ GET /campaigns/18994392-d13f-49e1-adf7-107282631753/vtt?map=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 1261ms
+ GET /campaigns/18994392-d13f-49e1-adf7-107282631753/vtt?map=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 1266ms
+ ✓ Compiled /favicon.ico in 243ms (848 modules)
+ GET /favicon.ico 200 in 562ms
+ ✓ Compiled /api/vtt/tokens in 375ms (907 modules)
+ GET /api/vtt/tokens?campaignId=18994392-d13f-49e1-adf7-107282631753&mapId=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 2306ms
+ GET /api/vtt/tokens?campaignId=18994392-d13f-49e1-adf7-107282631753&mapId=d46325c6-00cd-4e78-8ef4-1fc4353556ad 200 in 724ms

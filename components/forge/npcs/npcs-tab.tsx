@@ -14,7 +14,8 @@ import { NPCFormDialog } from "@/components/campaign/npc-form-dialog";
 import { NPCDetailsDialog } from "@/components/forge/npcs/npc-details-dialog";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
-import { Plus, User, Edit, Trash2, EyeOff, Sparkles, Search } from "lucide-react";
+import { Plus, User, Edit, Trash2, Sparkles, Search, Lock, MoreHorizontal } from "lucide-react";
+import { ForgeTabHeader } from "@/components/forge/forge-tab-header";
 import { AIGenerationDialog } from "@/components/ai/ai-generation-dialog";
 import { useOllamaSafe } from "@/contexts/ollama-context";
 import { parseNPCContent, type ParsedNPCData } from "@/lib/utils/ai-content-parser";
@@ -28,6 +29,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface NPCsTabProps {
   campaignId: string;
@@ -152,22 +159,11 @@ export function NPCsTab({ campaignId, isDm }: NPCsTabProps) {
 
   if (loading) {
     return (
-      <div style={{ padding: "16px 20px" }}>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
-            gap: 10,
-          }}
-        >
-          {[1, 2, 3, 4, 5, 6].map((i) => (
-            <div key={i} className="sc-card" style={{ padding: 0, overflow: "hidden" }}>
-              <Skeleton className="h-32 w-full" />
-              <div style={{ padding: 10 }}>
-                <Skeleton className="h-4 w-24 mb-2" />
-                <Skeleton className="h-3 w-full" />
-              </div>
-            </div>
+      <div className="forge-tab-root">
+        <div className="sc-card overflow-hidden">
+          <Skeleton className="h-10 w-full rounded-none" />
+          {[1, 2, 3, 4, 5].map((i) => (
+            <Skeleton key={i} className="h-14 w-full rounded-none border-t border-border" />
           ))}
         </div>
       </div>
@@ -181,50 +177,45 @@ export function NPCsTab({ campaignId, isDm }: NPCsTabProps) {
       })
     : npcs;
 
+  const initials = (name: string) =>
+    name
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((w) => w[0])
+      .slice(0, 2)
+      .join("")
+      .toUpperCase() || "?";
+
   return (
-    <div style={{ padding: "16px 20px" }}>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: 14,
-          flexWrap: "wrap",
-          gap: 10,
-        }}
-      >
-        <div>
-          <div className="font-serif" style={{ fontSize: 20 }}>
-            NPC Roster
-          </div>
-          <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
-            {npcs.length} character{npcs.length === 1 ? "" : "s"} — the living
-            cast of your world
-          </div>
-        </div>
-        {isDm && userId && (
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            {canUseAI && (
+    <div className="forge-tab-root sc-fade-in">
+      <ForgeTabHeader
+        title="NPCs"
+        subtitle={`${filteredNpcs.length} of ${npcs.length} shown`}
+        actions={
+          isDm && userId ? (
+            <>
+              {canUseAI && (
+                <button
+                  type="button"
+                  className="sc-btn sc-btn-sm"
+                  onClick={() => setAiDialogOpen(true)}
+                >
+                  <Sparkles size={12} />
+                  AI
+                </button>
+              )}
               <button
                 type="button"
-                className="sc-btn sc-btn-sm"
-                onClick={() => setAiDialogOpen(true)}
+                className="sc-btn sc-btn-primary sc-btn-sm"
+                onClick={() => setCreateDialogOpen(true)}
               >
-                <Sparkles size={12} />
-                AI
+                <Plus size={12} />
+                NPC
               </button>
-            )}
-            <button
-              type="button"
-              className="sc-btn sc-btn-primary sc-btn-sm"
-              onClick={() => setCreateDialogOpen(true)}
-            >
-              <Plus size={12} />
-              New NPC
-            </button>
-          </div>
-        )}
-      </div>
+            </>
+          ) : null
+        }
+      />
 
       {npcs.length > 0 && (
         <div
@@ -233,33 +224,26 @@ export function NPCsTab({ campaignId, isDm }: NPCsTabProps) {
             alignItems: "center",
             gap: 8,
             marginBottom: 14,
+            flexWrap: "wrap",
           }}
         >
-          <div
-            className="sc-input"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              padding: "6px 10px",
-              flex: 1,
-              maxWidth: 360,
-            }}
-          >
-            <Search size={13} style={{ color: "var(--muted-foreground)" }} />
+          <div style={{ position: "relative", flex: "1 1 200px", maxWidth: 320 }}>
+            <Search
+              size={12}
+              style={{
+                position: "absolute",
+                left: 10,
+                top: "50%",
+                transform: "translateY(-50%)",
+                color: "var(--muted-foreground)",
+              }}
+            />
             <input
-              type="text"
-              placeholder="Search NPCs..."
+              className="sc-input"
+              placeholder="Search NPCs…"
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              style={{
-                border: "none",
-                background: "transparent",
-                outline: "none",
-                fontSize: 12.5,
-                flex: 1,
-                color: "var(--foreground)",
-              }}
+              style={{ paddingLeft: 30, fontSize: 12 }}
             />
           </div>
         </div>
@@ -284,175 +268,158 @@ export function NPCsTab({ campaignId, isDm }: NPCsTabProps) {
           </div>
         </div>
       ) : (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
-            gap: 10,
-          }}
-        >
-          {filteredNpcs.map((npc) => {
-            const className = getNPCClassName(npc);
-            const speciesName = getNPCSpeciesName(npc);
-            return (
-              <div
-                key={npc.id}
-                className="sc-card sc-card-hover"
-                style={{
-                  padding: 0,
-                  overflow: "hidden",
-                  cursor: "pointer",
-                  display: "flex",
-                  flexDirection: "column",
-                }}
-                onClick={() => setViewingNPC(npc)}
-              >
-                <div
-                  style={{
-                    width: "100%",
-                    aspectRatio: "1 / 1",
-                    background: "var(--muted)",
-                    overflow: "hidden",
-                    flexShrink: 0,
-                    position: "relative",
-                  }}
-                >
-                  {npc.image_url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={npc.image_url}
-                      alt={npc.name}
+        <div className="sc-card overflow-hidden">
+          <div className="overflow-x-auto">
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+              <thead>
+                <tr style={{ background: "var(--muted)", color: "var(--muted-foreground)", textAlign: "left" }}>
+                  {(["Name", "Class", "Species", "Location", "Hook"] as const).map((h) => (
+                    <th
+                      key={h}
                       style={{
-                        width: "100%",
-                        height: "100%",
-                        objectFit: "cover",
-                      }}
-                    />
-                  ) : (
-                    <div
-                      style={{
-                        width: "100%",
-                        height: "100%",
-                        background:
-                          "linear-gradient(135deg, color-mix(in srgb, var(--primary) 20%, var(--card)), var(--card))",
-                        display: "grid",
-                        placeItems: "center",
-                      }}
-                    >
-                      <User
-                        size={36}
-                        style={{
-                          color:
-                            "color-mix(in srgb, var(--primary) 55%, transparent)",
-                        }}
-                      />
-                    </div>
-                  )}
-                  {isDm && npc.hidden_from_players && (
-                    <div
-                      style={{
-                        position: "absolute",
-                        top: 6,
-                        right: 6,
-                        background: "rgba(0,0,0,0.6)",
-                        borderRadius: 4,
-                        padding: 4,
-                      }}
-                      title="Hidden from players"
-                    >
-                      <EyeOff size={12} style={{ color: "#facc15" }} />
-                    </div>
-                  )}
-                </div>
-                <div
-                  style={{
-                    padding: 10,
-                    display: "flex",
-                    flexDirection: "column",
-                    flex: 1,
-                    gap: 6,
-                  }}
-                >
-                  <div
-                    className="font-serif truncate"
-                    style={{ fontSize: 14 }}
-                    title={npc.name}
-                  >
-                    {npc.name}
-                  </div>
-                  {(className || speciesName) && (
-                    <div
-                      style={{
-                        display: "flex",
-                        gap: 4,
-                        flexWrap: "wrap",
-                      }}
-                    >
-                      {speciesName && (
-                        <span className="sc-badge" style={{ fontSize: 9 }}>
-                          {speciesName}
-                        </span>
-                      )}
-                      {className && (
-                        <span className="sc-badge" style={{ fontSize: 9 }}>
-                          {className}
-                        </span>
-                      )}
-                    </div>
-                  )}
-                  {npc.description && (
-                    <div
-                      style={{
+                        padding: "10px 14px",
+                        fontWeight: 600,
                         fontSize: 11,
-                        color: "var(--muted-foreground)",
-                        lineHeight: 1.45,
-                        display: "-webkit-box",
-                        WebkitBoxOrient: "vertical",
-                        WebkitLineClamp: 2,
-                        overflow: "hidden",
+                        letterSpacing: "0.04em",
+                        textTransform: "uppercase",
                       }}
                     >
-                      {npc.description}
-                    </div>
-                  )}
+                      {h}
+                    </th>
+                  ))}
                   {isDm && (
-                    <div
-                      style={{
-                        display: "flex",
-                        gap: 4,
-                        marginTop: "auto",
-                        paddingTop: 6,
-                      }}
-                    >
-                      <button
-                        type="button"
-                        className="sc-btn sc-btn-sm sc-btn-ghost"
-                        style={{ flex: 1, justifyContent: "center" }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setEditingNPC(npc);
-                        }}
-                      >
-                        <Edit size={11} />
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        className="sc-btn sc-btn-sm sc-btn-ghost"
-                        style={{ color: "var(--destructive)" }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setDeletingNPCId(npc.id);
-                        }}
-                      >
-                        <Trash2 size={11} />
-                      </button>
-                    </div>
+                    <th style={{ padding: "10px 14px", width: 48, textAlign: "right" }} aria-label="Actions" />
                   )}
-                </div>
-              </div>
-            );
-          })}
+                </tr>
+              </thead>
+              <tbody>
+                {filteredNpcs.map((npc, i) => {
+                  const className = getNPCClassName(npc);
+                  const speciesName = getNPCSpeciesName(npc);
+                  const hook = npc.description?.trim() || npc.notes?.trim() || "—";
+                  return (
+                    <tr
+                      key={npc.id}
+                      className="sc-card-hover cursor-pointer"
+                      style={{
+                        borderTop: i === 0 ? "none" : "1px solid var(--border)",
+                      }}
+                      onClick={() => setViewingNPC(npc)}
+                    >
+                      <td style={{ padding: "12px 14px" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                          <div
+                            style={{
+                              width: 28,
+                              height: 28,
+                              borderRadius: 6,
+                              background:
+                                "color-mix(in srgb, var(--primary) 24%, var(--muted))",
+                              color: "var(--primary-foreground, #fff)",
+                              display: "grid",
+                              placeItems: "center",
+                              fontSize: 11,
+                              fontWeight: 600,
+                              fontFamily: "var(--font-serif)",
+                              overflow: "hidden",
+                              flexShrink: 0,
+                            }}
+                          >
+                            {npc.image_url ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={npc.image_url}
+                                alt=""
+                                style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                              />
+                            ) : (
+                              initials(npc.name)
+                            )}
+                          </div>
+                          <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+                            <span style={{ fontWeight: 500 }}>{npc.name}</span>
+                            {isDm && npc.hidden_from_players && (
+                              <span style={{ fontSize: 10, color: "var(--destructive)" }}>
+                                <Lock size={9} className="inline mr-0.5" />
+                                DM-only
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                      <td style={{ padding: "12px 14px" }}>
+                        {className ? (
+                          <span className="sc-badge sc-badge-primary" style={{ fontSize: 10 }}>
+                            {className}
+                          </span>
+                        ) : (
+                          <span style={{ color: "var(--muted-foreground)" }}>—</span>
+                        )}
+                      </td>
+                      <td style={{ padding: "12px 14px", color: "var(--muted-foreground)" }}>
+                        {speciesName || "—"}
+                      </td>
+                      <td style={{ padding: "12px 14px", color: "var(--muted-foreground)" }}>
+                        {npc.location?.trim() || "—"}
+                      </td>
+                      <td
+                        style={{
+                          padding: "12px 14px",
+                          color: "var(--muted-foreground)",
+                          maxWidth: 280,
+                        }}
+                        className="truncate"
+                        title={hook}
+                      >
+                        {hook}
+                      </td>
+                      {isDm && (
+                        <td
+                          style={{ padding: "12px 14px", textAlign: "right", verticalAlign: "middle" }}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <button
+                                type="button"
+                                className="sc-btn sc-btn-sm sc-btn-ghost sc-btn-icon"
+                                aria-label="NPC actions"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <MoreHorizontal size={16} />
+                              </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="min-w-[10rem]">
+                              <DropdownMenuItem
+                                className="cursor-pointer"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingNPC(npc);
+                                }}
+                              >
+                                <Edit className="mr-2 h-4 w-4" />
+                                Edit
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                className="cursor-pointer text-destructive focus:text-destructive"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setDeletingNPCId(npc.id);
+                                }}
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 

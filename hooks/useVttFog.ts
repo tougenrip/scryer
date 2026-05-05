@@ -54,7 +54,10 @@ export function useVttFog(mapId: string | null) {
 
   const updateFogShapes = async (newShapes: FogShape[]) => {
       const newFogData = { ...fogData, shapes: newShapes };
-      
+      await updateFogData(newFogData);
+  };
+
+  const updateFogData = async (newFogData: FogData) => {
       // Optimistic update
       setFogData(newFogData);
 
@@ -62,7 +65,7 @@ export function useVttFog(mapId: string | null) {
 
       const { error } = await supabase
         .from('media_items')
-        .update({ fog_data: newFogData })
+        .update({ fog_data: newFogData as unknown as object }) // Fix for supabase types
         .eq('id', mapId);
 
       if (error) {
@@ -70,5 +73,5 @@ export function useVttFog(mapId: string | null) {
       }
   };
 
-  return { updateFogShapes };
+  return { updateFogShapes, updateFogData };
 }

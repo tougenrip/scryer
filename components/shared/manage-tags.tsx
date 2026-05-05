@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { X, Plus } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
+import { normalizeMetadataTags } from "@/lib/utils/metadata-tags";
 
 interface ManageTagsProps {
   campaignId: string;
@@ -26,29 +27,33 @@ export function ManageTags({
   isDm = false 
 }: ManageTagsProps) {
   const [newTag, setNewTag] = useState("");
-  const [tags, setTags] = useState<string[]>(currentTags);
+  const [tags, setTags] = useState<string[]>(() => normalizeMetadataTags(currentTags));
 
-  // Sync tags when currentTags changes
   useEffect(() => {
-    if (currentTags) {
-      setTags(currentTags);
-    }
+    setTags(normalizeMetadataTags(currentTags));
   }, [currentTags]);
 
   const handleAddTag = async () => {
-    const trimmedTag = newTag.trim();
-    if (!trimmedTag) return;
-    
-    if (tags.includes(trimmedTag)) {
-      toast.error("Tag already exists");
+    const raw = newTag.trim();
+    if (!raw) return;
+
+    const parts = raw.includes(",") || raw.includes("\n")
+      ? raw
+          .split(/[,\n]+/)
+          .map((p) => p.trim())
+          .filter(Boolean)
+      : [raw];
+
+    const dedupAdd = parts.filter((p) => !tags.includes(p));
+    if (dedupAdd.length === 0) {
+      toast.error(parts.length > 1 ? "Those tags are already added" : "Tag already exists");
       return;
     }
 
-    const newTags = [...tags, trimmedTag];
+    const newTags = [...tags, ...dedupAdd];
     setTags(newTags);
     setNewTag("");
 
-    // Save to database
     await saveTagsToDatabase(newTags);
     onUpdate(newTags);
   };
@@ -63,10 +68,10 @@ export function ManageTags({
     toast.success("Tag removed");
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
       e.preventDefault();
-      handleAddTag();
+      void handleAddTag();
     }
   };
 
@@ -78,8 +83,6 @@ export function ManageTags({
     else if (entityType === 'faction') tableName = 'factions';
     else if (entityType === 'location') tableName = 'world_locations';
     else if (entityType === 'pantheon') tableName = 'pantheon_deities';
-
-    if (!tableName) return;
 
     if (!tableName) return;
 
@@ -116,11 +119,11 @@ export function ManageTags({
           <Input
             value={newTag}
             onChange={(e) => setNewTag(e.target.value)}
-            onKeyPress={handleKeyPress}
-            placeholder="Enter tag name and press Enter"
+            onKeyDown={handleKeyDown}
+            placeholder="Tag(s) — comma-separated ok, then Enter"
             className="flex-1"
           />
-          <Button onClick={handleAddTag} size="sm" disabled={!newTag.trim()}>
+          <Button onClick={() => void handleAddTag()} size="sm" disabled={!newTag.trim()}>
             <Plus className="h-4 w-4" />
           </Button>
         </div>

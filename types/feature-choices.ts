@@ -95,7 +95,7 @@ export interface FeatureWithChoices {
   class_index?: string;
   subclass_index?: string;
   description: string | null;
-  feature_specific: any; // Raw JSONB from database
+  feature_specific: unknown; // Raw JSONB from database
   choice?: AnyFeatureChoice | null; // Parsed choice data
   requiresChoice: boolean; // Whether this feature requires a choice
 }

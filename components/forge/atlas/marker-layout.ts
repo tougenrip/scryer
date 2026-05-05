@@ -3,9 +3,10 @@ import type { LocationMarker } from "@/hooks/useForgeContent";
 const VIEWBOX = 24;
 
 /**
- * Extra translateY (px) for the map glyph so it sits on the fill's visual centroid.
- * Triangle / bookmark / teardrop carry most ink below (12, 12) in the 24×24 frame, so
- * flex centering leaves the icon too high. Positive = move down.
+ * Extra translateY (px) after the frame’s own shift (`backgroundOnlyOffsetY` for teardrop/bookmark).
+ * Teardrop/bookmark use 0 here — the frame layer already moves the artwork; adding du here
+ * stacked on top of that shift and pushed glyphs into the pin point. Triangle still needs a
+ * small nudge because its frame isn’t pre-shifted the same way.
  */
 export function markerIconCentroidNudgeY(
   shape: LocationMarker["background_shape"],
@@ -19,10 +20,8 @@ export function markerIconCentroidNudgeY(
       du = 2.2;
       break;
     case "bookmark":
-      du = 1.45;
-      break;
     case "teardrop":
-      du = 3.1;
+      du = 0;
       break;
     default:
       return 0;

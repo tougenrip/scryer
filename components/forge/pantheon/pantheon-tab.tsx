@@ -13,6 +13,7 @@ import {
 import { toast } from "sonner";
 import { DeityFormDialog } from "./deity-form-dialog";
 import { DeityDetailDialog } from "./deity-detail-dialog";
+import { ForgeTabHeader } from "@/components/forge/forge-tab-header";
 
 const DEITY_COLORS = [
   "#5b9bd5",
@@ -135,7 +136,7 @@ export function PantheonTab({ campaignId, isDm }: PantheonTabProps) {
 
   if (loading) {
     return (
-      <div style={{ padding: "16px 20px" }}>
+      <div className="forge-tab-root">
         <div
           style={{
             display: "grid",
@@ -156,61 +157,45 @@ export function PantheonTab({ campaignId, isDm }: PantheonTabProps) {
   }
 
   return (
-    <div style={{ padding: "16px 20px" }}>
-      {/* Header */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: 14,
-          flexWrap: "wrap",
-          gap: 10,
-        }}
-      >
-        <div>
-          <div className="font-serif" style={{ fontSize: 20 }}>
-            The Pantheon
-          </div>
-          <div
-            style={{ fontSize: 12, color: "var(--muted-foreground)" }}
-          >
-            {filteredDeities.length} of {deities.length} known power{deities.length === 1 ? "" : "s"}
-          </div>
-        </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <div style={{ position: "relative" }}>
-            <Search
-              size={12}
-              style={{
-                position: "absolute",
-                left: 10,
-                top: "50%",
-                transform: "translateY(-50%)",
-                color: "var(--muted-foreground)",
-              }}
-            />
-            <input
-              className="sc-input"
-              placeholder="Search deities…"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              style={{ paddingLeft: 30, width: 220, fontSize: 12 }}
-            />
-          </div>
-          {isDm && (
-            <button
-              type="button"
-              className="sc-btn sc-btn-primary sc-btn-sm"
-              onClick={handleCreate}
-              disabled={creating}
-            >
-              <Plus size={12} />
-              Deity
-            </button>
-          )}
-        </div>
-      </div>
+    <div className="forge-tab-root sc-fade-in">
+      <ForgeTabHeader
+        title="The Pantheon"
+        subtitle={`${filteredDeities.length} of ${deities.length} known power${deities.length === 1 ? "" : "s"}`}
+        actions={
+          <>
+            <div style={{ position: "relative" }}>
+              <Search
+                size={12}
+                style={{
+                  position: "absolute",
+                  left: 10,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  color: "var(--muted-foreground)",
+                }}
+              />
+              <input
+                className="sc-input"
+                placeholder="Search deities…"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                style={{ paddingLeft: 30, width: 220, fontSize: 12 }}
+              />
+            </div>
+            {isDm && (
+              <button
+                type="button"
+                className="sc-btn sc-btn-primary sc-btn-sm"
+                onClick={handleCreate}
+                disabled={creating}
+              >
+                <Plus size={12} />
+                Deity
+              </button>
+            )}
+          </>
+        }
+      />
 
       {/* Empty */}
       {deities.length === 0 ? (

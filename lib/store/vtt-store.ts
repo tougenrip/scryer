@@ -1,14 +1,24 @@
 import { create } from 'zustand';
 import { Token, FogData, FogShape } from '@/types/vtt';
 
+export type PendingTokenPlacement = {
+  name: string;
+  image_url: string | null;
+  type: 'token' | 'prop';
+  monster_source?: 'srd' | 'homebrew' | null;
+  monster_index?: string | null;
+  srd_monster_id?: string | null;
+};
+
 interface VttState {
   // Canvas State
   stageScale: number;
   stagePos: { x: number; y: number };
   
-  // Grid State
+  // Grid State (gridSize = pixels per cell on the map image)
   gridSize: number;
   gridType: 'square' | 'hex';
+  feetPerSquare: number;
   showGrid: boolean;
   gridColor: string;
   gridOpacity: number;
@@ -21,6 +31,7 @@ interface VttState {
   // Tokens State
   tokens: Token[];
   selectedTokenId: string | null;
+  pendingTokenPlacement: PendingTokenPlacement | null;
 
   // Fog State
   fogData: FogData;
@@ -30,15 +41,32 @@ interface VttState {
   weatherIntensity: number; // 0 to 1
 
   // Tools
-  activeTool: 'select' | 'pan' | 'measure' | 'fog';
+  activeTool:
+    | 'select'
+    | 'pan'
+    | 'measure'
+    | 'fog'
+    | 'ping'
+    | 'draw'
+    | 'erase'
+    | 'aoe-circle'
+    | 'aoe-cone'
+    | 'aoe-line'
+    | 'aoe-square'
+    | 'aoe-ring';
+  aoeShape: 'circle' | 'cone' | 'line' | 'square' | 'ring';
   fogToolType: 'reveal' | 'hide';
-  fogToolShape: 'rect' | 'circle' | 'polygon';
+  fogToolShape: 'rect' | 'circle' | 'polygon' | 'brush';
+  fogBrushSize: number;
+  fogBrushSmoothness: number;
+  dmHideFog: boolean;
   
   // Actions
   setStageScale: (scale: number) => void;
   setStagePos: (pos: { x: number; y: number }) => void;
   setGridSize: (size: number) => void;
   setGridType: (type: 'square' | 'hex') => void;
+  setFeetPerSquare: (ft: number) => void;
   setShowGrid: (show: boolean) => void;
   setGridColor: (color: string) => void;
   setGridOpacity: (opacity: number) => void;
@@ -50,16 +78,33 @@ interface VttState {
   addToken: (token: Token) => void;
   removeToken: (id: string) => void;
   setSelectedTokenId: (id: string | null) => void;
+  setPendingTokenPlacement: (placement: PendingTokenPlacement | null) => void;
   
   setFogData: (data: FogData) => void;
   addFogShape: (shape: FogShape) => void;
   setFogToolType: (type: 'reveal' | 'hide') => void;
-  setFogToolShape: (shape: 'rect' | 'circle' | 'polygon') => void;
+  setFogToolShape: (shape: 'rect' | 'circle' | 'polygon' | 'brush') => void;
+  setFogBrushSize: (size: number) => void;
+  setFogBrushSmoothness: (smoothness: number) => void;
+  setDmHideFog: (hide: boolean) => void;
 
   setWeatherType: (type: 'none' | 'rain' | 'snow' | 'fog') => void;
   setWeatherIntensity: (intensity: number) => void;
 
-  setActiveTool: (tool: 'select' | 'pan' | 'measure' | 'fog') => void;
+  setActiveTool: (
+    tool:
+      | 'select'
+      | 'pan'
+      | 'measure'
+      | 'fog'
+      | 'ping'
+      | 'aoe-circle'
+      | 'aoe-cone'
+      | 'aoe-line'
+      | 'aoe-square'
+      | 'aoe-ring'
+  ) => void;
+  setAoeShape: (shape: 'circle' | 'cone' | 'line' | 'square' | 'ring') => void;
   resetView: () => void;
 }
 
@@ -69,6 +114,7 @@ export const useVttStore = create<VttState>((set) => ({
   
   gridSize: 50,
   gridType: 'square',
+  feetPerSquare: 5,
   showGrid: true,
   gridColor: '#000000',
   gridOpacity: 0.2,
@@ -79,12 +125,17 @@ export const useVttStore = create<VttState>((set) => ({
   
   tokens: [],
   selectedTokenId: null,
+  pendingTokenPlacement: null,
 
   fogData: { shapes: [], revealed: false },
 
   activeTool: 'select',
+  aoeShape: 'circle',
   fogToolType: 'reveal',
   fogToolShape: 'rect',
+  fogBrushSize: 40,
+  fogBrushSmoothness: 5,
+  dmHideFog: false,
   
   weatherType: 'none',
   weatherIntensity: 0.5,
@@ -93,6 +144,7 @@ export const useVttStore = create<VttState>((set) => ({
   setStagePos: (pos) => set({ stagePos: pos }),
   setGridSize: (size) => set({ gridSize: size }),
   setGridType: (type) => set({ gridType: type }),
+  setFeetPerSquare: (ft) => set({ feetPerSquare: ft }),
   setShowGrid: (show) => set({ showGrid: show }),
   setGridColor: (color) => set({ gridColor: color }),
   setGridOpacity: (opacity) => set({ gridOpacity: opacity }),
@@ -103,11 +155,16 @@ export const useVttStore = create<VttState>((set) => ({
   updateToken: (id, updates) => set((state) => ({
     tokens: state.tokens.map((t) => (t.id === id ? { ...t, ...updates } : t)),
   })),
-  addToken: (token) => set((state) => ({ tokens: [...state.tokens, token] })),
+  addToken: (token) => set((state) => ({
+    tokens: state.tokens.some((t) => t.id === token.id)
+      ? state.tokens.map((t) => (t.id === token.id ? { ...t, ...token } : t))
+      : [...state.tokens, token],
+  })),
   removeToken: (id) => set((state) => ({
     tokens: state.tokens.filter((t) => t.id !== id),
   })),
   setSelectedTokenId: (id) => set({ selectedTokenId: id }),
+  setPendingTokenPlacement: (placement) => set({ pendingTokenPlacement: placement }),
 
   setFogData: (data) => set({ fogData: data }),
   addFogShape: (shape) => set((state) => ({
@@ -118,10 +175,14 @@ export const useVttStore = create<VttState>((set) => ({
   })),
   setFogToolType: (type) => set({ fogToolType: type }),
   setFogToolShape: (shape) => set({ fogToolShape: shape }),
+  setFogBrushSize: (size) => set({ fogBrushSize: size }),
+  setFogBrushSmoothness: (smoothness) => set({ fogBrushSmoothness: smoothness }),
+  setDmHideFog: (hide) => set({ dmHideFog: hide }),
 
   setWeatherType: (type) => set({ weatherType: type }),
   setWeatherIntensity: (intensity) => set({ weatherIntensity: intensity }),
 
   setActiveTool: (tool) => set({ activeTool: tool }),
+  setAoeShape: (shape) => set({ aoeShape: shape }),
   resetView: () => set({ stageScale: 1, stagePos: { x: 0, y: 0 } }),
 }));

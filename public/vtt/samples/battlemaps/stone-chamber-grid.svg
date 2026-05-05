@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600">
+  <rect width="800" height="600" fill="#1a1814"/>
+  <g stroke="#5c4a2e" stroke-width="1" opacity="0.35">
+    <defs>
+      <pattern id="g40" width="40" height="40" patternUnits="userSpaceOnUse">
+        <path d="M 40 0 L 0 0 0 40" fill="none"/>
+      </pattern>
+    </defs>
+    <rect width="800" height="600" fill="url(#g40)"/>
+  </g>
+  <text x="400" y="300" text-anchor="middle" fill="#8a7a60" font-family="system-ui,sans-serif" font-size="16">Sample: stone chamber (40px grid)</text>
+</svg>

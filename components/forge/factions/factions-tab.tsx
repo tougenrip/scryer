@@ -32,14 +32,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-
-const INFLUENCE_PCT: Record<string, number> = {
-  local: 20,
-  regional: 45,
-  continental: 68,
-  global: 88,
-  multiverse: 100,
-};
+import { ForgeTabHeader } from "@/components/forge/forge-tab-header";
+import { FACTION_INFLUENCE_PCT } from "@/lib/faction-influence";
 
 const TYPE_COLOR: Record<string, string> = {
   kingdom: "#5b9bd5",
@@ -165,7 +159,7 @@ export function FactionsTab({ campaignId, isDm }: FactionsTabProps) {
 
   if (loading) {
     return (
-      <div style={{ padding: "16px 20px" }}>
+      <div className="forge-tab-root">
         <div
           style={{
             display: "grid",
@@ -186,68 +180,54 @@ export function FactionsTab({ campaignId, isDm }: FactionsTabProps) {
   }
 
   return (
-    <div style={{ padding: "16px 20px" }}>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: 14,
-          flexWrap: "wrap",
-          gap: 10,
-        }}
-      >
-        <div>
-          <div className="font-serif" style={{ fontSize: 20 }}>
-            Factions
-          </div>
-          <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
-            {filteredFactions.length} of {factions.length} organization
-            {factions.length === 1 ? "" : "s"}
-          </div>
-        </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <div style={{ position: "relative" }}>
-            <Search
-              size={12}
-              style={{
-                position: "absolute",
-                left: 10,
-                top: "50%",
-                transform: "translateY(-50%)",
-                color: "var(--muted-foreground)",
-              }}
-            />
-            <input
-              className="sc-input"
-              placeholder="Search factions…"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              style={{ paddingLeft: 30, width: 220, fontSize: 12 }}
-            />
-          </div>
-          {isDm && canUseAI && (
-            <button
-              type="button"
-              className="sc-btn sc-btn-sm"
-              onClick={() => setAiDialogOpen(true)}
-            >
-              <Sparkles size={12} />
-              AI
-            </button>
-          )}
-          {isDm && (
-            <button
-              type="button"
-              className="sc-btn sc-btn-primary sc-btn-sm"
-              onClick={() => setCreateDialogOpen(true)}
-            >
-              <Plus size={12} />
-              Faction
-            </button>
-          )}
-        </div>
-      </div>
+    <div className="forge-tab-root sc-fade-in">
+      <ForgeTabHeader
+        title="Factions"
+        subtitle={`${filteredFactions.length} of ${factions.length} active organization${factions.length === 1 ? "" : "s"}`}
+        actions={
+          <>
+            <div style={{ position: "relative" }}>
+              <Search
+                size={12}
+                style={{
+                  position: "absolute",
+                  left: 10,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  color: "var(--muted-foreground)",
+                }}
+              />
+              <input
+                className="sc-input"
+                placeholder="Search factions…"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                style={{ paddingLeft: 30, width: 220, fontSize: 12 }}
+              />
+            </div>
+            {isDm && canUseAI && (
+              <button
+                type="button"
+                className="sc-btn sc-btn-sm"
+                onClick={() => setAiDialogOpen(true)}
+              >
+                <Sparkles size={12} />
+                AI
+              </button>
+            )}
+            {isDm && (
+              <button
+                type="button"
+                className="sc-btn sc-btn-primary sc-btn-sm"
+                onClick={() => setCreateDialogOpen(true)}
+              >
+                <Plus size={12} />
+                Faction
+              </button>
+            )}
+          </>
+        }
+      />
 
       {factions.length === 0 ? (
         <div className="sc-card" style={{ padding: 40 }}>
@@ -278,7 +258,7 @@ export function FactionsTab({ campaignId, isDm }: FactionsTabProps) {
           {filteredFactions.map((faction) => {
             const color = factionColor(faction.type);
             const influencePct = faction.influence_level
-              ? INFLUENCE_PCT[faction.influence_level] || 40
+              ? FACTION_INFLUENCE_PCT[faction.influence_level] ?? 40
               : 30;
             const typeLabel = faction.type
               ? faction.type.replace(/_/g, " ")
@@ -506,7 +486,7 @@ export function FactionsTab({ campaignId, isDm }: FactionsTabProps) {
         generatorType="faction"
         title="Generate Faction with AI"
         description="Create a faction with structure, goals, and political influence"
-        onGenerated={(content) => {
+        onGenerated={() => {
           setAiDialogOpen(false);
           setCreateDialogOpen(true);
         }}

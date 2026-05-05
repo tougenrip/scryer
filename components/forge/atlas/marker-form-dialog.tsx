@@ -26,59 +26,13 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { 
-  Search, 
-  MapPin, 
-  Building2, 
-  Home, 
-  Store, 
-  Globe, 
-  Mountain, 
-  Flag,
-  Castle,
-  UtensilsCrossed,
-  ShoppingBag,
-  Church,
-  DoorOpen,
-  TreePine,
-  Landmark,
-  Anchor,
-  Shield,
-  Sword,
-  Axe,
-  FlaskConical,
-  Gem,
-  Circle,
-  Diamond,
-  Square,
-  Star,
-  Moon
-} from "lucide-react";
+import { Search, MapPin, Globe, Mountain, Flag, Store } from "lucide-react";
 import { LocationMarker, WorldLocation } from "@/hooks/useForgeContent";
+import { CircleIcon, DiamondIcon, SquareIcon, TriangleIcon, TeardropIcon, BookmarkIcon } from "./marker-icons";
 import {
-  CircleIcon,
-  DiamondIcon,
-  SquareIcon,
-  TriangleIcon,
-  TeardropIcon,
-  BookmarkIcon,
-  AxeIcon,
-  PotionIcon,
-  MoonStarIcon,
-  StarIcon,
-  SwordIcon,
-  FlagIcon,
-  CastleIcon,
-  HouseIcon,
-  GlobeIcon,
-  MagicShopIcon,
-  ButcherIcon,
-  SchoolIcon,
-  EnemyIcon,
-  LootIcon,
-  QuestIcon,
-  SideQuestIcon,
-} from "./marker-icons";
+  MARKER_PIN_ICONS,
+  MARKER_PIN_ICON_ORDER,
+} from "./marker-pin-icon-registry";
 import { AtlasMarkerBackground } from "@/components/forge/atlas/atlas-marker-background";
 import { markerIconCentroidNudgeY } from "@/components/forge/atlas/marker-layout";
 
@@ -109,9 +63,9 @@ const getTypeIcon = (type: string) => {
     continent: Mountain,
     region: Flag,
     kingdom: Flag,
-    city: Building2,
-    village: Home,
-    settlement: Home,
+    city: MapPin,
+    village: MapPin,
+    settlement: MapPin,
     poi: Store,
   };
   return iconMap[type];
@@ -141,50 +95,14 @@ const backgroundShapes: Record<NonNullable<LocationMarker['background_shape']>, 
   bookmark: { icon: BookmarkIcon, label: 'Bookmark' },
 };
 
-// Icon type definitions for marker icons - using filled, outlined style
-const markerIcons: Record<NonNullable<LocationMarker['icon_type']>, { icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>, label: string }> = {
-  // Fantasy Icons
-  axe: { icon: AxeIcon, label: 'Axe' },
-  potion: { icon: PotionIcon, label: 'Potion' },
-  moon_star: { icon: MoonStarIcon, label: 'Moon & Stars' },
-  star: { icon: StarIcon, label: 'Star' },
-  sword: { icon: SwordIcon, label: 'Sword' },
-  flag: { icon: FlagIcon, label: 'Flag' },
-  magic_shop: { icon: MagicShopIcon, label: 'Magic shop' },
-  butcher: { icon: ButcherIcon, label: 'Butcher' },
-  school: { icon: SchoolIcon, label: 'School' },
-  enemy: { icon: EnemyIcon, label: 'Enemy' },
-  loot: { icon: LootIcon, label: 'Loot' },
-  quest: { icon: QuestIcon, label: 'Quest' },
-  side_quest: { icon: SideQuestIcon, label: 'Side quest' },
-  // Location Icons
-  castle: { icon: CastleIcon, label: 'Castle' },
-  house: { icon: HouseIcon, label: 'House' },
-  globe: { icon: GlobeIcon, label: 'Globe' },
-  // Special shapes
-  sphere: { icon: GlobeIcon, label: 'Sphere' },
-  shape_square: { icon: SquareIcon, label: 'Plain Square' },
-  shape_diamond: { icon: DiamondIcon, label: 'Plain Diamond' },
-  // Legacy icons (keeping for backward compatibility)
-  city: { icon: Building2, label: 'City' },
-  village: { icon: Home, label: 'Village' },
-  fort: { icon: Castle, label: 'Fort' },
-  tavern: { icon: UtensilsCrossed, label: 'Tavern' },
-  shop: { icon: ShoppingBag, label: 'Shop' },
-  temple: { icon: Church, label: 'Temple' },
-  dungeon: { icon: DoorOpen, label: 'Dungeon' },
-  cave: { icon: TreePine, label: 'Cave' },
-  landmark: { icon: Landmark, label: 'Landmark' },
-  port: { icon: Anchor, label: 'Port' },
-  border: { icon: Shield, label: 'Border' },
-};
+const markerIcons = MARKER_PIN_ICONS;
 
-/** Glyphs on dark picker tiles — solid light silhouettes (reference: white on charcoal cells, gold selected ring) */
+/** Glyphs on dark picker tiles — filled light silhouettes (reference: white on charcoal cells, gold selected ring) */
 const MARKER_PICKER_GLYPH_STYLE = {
   color: '#f4f4f5',
   fill: '#f4f4f5',
   stroke: '#f4f4f5',
-  strokeWidth: 1.5,
+  strokeWidth: 2,
   strokeLinejoin: 'round' as const,
   strokeLinecap: 'round' as const,
 };
@@ -260,43 +178,7 @@ interface IconTypeSelectorProps {
 }
 
 function IconTypeSelector({ value, onChange, disabled }: IconTypeSelectorProps) {
-  // Order icons: fantasy icons first, then location icons, then legacy
-  const iconOrder: NonNullable<LocationMarker['icon_type']>[] = [
-    // Fantasy / adventure
-    'axe',
-    'potion',
-    'moon_star',
-    'star',
-    'sword',
-    'flag',
-    'magic_shop',
-    'butcher',
-    'school',
-    'enemy',
-    'loot',
-    'quest',
-    'side_quest',
-    // Location Icons
-    'castle',
-    'house',
-    'globe',
-    // Legacy icons
-    'city',
-    'village',
-    'fort',
-    'tavern',
-    'shop',
-    'temple',
-    'dungeon',
-    'cave',
-    'landmark',
-    'port',
-    'border',
-    // Basic shapes (often used as plain pins)
-    'sphere',
-    'shape_square',
-    'shape_diamond',
-  ];
+  const iconOrder = MARKER_PIN_ICON_ORDER;
 
   return (
     <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
@@ -388,6 +270,7 @@ function MarkerPreview({ backgroundShape, iconType, color, size }: MarkerPreview
     backgroundShape,
     containerSize
   );
+  const iconTranslateY = backgroundOnlyOffsetY + iconCentroidNudgeY;
 
   const iconStyle: React.CSSProperties = hasFrame
     ? {
@@ -396,7 +279,7 @@ function MarkerPreview({ backgroundShape, iconType, color, size }: MarkerPreview
         color: jsonIcon ?? '#ffffff',
         fill: jsonIcon ?? '#ffffff',
         stroke: jsonIcon ?? '#ffffff',
-        strokeWidth: 1,
+        strokeWidth: 2,
         strokeLinejoin: 'round',
         strokeLinecap: 'round',
       }
@@ -406,7 +289,7 @@ function MarkerPreview({ backgroundShape, iconType, color, size }: MarkerPreview
         color: '#ffffff',
         fill: '#ffffff',
         stroke: '#0a0a0a',
-        strokeWidth: 2.25,
+        strokeWidth: 5,
         paintOrder: 'stroke fill',
         strokeLinejoin: 'round',
         strokeLinecap: 'round',
@@ -445,11 +328,11 @@ function MarkerPreview({ backgroundShape, iconType, color, size }: MarkerPreview
           )}
           {IconComponent ? (
             <div
-              className="relative z-10 flex items-center justify-center"
+              className="relative z-10 flex w-full min-w-0 items-center justify-center leading-none [&_svg]:block"
               style={{
                 transform:
-                  iconCentroidNudgeY !== 0
-                    ? `translateY(${iconCentroidNudgeY}px)`
+                  iconTranslateY !== 0
+                    ? `translateY(${iconTranslateY}px)`
                     : undefined,
               }}
             >

@@ -57,6 +57,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { ForgeTabHeader } from "@/components/forge/forge-tab-header";
 
 interface LocationsTabProps {
   campaignId: string;
@@ -345,7 +346,7 @@ export function LocationsTab({ campaignId, isDm }: LocationsTabProps) {
 
   if (loading) {
     return (
-      <div style={{ padding: "16px 20px" }}>
+      <div className="forge-tab-root">
         <div style={{ marginBottom: 14 }}>
           <Skeleton className="h-6 w-48" />
         </div>
@@ -368,51 +369,36 @@ export function LocationsTab({ campaignId, isDm }: LocationsTabProps) {
   }
 
   return (
-    <div style={{ padding: "16px 20px" }}>
-      {/* Header */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: 14,
-          flexWrap: "wrap",
-          gap: 10,
-        }}
-      >
-        <div>
-          <div className="font-serif" style={{ fontSize: 20 }}>
-            World Atlas
-          </div>
-          <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
-            {locations.length} location{locations.length === 1 ? "" : "s"} —
-            realms, cities, and points of interest
-          </div>
-        </div>
-        {isDm && (
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            {canUseAI && (
+    <div className="forge-tab-root sc-fade-in">
+      <ForgeTabHeader
+        title="Atlas"
+        subtitle={`${locations.length} location${locations.length === 1 ? "" : "s"} · your world map`}
+        actions={
+          isDm ? (
+            <>
+              {canUseAI && (
+                <button
+                  type="button"
+                  className="sc-btn sc-btn-sm"
+                  onClick={() => setAiDialogOpen(true)}
+                >
+                  <Sparkles size={12} />
+                  AI
+                </button>
+              )}
               <button
                 type="button"
-                className="sc-btn sc-btn-sm"
-                onClick={() => setAiDialogOpen(true)}
+                className="sc-btn sc-btn-primary sc-btn-sm"
+                onClick={handleCreate}
+                disabled={creating}
               >
-                <Sparkles size={12} />
-                AI
+                <Plus size={12} />
+                Place pin
               </button>
-            )}
-            <button
-              type="button"
-              className="sc-btn sc-btn-primary sc-btn-sm"
-              onClick={handleCreate}
-              disabled={creating}
-            >
-              <Plus size={12} />
-              New location
-            </button>
-          </div>
-        )}
-      </div>
+            </>
+          ) : null
+        }
+      />
 
       {/* Filters */}
       <div

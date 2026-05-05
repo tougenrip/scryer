@@ -159,6 +159,9 @@ export interface SrdMonster {
   actions: any;
   legendary_actions: any;
   reactions: any;
+  image_urls?: string[];
+  raw?: unknown;
+  source_version?: string;
   created_at: string;
 }
 
