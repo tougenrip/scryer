@@ -17,6 +17,7 @@ export interface Token {
   hp_current?: number | null;
   hp_max?: number | null;
   scale: number;
+  light_radius_ft?: number;
   /** DB column: library portrait; falls back to character image in hooks */
   image_url?: string | null;
   created_at?: string;
