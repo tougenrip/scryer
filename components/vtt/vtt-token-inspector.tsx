@@ -216,6 +216,12 @@ export function VttTokenInspector({
         ]}
       />
 
+      <LightRadiusRow
+        token={sel}
+        isDm={isDm}
+        onUpdate={(v) => updateToken(sel.id, { light_radius_ft: v })}
+      />
+
       <div className="space-y-2 rounded-md border border-border bg-background/35 p-3">
         <div className="flex items-center justify-between gap-2">
           <p className="text-[10px] font-semibold uppercase text-muted-foreground">
@@ -447,6 +453,45 @@ function HpAdjuster({
       <span className="ml-1 font-mono text-[10px] text-muted-foreground">
         {displayHp}/{maxHp}
       </span>
+    </div>
+  );
+}
+
+function LightRadiusRow({
+  token,
+  isDm,
+  onUpdate,
+}: {
+  token: import("@/types/vtt").Token;
+  isDm: boolean;
+  onUpdate: (lightFt: number) => void;
+}) {
+  const [value, setValue] = useState(String(token.light_radius_ft ?? 0));
+  useEffect(() => {
+    setValue(String(token.light_radius_ft ?? 0));
+  }, [token.light_radius_ft]);
+  if (!isDm) return null;
+  return (
+    <div className="rounded-md border border-border bg-background/35 p-3">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-[10px] font-semibold uppercase text-muted-foreground">
+          Light radius
+        </p>
+        <div className="flex items-center gap-1">
+          <Input
+            type="number"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            onBlur={() => {
+              const n = parseInt(value, 10);
+              if (!Number.isNaN(n) && n >= 0) onUpdate(n);
+              else setValue(String(token.light_radius_ft ?? 0));
+            }}
+            className="h-7 w-20 text-xs"
+          />
+          <span className="text-[10px] text-muted-foreground">ft</span>
+        </div>
+      </div>
     </div>
   );
 }
