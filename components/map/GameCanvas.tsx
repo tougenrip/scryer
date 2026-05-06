@@ -41,6 +41,7 @@ import {
   pointInPolygon,
   movementBlockingSegments,
 } from '@/lib/vtt/visibility';
+import polygonClipping from 'polygon-clipping';
 import { PingLayer } from './PingLayer';
 import { AoeLayer } from './AoeLayer';
 import { DrawingLayer } from './DrawingLayer';
@@ -168,10 +169,47 @@ export const GameCanvas = ({
 
   const sightSegs = sightBlockingSegments(walls);
 
-  const visiblePolygons: number[][] = ownedTokens.map((t) => {
+  // Light coverage circles in stage coords. Every token (any owner) with a
+  // positive light_radius_ft contributes a circle. Used only when sceneDark.
+  const lightCircles: Array<{ cx: number; cy: number; r: number }> = sceneDark
+    ? tokens
+        .filter((t) => (t.light_radius_ft ?? 0) > 0)
+        .map((t) => ({
+          cx: t.x + gridSize / 2,
+          cy: t.y + gridSize / 2,
+          r: ((t.light_radius_ft ?? 0) / feetPerSquare) * gridSize,
+        }))
+    : [];
+
+  function clipPolygonToLights(poly: Point[]): Point[][] {
+    if (!sceneDark) return [poly];
+    if (lightCircles.length === 0) return [];
+    if (poly.length < 3) return [];
+    const polyRing: number[][] = poly.map((p) => [p.x, p.y]);
+    polyRing.push(polyRing[0]);
+    const circlePolys = lightCircles.map(({ cx, cy, r }) => {
+      const ring: number[][] = [];
+      const N = 32;
+      for (let i = 0; i < N; i++) {
+        const a = (i / N) * Math.PI * 2;
+        ring.push([cx + Math.cos(a) * r, cy + Math.sin(a) * r]);
+      }
+      ring.push(ring[0]);
+      return [ring];
+    });
+    // Union of all light circles
+    const lightUnion = polygonClipping.union(...(circlePolys as never));
+    if (!lightUnion || lightUnion.length === 0) return [];
+    const intersection = polygonClipping.intersection([polyRing] as never, lightUnion as never);
+    return (intersection as number[][][][])
+      .map((mp) => (mp[0] ?? []).map(([x, y]) => ({ x, y })));
+  }
+
+  const visiblePolygons: number[][] = ownedTokens.flatMap((t) => {
     const center: Point = { x: t.x + gridSize / 2, y: t.y + gridSize / 2 };
-    const poly = computeVisibilityPolygon(center, sightSegs);
-    return polygonToFlatPoints(poly);
+    const losPoly = computeVisibilityPolygon(center, sightSegs);
+    const clipped = clipPolygonToLights(losPoly);
+    return clipped.map((c) => polygonToFlatPoints(c));
   });
 
   // Accumulate memory whenever any owned token's position changes.
@@ -180,17 +218,19 @@ export const GameCanvas = ({
     if (!visionEnabled || isDm) return;
     for (const t of ownedTokens) {
       const center: Point = { x: t.x + gridSize / 2, y: t.y + gridSize / 2 };
-      const poly = computeVisibilityPolygon(center, sightSegs);
-      accumulateVisibility(poly);
+      const losPoly = computeVisibilityPolygon(center, sightSegs);
+      const clipped = clipPolygonToLights(losPoly);
+      for (const c of clipped) accumulateVisibility(c);
     }
-    // intentionally use joined string for dependency since ownedTokens identity changes every render
   }, [
     visionEnabled,
     isDm,
+    sceneDark,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    ownedTokens.map((t) => `${t.id}:${t.x}:${t.y}`).join('|'),
+    ownedTokens.map((t) => `${t.id}:${t.x}:${t.y}:${t.light_radius_ft ?? 0}`).join('|'),
     accumulateVisibility,
     sightSegs.length,
+    lightCircles.length,
   ]);
 
   // Visible token ids for player view: any token whose center falls inside ANY visible polygon.
