@@ -12,9 +12,12 @@ interface TokenProps {
   isDraggable: boolean;
   isSelected: boolean;
   pendingPlacement: boolean;
-  onSelect: (id: string) => void;
+  groupDragOffset?: { x: number; y: number } | null;
+  onSelect: (id: string, additive?: boolean) => void;
   onContextMenu?: (id: string, position: { x: number; y: number }) => void;
   onUpdate?: (id: string, updates: Partial<TokenType>) => void;
+  onDragMove?: (id: string, x: number, y: number) => void;
+  onDragEnd?: () => void;
 }
 
 const tokenImageCache = new Map<string, HTMLImageElement | null>();
@@ -109,9 +112,12 @@ function TokenComponent({
   isDraggable,
   isSelected,
   pendingPlacement,
+  groupDragOffset,
   onSelect,
   onContextMenu,
   onUpdate,
+  onDragMove,
+  onDragEnd,
 }: TokenProps) {
   const [image, setImage] = useState<HTMLImageElement | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -152,11 +158,15 @@ function TokenComponent({
     setIsDragging(true);
   };
 
+  const handleDragMove = (e: KonvaEventObject<DragEvent>) => {
+    onDragMove?.(token.id, e.target.x(), e.target.y());
+  };
+
   const handleDragEnd = (e: KonvaEventObject<DragEvent>) => {
     setIsDragging(false);
     const x = Math.round(e.target.x() / gridSize) * gridSize;
     const y = Math.round(e.target.y() / gridSize) * gridSize;
-    
+
     // Snap to grid visually
     e.target.to({
       x: x,
@@ -167,6 +177,7 @@ function TokenComponent({
     if (onUpdate) {
       onUpdate(token.id, { x, y });
     }
+    onDragEnd?.();
   };
 
   const handleClick = (e: KonvaEventObject<MouseEvent>) => {
@@ -179,10 +190,17 @@ function TokenComponent({
     // Stop propagation to prevent map click clearing selection
     e.cancelBubble = true;
     
-    onSelect(token.id);
+    onSelect(token.id, e.evt.shiftKey);
   };
 
   const handleMouseDown = (e: KonvaEventObject<MouseEvent>) => {
+    if (e.evt.button === 0) {
+      // Stop the Stage handler from running its "clicked empty space → deselect"
+      // logic when the user is actually pressing on a token. The token's own
+      // onClick is what manages selection.
+      e.cancelBubble = true;
+      return;
+    }
     if (e.evt.button !== 2) return;
     e.evt.preventDefault();
     e.cancelBubble = true;
@@ -197,10 +215,11 @@ function TokenComponent({
 
   return (
     <Group
-      x={token.x}
-      y={token.y}
+      x={token.x + (groupDragOffset?.x ?? 0)}
+      y={token.y + (groupDragOffset?.y ?? 0)}
       draggable={isDraggable}
       onDragStart={handleDragStart}
+      onDragMove={handleDragMove}
       onDragEnd={handleDragEnd}
       onMouseDown={handleMouseDown}
       onClick={handleClick}

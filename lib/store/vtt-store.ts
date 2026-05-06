@@ -31,6 +31,7 @@ interface VttState {
   // Tokens State
   tokens: Token[];
   selectedTokenId: string | null;
+  selectedTokenIds: string[];
   pendingTokenPlacement: PendingTokenPlacement | null;
 
   // Fog State
@@ -55,6 +56,7 @@ interface VttState {
     | 'aoe-square'
     | 'aoe-ring';
   aoeShape: 'circle' | 'cone' | 'line' | 'square' | 'ring';
+  dmPrivateMode: boolean;
   fogToolType: 'reveal' | 'hide';
   fogToolShape: 'rect' | 'circle' | 'polygon' | 'brush';
   fogBrushSize: number;
@@ -78,6 +80,7 @@ interface VttState {
   addToken: (token: Token) => void;
   removeToken: (id: string) => void;
   setSelectedTokenId: (id: string | null) => void;
+  setSelectedTokenIds: (ids: string[]) => void;
   setPendingTokenPlacement: (placement: PendingTokenPlacement | null) => void;
   
   setFogData: (data: FogData) => void;
@@ -105,6 +108,7 @@ interface VttState {
       | 'aoe-ring'
   ) => void;
   setAoeShape: (shape: 'circle' | 'cone' | 'line' | 'square' | 'ring') => void;
+  setDmPrivateMode: (on: boolean) => void;
   resetView: () => void;
 }
 
@@ -125,12 +129,14 @@ export const useVttStore = create<VttState>((set) => ({
   
   tokens: [],
   selectedTokenId: null,
+  selectedTokenIds: [],
   pendingTokenPlacement: null,
 
   fogData: { shapes: [], revealed: false },
 
   activeTool: 'select',
   aoeShape: 'circle',
+  dmPrivateMode: false,
   fogToolType: 'reveal',
   fogToolShape: 'rect',
   fogBrushSize: 40,
@@ -163,7 +169,10 @@ export const useVttStore = create<VttState>((set) => ({
   removeToken: (id) => set((state) => ({
     tokens: state.tokens.filter((t) => t.id !== id),
   })),
-  setSelectedTokenId: (id) => set({ selectedTokenId: id }),
+  setSelectedTokenId: (id) =>
+    set({ selectedTokenId: id, selectedTokenIds: id ? [id] : [] }),
+  setSelectedTokenIds: (ids) =>
+    set({ selectedTokenIds: ids, selectedTokenId: ids[0] ?? null }),
   setPendingTokenPlacement: (placement) => set({ pendingTokenPlacement: placement }),
 
   setFogData: (data) => set({ fogData: data }),
@@ -184,5 +193,6 @@ export const useVttStore = create<VttState>((set) => ({
 
   setActiveTool: (tool) => set({ activeTool: tool }),
   setAoeShape: (shape) => set({ aoeShape: shape }),
+  setDmPrivateMode: (on) => set({ dmPrivateMode: on }),
   resetView: () => set({ stageScale: 1, stagePos: { x: 0, y: 0 } }),
 }));

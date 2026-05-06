@@ -1,6 +1,5 @@
 import type { AoeShape } from "@/types/vtt-aoe";
 
-const CONE_HALF_ANGLE_RAD = Math.PI / 4;
 const LINE_WIDTH_FT = 5;
 const RING_THICKNESS_FT = 5;
 
@@ -39,21 +38,30 @@ export function feetToPx(feet: number, gridSize: number, feetPerSquare: number):
   return (feet / feetPerSquare) * gridSize;
 }
 
+/**
+ * D&D 5e cone: an isoceles triangle whose depth equals its base width.
+ * Apex at (origin), base perpendicular to the axis at distance lengthPx,
+ * base width = lengthPx (so corners are offset by lengthPx/2 from the axis).
+ */
 export function computeConePolygon(
   originX: number,
   originY: number,
   angleRad: number,
   lengthPx: number
 ): number[] {
-  const leftAngle = angleRad - CONE_HALF_ANGLE_RAD;
-  const rightAngle = angleRad + CONE_HALF_ANGLE_RAD;
+  const cosA = Math.cos(angleRad);
+  const sinA = Math.sin(angleRad);
+  const baseCx = originX + cosA * lengthPx;
+  const baseCy = originY + sinA * lengthPx;
+  const halfW = lengthPx / 2;
+  // Perpendicular to axis: (-sinA, cosA)
   return [
     originX,
     originY,
-    originX + Math.cos(leftAngle) * lengthPx,
-    originY + Math.sin(leftAngle) * lengthPx,
-    originX + Math.cos(rightAngle) * lengthPx,
-    originY + Math.sin(rightAngle) * lengthPx,
+    baseCx - sinA * halfW,
+    baseCy + cosA * halfW,
+    baseCx + sinA * halfW,
+    baseCy - cosA * halfW,
   ];
 }
 
@@ -220,14 +228,32 @@ export function pointInAoe(
       return d >= inner && d <= lengthPx;
     }
     case "cone": {
-      const d = Math.hypot(dx, dy);
-      if (d > lengthPx) return false;
-      if (d < 0.0001) return true;
-      const a = Math.atan2(dy, dx);
-      let diff = a - rotationRad;
-      while (diff > Math.PI) diff -= 2 * Math.PI;
-      while (diff < -Math.PI) diff += 2 * Math.PI;
-      return Math.abs(diff) <= Math.PI / 4;
+      // Triangle hit-test against the same vertices computeConePolygon produces.
+      const cosA = Math.cos(rotationRad);
+      const sinA = Math.sin(rotationRad);
+      const baseCx = cosA * lengthPx;
+      const baseCy = sinA * lengthPx;
+      const halfW = lengthPx / 2;
+      const ax = 0,
+        ay = 0;
+      const bx = baseCx - sinA * halfW;
+      const by = baseCy + cosA * halfW;
+      const cx = baseCx + sinA * halfW;
+      const cy = baseCy - cosA * halfW;
+      const sign = (
+        p1x: number,
+        p1y: number,
+        p2x: number,
+        p2y: number,
+        p3x: number,
+        p3y: number
+      ) => (p1x - p3x) * (p2y - p3y) - (p2x - p3x) * (p1y - p3y);
+      const d1 = sign(dx, dy, ax, ay, bx, by);
+      const d2 = sign(dx, dy, bx, by, cx, cy);
+      const d3 = sign(dx, dy, cx, cy, ax, ay);
+      const hasNeg = d1 < 0 || d2 < 0 || d3 < 0;
+      const hasPos = d1 > 0 || d2 > 0 || d3 > 0;
+      return !(hasNeg && hasPos);
     }
     case "square": {
       // Axis-aligned, centered on origin (rotationRad ignored).

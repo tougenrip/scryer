@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { Library, Music, CheckCircle2, Swords } from "lucide-react";
+import { Library, Music, CheckCircle2, Swords, HelpCircle } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 export type VttLeftTab = "assets" | "music" | "objectives" | "combat" | null;
@@ -100,6 +100,14 @@ export function VttLeftSidebar({
               onClick={() => onActiveTabChange(activeTab === "combat" ? null : "combat")}
             />
           )}
+          <NavButton
+            title="Keyboard shortcuts (?)"
+            isActive={false}
+            icon={HelpCircle}
+            onClick={() =>
+              window.dispatchEvent(new CustomEvent("vtt:show-shortcuts"))
+            }
+          />
         </div>
 
         {/* Slide-out Panel Container */}

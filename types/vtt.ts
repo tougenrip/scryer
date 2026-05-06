@@ -46,6 +46,10 @@ export interface Token {
     type: string | null;
     subtype: string | null;
     challenge_rating: number | null;
+    actions: unknown[] | null;
+    special_abilities: unknown[] | null;
+    reactions: unknown[] | null;
+    legendary_actions: unknown[] | null;
   } | null;
 }
 

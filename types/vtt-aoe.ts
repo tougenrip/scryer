@@ -14,6 +14,7 @@ export interface AoeArea {
   rotation_deg: number;
   color: string;
   label: string | null;
+  is_private: boolean;
   created_at: string;
 }
 
@@ -52,6 +53,7 @@ export interface Drawing {
   points: DrawingPoint[];
   color: string;
   stroke_width: number;
+  is_private: boolean;
   created_at: string;
 }
 

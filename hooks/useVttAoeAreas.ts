@@ -13,6 +13,9 @@ interface CreateAreaInput {
   rotation_deg: number;
   color: string;
   label?: string | null;
+  is_private?: boolean;
+  /** Optional explicit id (used by undo to recreate with the original id). */
+  id?: string;
 }
 
 export function useVttAoeAreas(campaignId: string | null, mapId: string | null) {
@@ -85,9 +88,12 @@ export function useVttAoeAreas(campaignId: string | null, mapId: string | null) 
       } = await supabase.auth.getUser();
       if (!user) return null;
 
-      const id = (typeof crypto !== "undefined" && "randomUUID" in crypto
-        ? crypto.randomUUID()
-        : `${Date.now()}-${Math.random().toString(36).slice(2)}`) as string;
+      const id =
+        input.id ??
+        ((typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random().toString(36).slice(2)}`) as string);
+      const isPrivate = input.is_private ?? false;
 
       const optimistic: AoeArea = {
         id,
@@ -101,6 +107,7 @@ export function useVttAoeAreas(campaignId: string | null, mapId: string | null) 
         rotation_deg: input.rotation_deg,
         color: input.color,
         label: input.label ?? null,
+        is_private: isPrivate,
         created_at: new Date().toISOString(),
       };
       setAreas((prev) => (prev.some((a) => a.id === id) ? prev : [...prev, optimistic]));
@@ -119,6 +126,7 @@ export function useVttAoeAreas(campaignId: string | null, mapId: string | null) 
           rotation_deg: input.rotation_deg,
           color: input.color,
           label: input.label ?? null,
+          is_private: isPrivate,
         } as never)
         .select("*")
         .single();
@@ -165,5 +173,29 @@ export function useVttAoeAreas(campaignId: string | null, mapId: string | null) 
     }
   }, []);
 
-  return { areas, createArea, updateArea, deleteArea };
+  /**
+   * Bulk delete: when ownerUserId is given, only that user's areas are removed
+   * (used by "Clear my marks"). When omitted, all areas on this map are removed
+   * (used by "DM clear all" — RLS still enforces DM-only).
+   */
+  const clearAreas = useCallback(
+    async (ownerUserId?: string) => {
+      if (!mapId) return;
+      const supabase = createClient();
+      // optimistic
+      setAreas((prev) =>
+        ownerUserId ? prev.filter((a) => a.owner_user_id !== ownerUserId) : []
+      );
+      let q = supabase.from("vtt_aoe_areas").delete().eq("map_id", mapId);
+      if (ownerUserId) q = q.eq("owner_user_id", ownerUserId);
+      const { error } = await q;
+      if (error) {
+        console.error("Failed to clear AOE areas:", error);
+        toast.error("Couldn't clear areas");
+      }
+    },
+    [mapId]
+  );
+
+  return { areas, createArea, updateArea, deleteArea, clearAreas };
 }

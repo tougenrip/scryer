@@ -14,6 +14,7 @@ import { presenceColorForUser } from "@/lib/vtt/presence-color";
 
 const PING_TTL_MS = 1600;
 const EPHEMERAL_TTL_MS = 4000;
+const PING_MIN_INTERVAL_MS = 500; // ~2 pings/sec per user, broadcast-side throttle
 
 interface PingPayload {
   id: string;
@@ -66,6 +67,7 @@ export function useVttOverlays(campaignId: string | null, mapId: string | null) 
   const userIdRef = useRef<string | null>(null);
   const displayNameRef = useRef<string>("Player");
   const colorRef = useRef<string>("#3b82f6");
+  const lastPingAtRef = useRef<number>(0);
 
   useEffect(() => {
     if (!campaignId || !mapId) {
@@ -215,7 +217,10 @@ export function useVttOverlays(campaignId: string | null, mapId: string | null) 
     const ch = channelRef.current;
     const userId = userIdRef.current;
     if (!ch || !userId) return;
-    const id = `${userId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const now = Date.now();
+    if (now - lastPingAtRef.current < PING_MIN_INTERVAL_MS) return;
+    lastPingAtRef.current = now;
+    const id = `${userId}-${now}-${Math.random().toString(36).slice(2, 7)}`;
     const payload: PingPayload = {
       id,
       user_id: userId,
@@ -223,7 +228,7 @@ export function useVttOverlays(campaignId: string | null, mapId: string | null) 
       color: colorRef.current,
       x,
       y,
-      fired_at: Date.now(),
+      fired_at: now,
     };
     void ch.send({ type: "broadcast", event: "ping", payload });
     setActivePings((prev) => [

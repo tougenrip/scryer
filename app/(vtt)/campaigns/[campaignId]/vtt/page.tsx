@@ -19,6 +19,12 @@ import {
   Eraser,
 } from "lucide-react";
 import { VttAoePopover } from "@/components/vtt/vtt-aoe-popover";
+import {
+  VttClearPopover,
+  VttPrivateToggle,
+} from "@/components/vtt/vtt-overlay-controls";
+import { VttShortcutsHelp } from "@/components/vtt/vtt-shortcuts-help";
+import { VttTokenActionsBar } from "@/components/vtt/vtt-token-actions-bar";
 import { useVttStore } from "@/lib/store/vtt-store";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
@@ -183,10 +189,9 @@ export default function VttPage() {
     await sendRollToChat(roll);
   };
 
-  useEffect(() => {
-    if (!selectedTokenId || pendingTokenPlacement) return;
-    setRightDock((prev) => ({ ...prev, inspector: true }));
-  }, [selectedTokenId, pendingTokenPlacement]);
+  // Selecting a token no longer auto-opens the inspector. The HUD over the token
+  // covers the common case (HP / damage); if the user wants the full sheet they
+  // can open it themselves and it will reflect the currently selected token.
 
   useEffect(() => {
     if (activeEncounter && leftDock === "objectives") {
@@ -203,6 +208,13 @@ export default function VttPage() {
       if (!(target instanceof Element)) return;
       if (target.closest("[data-vtt-sidebar]")) return;
       if (target.closest("[data-vtt-floating-panel]")) return;
+      // Radix popovers/dropdowns/hovercards/tooltips render in a portal outside
+      // the sidebar's DOM tree. Treat any click inside one of those as "inside"
+      // so opening a popover from the inspector doesn't immediately collapse it.
+      if (target.closest("[data-radix-popper-content-wrapper]")) return;
+      // Dialogs / AlertDialogs (also portaled).
+      if (target.closest('[role="dialog"]')) return;
+      if (target.closest('[role="alertdialog"]')) return;
 
       setLeftDock(null);
       setRightDock({ inspector: false, chat: false });
@@ -322,6 +334,7 @@ export default function VttPage() {
         className="relative h-screen w-screen flex flex-col bg-neutral-950 text-foreground overflow-hidden"
       >
         <audio ref={sharedAudioRef} className="hidden" />
+        <VttShortcutsHelp />
 
         {/* Top bar */}
         <header className="shrink-0 z-30 flex items-center justify-between gap-3 px-3 py-2 border-b border-border bg-card">
@@ -370,46 +383,65 @@ export default function VttPage() {
             )}
           </div>
 
-          <div className="flex items-center gap-1">
-            <ToolButton
-              active={activeTool === "select"}
-              onClick={() => setActiveTool("select")}
-              icon={<MousePointer2 className="h-4 w-4" />}
-              label="Select"
-            />
-            <ToolButton
-              active={activeTool === "measure"}
-              onClick={() => setActiveTool("measure")}
-              icon={<Ruler className="h-4 w-4" />}
-              label="Ruler"
-            />
-            <ToolButton
-              active={activeTool === "ping"}
-              onClick={() =>
-                setActiveTool(activeTool === "ping" ? "select" : "ping")
-              }
-              icon={<Crosshair className="h-4 w-4" />}
-              label="Ping (or Alt + click)"
-            />
-            <ToolButton
-              active={activeTool === "draw"}
-              onClick={() =>
-                setActiveTool(activeTool === "draw" ? "select" : "draw")
-              }
-              icon={<Pencil className="h-4 w-4" />}
-              label="Draw (Shift + release to keep)"
-            />
-            <ToolButton
-              active={activeTool === "erase"}
-              onClick={() =>
-                setActiveTool(activeTool === "erase" ? "select" : "erase")
-              }
-              icon={<Eraser className="h-4 w-4" />}
-              label="Eraser (click or drag to delete)"
-            />
-            <VttAoePopover />
+          <div className="flex items-center gap-2">
+            {/* Group: navigation */}
+            <div className="flex items-center gap-0.5 rounded-md bg-muted/40 p-0.5">
+              <ToolButton
+                active={activeTool === "select"}
+                onClick={() => setActiveTool("select")}
+                icon={<MousePointer2 className="h-4 w-4" />}
+                label="Select"
+              />
+              <ToolButton
+                active={activeTool === "measure"}
+                onClick={() => setActiveTool("measure")}
+                icon={<Ruler className="h-4 w-4" />}
+                label="Ruler"
+              />
+            </div>
+
+            {/* Group: marking tools (everyone) */}
+            <div className="flex items-center gap-0.5 rounded-md bg-muted/40 p-0.5">
+              <ToolButton
+                active={activeTool === "ping"}
+                onClick={() =>
+                  setActiveTool(activeTool === "ping" ? "select" : "ping")
+                }
+                icon={<Crosshair className="h-4 w-4" />}
+                label="Ping (or Alt + click)"
+              />
+              <ToolButton
+                active={activeTool === "draw"}
+                onClick={() =>
+                  setActiveTool(activeTool === "draw" ? "select" : "draw")
+                }
+                icon={<Pencil className="h-4 w-4" />}
+                label="Draw (Shift + release to keep)"
+              />
+              <VttAoePopover />
+              <ToolButton
+                active={activeTool === "erase"}
+                onClick={() =>
+                  setActiveTool(activeTool === "erase" ? "select" : "erase")
+                }
+                icon={<Eraser className="h-4 w-4" />}
+                label="Eraser (click or drag to delete)"
+              />
+              <VttClearPopover
+                isDm={!!isDm}
+                onClearMine={() =>
+                  window.dispatchEvent(new CustomEvent("vtt:clear-mine"))
+                }
+                onClearAll={() =>
+                  window.dispatchEvent(new CustomEvent("vtt:clear-all"))
+                }
+              />
+            </div>
+
+            {/* Group: DM-only scene controls */}
             {isDm && mapId && (
-              <>
+              <div className="flex items-center gap-0.5 rounded-md border border-amber-500/30 bg-amber-500/5 p-0.5">
+                <VttPrivateToggle />
                 <VttGridControls mapId={mapId} isDm={!!isDm} mapLoading={loading} />
                 <VttFogControls mapId={mapId} isDm={!!isDm} mapLoading={loading} />
                 <ToolButton
@@ -420,11 +452,11 @@ export default function VttPage() {
                   icon={<CloudRain className="h-4 w-4" />}
                   label="Rain"
                 />
-              </>
+              </div>
             )}
 
             {isDm && activeEncounter && sorted.length > 0 && (
-              <Button size="sm" className="h-8 text-xs ml-1" onClick={() => nextTurn()}>
+              <Button size="sm" className="h-8 text-xs" onClick={() => nextTurn()}>
                 End turn
                 <SkipForward className="h-3.5 w-3.5 ml-1" />
               </Button>
@@ -440,6 +472,9 @@ export default function VttPage() {
               </div>
             ) : (
               <GameCanvas isDm={!!isDm} campaignId={campaignId} />
+            )}
+            {!loading && mapId && (
+              <VttTokenActionsBar campaignId={campaignId} sendRollToChat={wrapSendRoll} />
             )}
             {bookmarkOpen && (
               <div className="pointer-events-none absolute inset-0 z-20 animate-in fade-in bg-black/30 duration-200" />

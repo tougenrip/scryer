@@ -16,6 +16,7 @@ interface Props {
   selectedDrawingId: string | null;
   onSelectDrawing: (id: string | null) => void;
   onDeleteDrawing: (id: string) => void;
+  eraseMode: boolean;
 }
 
 function flattenPoints(points: DrawingPoint[]): number[] {
@@ -33,6 +34,7 @@ export function DrawingLayer({
   selectedDrawingId,
   onSelectDrawing,
   onDeleteDrawing,
+  eraseMode,
 }: Props) {
   return (
     <Layer>
@@ -41,6 +43,7 @@ export function DrawingLayer({
           key={d.id}
           drawing={d}
           selected={selectedDrawingId === d.id}
+          eraseMode={eraseMode}
           onSelect={() => onSelectDrawing(d.id)}
           onDelete={() => onDeleteDrawing(d.id)}
         />
@@ -75,11 +78,13 @@ export function DrawingLayer({
 function PersistentStroke({
   drawing,
   selected,
+  eraseMode,
   onSelect,
   onDelete,
 }: {
   drawing: Drawing;
   selected: boolean;
+  eraseMode: boolean;
   onSelect: () => void;
   onDelete: () => void;
 }) {
@@ -87,7 +92,7 @@ function PersistentStroke({
   const first = drawing.points[0];
   const btnRadius = 12;
   return (
-    <Group>
+    <Group opacity={drawing.is_private ? 0.6 : 1}>
       <Line
         points={points}
         stroke={drawing.color}
@@ -95,13 +100,15 @@ function PersistentStroke({
         lineCap="round"
         lineJoin="round"
         tension={0.3}
+        dash={drawing.is_private ? [10, 6] : undefined}
         hitStrokeWidth={Math.max(12, drawing.stroke_width + 8)}
         onMouseDown={(e) => {
           e.cancelBubble = true;
-          onSelect();
+          if (eraseMode) onDelete();
+          else onSelect();
         }}
       />
-      {selected && first && (
+      {selected && !eraseMode && first && (
         <Group
           x={first.x}
           y={first.y}

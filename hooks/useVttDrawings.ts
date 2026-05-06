@@ -9,6 +9,9 @@ interface CreateDrawingInput {
   points: DrawingPoint[];
   color: string;
   stroke_width: number;
+  is_private?: boolean;
+  /** Optional explicit id (used by undo to recreate with the original id). */
+  id?: string;
 }
 
 export function useVttDrawings(campaignId: string | null, mapId: string | null) {
@@ -78,9 +81,12 @@ export function useVttDrawings(campaignId: string | null, mapId: string | null) 
       } = await supabase.auth.getUser();
       if (!user) return null;
 
-      const id = (typeof crypto !== "undefined" && "randomUUID" in crypto
-        ? crypto.randomUUID()
-        : `${Date.now()}-${Math.random().toString(36).slice(2)}`) as string;
+      const id =
+        input.id ??
+        ((typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random().toString(36).slice(2)}`) as string);
+      const isPrivate = input.is_private ?? false;
 
       const optimistic: Drawing = {
         id,
@@ -90,6 +96,7 @@ export function useVttDrawings(campaignId: string | null, mapId: string | null) 
         points: input.points,
         color: input.color,
         stroke_width: input.stroke_width,
+        is_private: isPrivate,
         created_at: new Date().toISOString(),
       };
       setDrawings((prev) =>
@@ -106,6 +113,7 @@ export function useVttDrawings(campaignId: string | null, mapId: string | null) 
           points: input.points,
           color: input.color,
           stroke_width: input.stroke_width,
+          is_private: isPrivate,
         } as never)
         .select("*")
         .single();
@@ -133,5 +141,23 @@ export function useVttDrawings(campaignId: string | null, mapId: string | null) 
     }
   }, []);
 
-  return { drawings, createDrawing, deleteDrawing };
+  const clearDrawings = useCallback(
+    async (ownerUserId?: string) => {
+      if (!mapId) return;
+      const supabase = createClient();
+      setDrawings((prev) =>
+        ownerUserId ? prev.filter((d) => d.owner_user_id !== ownerUserId) : []
+      );
+      let q = supabase.from("vtt_drawings").delete().eq("map_id", mapId);
+      if (ownerUserId) q = q.eq("owner_user_id", ownerUserId);
+      const { error } = await q;
+      if (error) {
+        console.error("Failed to clear drawings:", error);
+        toast.error("Couldn't clear drawings");
+      }
+    },
+    [mapId]
+  );
+
+  return { drawings, createDrawing, deleteDrawing, clearDrawings };
 }

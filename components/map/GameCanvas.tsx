@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Stage, Layer, Group, Circle, Image as KonvaImage, Text } from 'react-konva';
 import { KonvaEventObject } from 'konva/lib/Node';
 import { Vector2d } from 'konva/lib/types';
@@ -18,7 +18,7 @@ import { useVttAoeAreas } from '@/hooks/useVttAoeAreas';
 import { useVttDrawings } from '@/hooks/useVttDrawings';
 import { useCombat } from '@/hooks/useCombat';
 import type { Token as VttToken } from '@/types/vtt';
-import type { AoeShape, DrawingPoint } from '@/types/vtt-aoe';
+import type { AoeArea, AoeShape, Drawing, DrawingPoint } from '@/types/vtt-aoe';
 import {
   snapDistanceToFeet,
   dragAngleRad,
@@ -32,6 +32,7 @@ import {
 import { PingLayer } from './PingLayer';
 import { AoeLayer } from './AoeLayer';
 import { DrawingLayer } from './DrawingLayer';
+import { VttTokenDamageHud } from '@/components/vtt/vtt-token-damage-hud';
 import { toast } from 'sonner';
 import { cleanVttDisplayName } from '@/lib/vtt/display-name';
 
@@ -63,7 +64,10 @@ export const GameCanvas = ({ isDm = false, campaignId }: GameCanvasProps) => {
     showGrid,
     feetPerSquare,
     tokens,
+    selectedTokenId,
+    selectedTokenIds,
     setSelectedTokenId,
+    setSelectedTokenIds,
     addToken,
     pendingTokenPlacement,
     setPendingTokenPlacement
@@ -90,11 +94,41 @@ export const GameCanvas = ({ isDm = false, campaignId }: GameCanvasProps) => {
     myUserId,
   } = useVttOverlays(campaignId, mapId ?? null);
 
-  const { areas: aoeAreas, createArea: createAoeArea, deleteArea: deleteAoeArea } =
-    useVttAoeAreas(campaignId, mapId ?? null);
+  const {
+    areas: aoeAreas,
+    createArea: createAoeArea,
+    updateArea: updateAoeArea,
+    deleteArea: deleteAoeArea,
+    clearAreas: clearAoeAreas,
+  } = useVttAoeAreas(campaignId, mapId ?? null);
 
-  const { drawings, createDrawing, deleteDrawing } =
-    useVttDrawings(campaignId, mapId ?? null);
+  const {
+    drawings,
+    createDrawing,
+    deleteDrawing,
+    clearDrawings,
+  } = useVttDrawings(campaignId, mapId ?? null);
+
+  const dmPrivateMode = useVttStore((s) => s.dmPrivateMode);
+
+  // Listen for "clear marks" events dispatched from the toolbar.
+  useEffect(() => {
+    const onClearMine = async () => {
+      const uid = myUserId();
+      if (!uid) return;
+      await Promise.all([clearAoeAreas(uid), clearDrawings(uid)]);
+    };
+    const onClearAll = async () => {
+      if (!isDm) return;
+      await Promise.all([clearAoeAreas(), clearDrawings()]);
+    };
+    window.addEventListener('vtt:clear-mine', onClearMine);
+    window.addEventListener('vtt:clear-all', onClearAll);
+    return () => {
+      window.removeEventListener('vtt:clear-mine', onClearMine);
+      window.removeEventListener('vtt:clear-all', onClearAll);
+    };
+  }, [clearAoeAreas, clearDrawings, isDm, myUserId]);
 
   const DRAW_STROKE_WIDTH = 4;
   const DRAW_MIN_DISTANCE_PX = 3;
@@ -102,23 +136,169 @@ export const GameCanvas = ({ isDm = false, campaignId }: GameCanvasProps) => {
   const [selectedDrawingId, setSelectedDrawingId] = useState<string | null>(null);
   const drawBroadcastRef = useRef<number>(0);
   const [isErasing, setIsErasing] = useState(false);
+  const [groupDrag, setGroupDrag] = useState<{
+    leadId: string;
+    dx: number;
+    dy: number;
+  } | null>(null);
+
+  const handleTokenDragMove = (id: string, x: number, y: number) => {
+    if (selectedTokenIds.length > 1 && selectedTokenIds.includes(id)) {
+      const dragged = tokens.find((t) => t.id === id);
+      if (dragged) {
+        setGroupDrag({ leadId: id, dx: x - dragged.x, dy: y - dragged.y });
+      }
+    }
+  };
+
+  const handleTokenDragEnd = () => {
+    setGroupDrag(null);
+  };
+
+  const handleTokenUpdate = (id: string, updates: Partial<VttToken>) => {
+    if (
+      selectedTokenIds.length > 1 &&
+      selectedTokenIds.includes(id) &&
+      (updates.x !== undefined || updates.y !== undefined)
+    ) {
+      const dragged = tokens.find((t) => t.id === id);
+      if (dragged) {
+        const dx = (updates.x ?? dragged.x) - dragged.x;
+        const dy = (updates.y ?? dragged.y) - dragged.y;
+        if (dx !== 0 || dy !== 0) {
+          for (const tid of selectedTokenIds) {
+            const t = tokens.find((tt) => tt.id === tid);
+            if (!t) continue;
+            void updateTokenPosition(tid, { x: t.x + dx, y: t.y + dy });
+          }
+          return;
+        }
+      }
+    }
+    void updateTokenPosition(id, updates);
+  };
+
+  // ---- Undo stack (per-session) ----
+  type UndoOp =
+    | { kind: 'create-aoe'; id: string }
+    | { kind: 'create-drawing'; id: string }
+    | { kind: 'delete-aoe'; row: AoeArea }
+    | { kind: 'delete-drawing'; row: Drawing };
+  const undoStackRef = useRef<UndoOp[]>([]);
+  const pushUndo = (op: UndoOp) => {
+    undoStackRef.current.push(op);
+    if (undoStackRef.current.length > 50) undoStackRef.current.shift();
+  };
+
+  const eraseAoeWithUndo = useCallback(
+    (id: string) => {
+      const row = aoeAreas.find((a) => a.id === id);
+      if (row) pushUndo({ kind: 'delete-aoe', row });
+      void deleteAoeArea(id);
+    },
+    [aoeAreas, deleteAoeArea]
+  );
+
+  const eraseDrawingWithUndo = useCallback(
+    (id: string) => {
+      const row = drawings.find((d) => d.id === id);
+      if (row) pushUndo({ kind: 'delete-drawing', row });
+      void deleteDrawing(id);
+    },
+    [drawings, deleteDrawing]
+  );
+
+  const handleUndo = useCallback(async () => {
+    const op = undoStackRef.current.pop();
+    if (!op) return;
+    switch (op.kind) {
+      case 'create-aoe':
+        await deleteAoeArea(op.id);
+        break;
+      case 'create-drawing':
+        await deleteDrawing(op.id);
+        break;
+      case 'delete-aoe':
+        await createAoeArea({
+          id: op.row.id,
+          shape: op.row.shape,
+          origin_x: op.row.origin_x,
+          origin_y: op.row.origin_y,
+          length_ft: op.row.length_ft,
+          rotation_deg: op.row.rotation_deg,
+          color: op.row.color,
+          label: op.row.label,
+          is_private: op.row.is_private,
+        });
+        break;
+      case 'delete-drawing':
+        await createDrawing({
+          id: op.row.id,
+          points: op.row.points,
+          color: op.row.color,
+          stroke_width: op.row.stroke_width,
+          is_private: op.row.is_private,
+        });
+        break;
+    }
+  }, [createAoeArea, createDrawing, deleteAoeArea, deleteDrawing]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const editable =
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.isContentEditable);
+      if (editable) return;
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        void handleUndo();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [handleUndo]);
+
+  // Close the token HUD whenever the user clicks anything that isn't the HUD
+  // itself. Only runs while exactly one token is selected — multi-selection
+  // hides the HUD entirely and is preserved across clicks so the user can
+  // just click-and-drag any of the selected tokens to move the group.
+  useEffect(() => {
+    if (selectedTokenIds.length !== 1) return;
+    const onPointerDown = (e: PointerEvent) => {
+      if (e.button !== 0) return;
+      if (e.shiftKey) return;
+      const target = e.target as Element | null;
+      if (!target) return;
+      if (target.closest('[data-vtt-floating-panel]')) return;
+      if (target.closest('[data-vtt-sidebar]')) return;
+      // Radix popovers/dropdowns/dialogs render in a portal outside our DOM
+      // tree; clicks in them shouldn't deselect the token.
+      if (target.closest('[data-radix-popper-content-wrapper]')) return;
+      if (target.closest('[role="dialog"]')) return;
+      if (target.closest('[role="alertdialog"]')) return;
+      setSelectedTokenId(null);
+    };
+    document.addEventListener('pointerdown', onPointerDown, true);
+    return () => document.removeEventListener('pointerdown', onPointerDown, true);
+  }, [selectedTokenIds, setSelectedTokenId]);
 
   const eraseAtPoint = (px: number, py: number) => {
-    // AOE areas
     for (const a of aoeAreas) {
       const lengthPx = feetToPx(a.length_ft, gridSize, feetPerSquare);
       const ringPx = feetToPx(ringThicknessFt(), gridSize, feetPerSquare);
       const linePx = feetToPx(lineWidthFt(), gridSize, feetPerSquare);
       const rotRad = (a.rotation_deg * Math.PI) / 180;
       if (pointInAoe(px, py, a.shape, a.origin_x, a.origin_y, lengthPx, rotRad, ringPx, linePx)) {
-        void deleteAoeArea(a.id);
+        eraseAoeWithUndo(a.id);
       }
     }
-    // Drawings: hit if cursor is near the polyline within ~stroke width
     for (const d of drawings) {
       const threshold = Math.max(8, d.stroke_width / 2 + 6);
       if (pointNearPolyline(px, py, d.points, threshold)) {
-        void deleteDrawing(d.id);
+        eraseDrawingWithUndo(d.id);
       }
     }
   };
@@ -190,7 +370,7 @@ export const GameCanvas = ({ isDm = false, campaignId }: GameCanvasProps) => {
       if (editable) return;
       if (e.key === 'Delete' || e.key === 'Backspace') {
         e.preventDefault();
-        void deleteAoeArea(selectedAoeId);
+        eraseAoeWithUndo(selectedAoeId);
         setSelectedAoeId(null);
       } else if (e.key === 'Escape') {
         setSelectedAoeId(null);
@@ -198,7 +378,7 @@ export const GameCanvas = ({ isDm = false, campaignId }: GameCanvasProps) => {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [selectedAoeId, aoeAreas, deleteAoeArea, isDm, myUserId]);
+  }, [selectedAoeId, eraseAoeWithUndo]);
 
   useEffect(() => {
     if (!selectedDrawingId) return;
@@ -212,7 +392,7 @@ export const GameCanvas = ({ isDm = false, campaignId }: GameCanvasProps) => {
       if (editable) return;
       if (e.key === 'Delete' || e.key === 'Backspace') {
         e.preventDefault();
-        void deleteDrawing(selectedDrawingId);
+        eraseDrawingWithUndo(selectedDrawingId);
         setSelectedDrawingId(null);
       } else if (e.key === 'Escape') {
         setSelectedDrawingId(null);
@@ -220,7 +400,7 @@ export const GameCanvas = ({ isDm = false, campaignId }: GameCanvasProps) => {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [selectedDrawingId, deleteDrawing]);
+  }, [selectedDrawingId, eraseDrawingWithUndo]);
 
   // Handle Zoom
   const handleWheel = (e: KonvaEventObject<WheelEvent>) => {
@@ -352,11 +532,6 @@ export const GameCanvas = ({ isDm = false, campaignId }: GameCanvasProps) => {
       return;
     }
 
-    // Clicking empty stage with no AOE/draw tool → clear selections
-    if (e.target === e.target.getStage() && e.evt.button === 0) {
-      setSelectedAoeId(null);
-      setSelectedDrawingId(null);
-    }
 
     if (e.evt.button === 2) { // Right click
       const stage = e.target.getStage();
@@ -368,10 +543,14 @@ export const GameCanvas = ({ isDm = false, campaignId }: GameCanvasProps) => {
 
     const isMeasuring = activeTool === 'measure' || e.evt.ctrlKey;
 
-    // If clicking on the stage (background) and not a shape/token, clear selection
-    const clickedOnStage = e.target === e.target.getStage();
-    if (clickedOnStage && activeTool === 'select' && !isMeasuring) {
-        setSelectedTokenId(null);
+    // If we got here in select mode without Shift held, the click must not have
+    // landed on any interactive shape (Token, AOE area, drawing — all of which
+    // cancel-bubble on mousedown). Treat it as "click empty space" and clear
+    // every selection. Shift-click is reserved for additive multi-selection.
+    if (activeTool === 'select' && !isMeasuring && !e.evt.shiftKey && e.evt.button === 0) {
+      setSelectedTokenId(null);
+      setSelectedAoeId(null);
+      setSelectedDrawingId(null);
     }
 
     if (!isMeasuring) return;
@@ -461,7 +640,7 @@ export const GameCanvas = ({ isDm = false, campaignId }: GameCanvasProps) => {
       const next = [...drawStroke, { x: pointer.x, y: pointer.y }];
       setDrawStroke(next);
       const now = performance.now();
-      if (now - drawBroadcastRef.current > 50) {
+      if (now - drawBroadcastRef.current > 50 && !(isDm && dmPrivateMode)) {
         drawBroadcastRef.current = now;
         broadcastDrawingStroke(next, DRAW_STROKE_WIDTH);
       }
@@ -475,7 +654,7 @@ export const GameCanvas = ({ isDm = false, campaignId }: GameCanvasProps) => {
       if (!pointer) return;
       setAoeDrag({ ...aoeDrag, endX: pointer.x, endY: pointer.y });
       const now = performance.now();
-      if (now - aoeBroadcastRef.current > 33) {
+      if (now - aoeBroadcastRef.current > 33 && !(isDm && dmPrivateMode)) {
         aoeBroadcastRef.current = now;
         broadcastAoeDrag(
           aoeDrag.shape,
@@ -524,6 +703,9 @@ export const GameCanvas = ({ isDm = false, campaignId }: GameCanvasProps) => {
           points: drawStroke,
           color: myColor(),
           stroke_width: DRAW_STROKE_WIDTH,
+          is_private: isDm && dmPrivateMode,
+        }).then((row) => {
+          if (row) pushUndo({ kind: 'create-drawing', id: row.id });
         });
       }
       broadcastDrawingCancel();
@@ -554,6 +736,9 @@ export const GameCanvas = ({ isDm = false, campaignId }: GameCanvasProps) => {
           length_ft: feet,
           rotation_deg: (angle * 180) / Math.PI,
           color: myColor(),
+          is_private: isDm && dmPrivateMode,
+        }).then((row) => {
+          if (row) pushUndo({ kind: 'create-aoe', id: row.id });
         });
       }
       broadcastAoeCancel();
@@ -626,7 +811,13 @@ export const GameCanvas = ({ isDm = false, campaignId }: GameCanvasProps) => {
           <MapLayer url={mapUrl} />
           <GridLayer />
         </Layer>
-        <TokenLayer onTokenUpdate={updateTokenPosition} onTokenContextMenu={handleTokenContextMenu} />
+        <TokenLayer
+          onTokenUpdate={handleTokenUpdate}
+          onTokenContextMenu={handleTokenContextMenu}
+          onTokenDragMove={handleTokenDragMove}
+          onTokenDragEnd={handleTokenDragEnd}
+          groupDrag={groupDrag}
+        />
         <FogLayer onFogUpdate={updateFogShapes} isDm={isDm} />
         <Layer>
           <RulerLayer
@@ -665,9 +856,14 @@ export const GameCanvas = ({ isDm = false, campaignId }: GameCanvasProps) => {
           selectedAreaId={selectedAoeId}
           onSelectArea={setSelectedAoeId}
           onDeleteArea={(id) => {
-            void deleteAoeArea(id);
+            eraseAoeWithUndo(id);
             setSelectedAoeId(null);
           }}
+          onUpdateArea={(id, updates) => {
+            void updateAoeArea(id, updates);
+          }}
+          eraseMode={activeTool === 'erase'}
+          tokens={tokens}
           gridSize={gridSize}
           feetPerSquare={feetPerSquare}
         />
@@ -682,9 +878,10 @@ export const GameCanvas = ({ isDm = false, campaignId }: GameCanvasProps) => {
           selectedDrawingId={selectedDrawingId}
           onSelectDrawing={setSelectedDrawingId}
           onDeleteDrawing={(id) => {
-            void deleteDrawing(id);
+            eraseDrawingWithUndo(id);
             setSelectedDrawingId(null);
           }}
+          eraseMode={activeTool === 'erase'}
         />
         <PingLayer pings={activePings} gridSize={gridSize} />
         <WeatherOverlay />
@@ -729,6 +926,25 @@ export const GameCanvas = ({ isDm = false, campaignId }: GameCanvasProps) => {
           </button>
         </div>
       )}
+      {isDm && selectedTokenIds.length === 1 && !pendingTokenPlacement && (() => {
+        const t = tokens.find((tt) => tt.id === selectedTokenIds[0]);
+        if (!t) return null;
+        const screenX = (t.x + gridSize / 2) * stageScale + stagePos.x;
+        const screenY = t.y * stageScale + stagePos.y;
+        return (
+          <VttTokenDamageHud
+            token={t}
+            screenX={screenX}
+            screenY={screenY}
+            onApplyDelta={(delta) => {
+              const cur = t.hp_current ?? 0;
+              const max = t.hp_max ?? Number.POSITIVE_INFINITY;
+              const next = Math.max(0, Math.min(max, cur + delta));
+              void updateTokenPosition(t.id, { hp_current: next });
+            }}
+          />
+        );
+      })()}
     </div>
   );
 };

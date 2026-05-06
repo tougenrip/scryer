@@ -1,7 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import { Layer, Group, Circle, Line, Rect, Ring, Text, Label, Tag } from "react-konva";
 import type { AoeArea, AoeShape, EphemeralAoe } from "@/types/vtt-aoe";
+import type { Token } from "@/types/vtt";
 import {
   aoeLabelText,
   computeConePolygon,
@@ -12,6 +14,7 @@ import {
   effectiveOriginForShape,
   feetToPx,
   lineWidthFt,
+  pointInAoe,
   ringThicknessFt,
   snapDistanceToFeet,
 } from "@/lib/vtt/aoe-geometry";
@@ -33,6 +36,12 @@ interface Props {
   selectedAreaId: string | null;
   onSelectArea: (id: string | null) => void;
   onDeleteArea: (id: string) => void;
+  onUpdateArea: (
+    id: string,
+    updates: Partial<Pick<AoeArea, "origin_x" | "origin_y" | "rotation_deg" | "length_ft">>
+  ) => void;
+  eraseMode: boolean;
+  tokens: Token[];
   gridSize: number;
   feetPerSquare: number;
 }
@@ -44,9 +53,46 @@ export function AoeLayer({
   selectedAreaId,
   onSelectArea,
   onDeleteArea,
+  onUpdateArea,
+  eraseMode,
+  tokens,
   gridSize,
   feetPerSquare,
 }: Props) {
+  const selectedArea = selectedAreaId
+    ? persistent.find((a) => a.id === selectedAreaId) ?? null
+    : null;
+
+  // Tokens whose centers fall inside the selected AOE (for highlight)
+  const highlightedTokenIds = (() => {
+    if (!selectedArea || eraseMode) return new Set<string>();
+    const lengthPx = feetToPx(selectedArea.length_ft, gridSize, feetPerSquare);
+    const ringPx = feetToPx(ringThicknessFt(), gridSize, feetPerSquare);
+    const linePx = feetToPx(lineWidthFt(), gridSize, feetPerSquare);
+    const rotRad = (selectedArea.rotation_deg * Math.PI) / 180;
+    const ids = new Set<string>();
+    for (const t of tokens) {
+      const cx = t.x + gridSize / 2;
+      const cy = t.y + gridSize / 2;
+      if (
+        pointInAoe(
+          cx,
+          cy,
+          selectedArea.shape,
+          selectedArea.origin_x,
+          selectedArea.origin_y,
+          lengthPx,
+          rotRad,
+          ringPx,
+          linePx
+        )
+      ) {
+        ids.add(t.id);
+      }
+    }
+    return ids;
+  })();
+
   return (
     <Layer>
       {persistent.map((a) => (
@@ -56,8 +102,10 @@ export function AoeLayer({
           gridSize={gridSize}
           feetPerSquare={feetPerSquare}
           selected={selectedAreaId === a.id}
+          eraseMode={eraseMode}
           onSelect={() => onSelectArea(a.id)}
           onDelete={() => onDeleteArea(a.id)}
+          onUpdate={(updates) => onUpdateArea(a.id, updates)}
         />
       ))}
       {[...peerEphemerals.values()].map((e) => (
@@ -87,6 +135,23 @@ export function AoeLayer({
           showLabel
         />
       )}
+      {/* Tokens-inside highlight rings */}
+      {[...highlightedTokenIds].map((id) => {
+        const t = tokens.find((tt) => tt.id === id);
+        if (!t) return null;
+        return (
+          <Circle
+            key={`hi-${id}`}
+            x={t.x + gridSize / 2}
+            y={t.y + gridSize / 2}
+            radius={gridSize / 2 + 4}
+            stroke="#facc15"
+            strokeWidth={3}
+            dash={[6, 4]}
+            listening={false}
+          />
+        );
+      })}
     </Layer>
   );
 }
@@ -164,81 +229,231 @@ function DragShape({
   );
 }
 
+function handlePosForShape(
+  shape: AoeShape,
+  lengthPx: number,
+  angleRad: number
+): { x: number; y: number } {
+  switch (shape) {
+    case "circle":
+    case "ring":
+      return { x: lengthPx, y: 0 };
+    case "cone":
+    case "line":
+      return { x: Math.cos(angleRad) * lengthPx, y: Math.sin(angleRad) * lengthPx };
+    case "square":
+      return { x: lengthPx / 2, y: lengthPx / 2 };
+  }
+}
+
+/**
+ * Where to place the delete button on the visible shape body. Circle, ring,
+ * and square are centered on the origin so (0,0) works. Cone and line emanate
+ * from the origin, so anchoring × there leaves it on a tiny apex off the
+ * visible mass — put it midway along the axis instead.
+ */
+function deleteButtonPosForShape(
+  shape: AoeShape,
+  lengthPx: number,
+  angleRad: number
+): { x: number; y: number } {
+  switch (shape) {
+    case "circle":
+    case "ring":
+    case "square":
+      return { x: 0, y: 0 };
+    case "cone":
+    case "line":
+      return {
+        x: (Math.cos(angleRad) * lengthPx) / 2,
+        y: (Math.sin(angleRad) * lengthPx) / 2,
+      };
+  }
+}
+
 function PersistentShape({
   area,
   gridSize,
   feetPerSquare,
   selected,
+  eraseMode,
   onSelect,
   onDelete,
+  onUpdate,
 }: {
   area: AoeArea;
   gridSize: number;
   feetPerSquare: number;
   selected: boolean;
+  eraseMode: boolean;
   onSelect: () => void;
   onDelete: () => void;
+  onUpdate: (
+    updates: Partial<Pick<AoeArea, "origin_x" | "origin_y" | "rotation_deg" | "length_ft">>
+  ) => void;
 }) {
-  const lengthPx = feetToPx(area.length_ft, gridSize, feetPerSquare);
-  const angleRad = (area.rotation_deg * Math.PI) / 180;
+  // Local override applied during a live resize/rotate drag so the shape
+  // updates in real time without writing to the DB on every frame.
+  const [liveTransform, setLiveTransform] = useState<{
+    length_ft: number;
+    rotation_deg: number;
+  } | null>(null);
+
+  const effectiveLengthFt = liveTransform?.length_ft ?? area.length_ft;
+  const effectiveRotationDeg = liveTransform?.rotation_deg ?? area.rotation_deg;
+  const lengthPx = feetToPx(effectiveLengthFt, gridSize, feetPerSquare);
+  const angleRad = (effectiveRotationDeg * Math.PI) / 180;
   const btnRadius = 12;
+  const handlePos = handlePosForShape(area.shape, lengthPx, angleRad);
+  const deletePos = deleteButtonPosForShape(area.shape, lengthPx, angleRad);
+
+  const computeUpdatesFromHandle = (
+    hx: number,
+    hy: number
+  ): { length_ft: number; rotation_deg: number } => {
+    let newLengthPx = lengthPx;
+    let newRotationDeg = effectiveRotationDeg;
+    if (area.shape === "cone" || area.shape === "line") {
+      newLengthPx = Math.hypot(hx, hy);
+      newRotationDeg = (Math.atan2(hy, hx) * 180) / Math.PI;
+    } else if (area.shape === "square") {
+      newLengthPx = Math.max(Math.abs(hx), Math.abs(hy)) * 2;
+    } else {
+      newLengthPx = Math.hypot(hx, hy);
+    }
+    const { feet } = snapDistanceToFeet(newLengthPx, gridSize, feetPerSquare);
+    return { length_ft: feet, rotation_deg: newRotationDeg };
+  };
+
   return (
-    <Group>
+    <>
+      {/* Body group (draggable for move) */}
       <Group
+        x={area.origin_x}
+        y={area.origin_y}
+        draggable={selected && !eraseMode}
         onMouseDown={(e) => {
           e.cancelBubble = true;
-          onSelect();
+          if (eraseMode) onDelete();
+          else onSelect();
         }}
+        onDragEnd={(e) => {
+          if (eraseMode) return;
+          // Snap to the same grid rule we used at creation time so the
+          // shape's edges keep aligning with grid lines after a move.
+          const snapped = effectiveOriginForShape(
+            area.shape,
+            e.target.x(),
+            e.target.y(),
+            lengthPx,
+            angleRad,
+            gridSize
+          );
+          // Reflect the snap on the Konva node immediately to avoid a brief
+          // visual jump between dragend and the optimistic state update.
+          e.target.x(snapped.x);
+          e.target.y(snapped.y);
+          onUpdate({ origin_x: snapped.x, origin_y: snapped.y });
+        }}
+        opacity={area.is_private ? 0.6 : 1}
       >
         <RenderShape
           shape={area.shape}
-          originX={area.origin_x}
-          originY={area.origin_y}
+          originX={0}
+          originY={0}
           angleRad={angleRad}
           lengthPx={lengthPx}
           color={area.color}
           gridSize={gridSize}
           feetPerSquare={feetPerSquare}
-          dashed={false}
+          dashed={area.is_private}
           selected={selected}
         />
+        {selected && !eraseMode && (
+          <Group
+            onMouseDown={(e) => {
+              e.cancelBubble = true;
+              onDelete();
+            }}
+            onTap={(e) => {
+              e.cancelBubble = true;
+              onDelete();
+            }}
+          >
+            <Circle
+              radius={btnRadius}
+              fill="#ef4444"
+              stroke="#ffffff"
+              strokeWidth={2}
+              shadowColor="#000"
+              shadowBlur={6}
+              shadowOpacity={0.5}
+            />
+            <Text
+              text="×"
+              fontSize={20}
+              fill="#ffffff"
+              width={btnRadius * 2}
+              height={btnRadius * 2}
+              offsetX={btnRadius}
+              offsetY={btnRadius}
+              align="center"
+              verticalAlign="middle"
+            />
+          </Group>
+        )}
       </Group>
-      {selected && (
+
+      {/* Resize/rotate handle: a sibling group at world coords. */}
+      {selected && !eraseMode && (
         <Group
-          x={area.origin_x}
-          y={area.origin_y}
+          x={area.origin_x + handlePos.x}
+          y={area.origin_y + handlePos.y}
+          draggable
           onMouseDown={(e) => {
             e.cancelBubble = true;
-            onDelete();
           }}
-          onTap={(e) => {
-            e.cancelBubble = true;
-            onDelete();
+          onDragMove={(e) => {
+            const hx = e.target.x() - area.origin_x;
+            const hy = e.target.y() - area.origin_y;
+            setLiveTransform(computeUpdatesFromHandle(hx, hy));
+          }}
+          onDragEnd={(e) => {
+            const hx = e.target.x() - area.origin_x;
+            const hy = e.target.y() - area.origin_y;
+            const finalUpdates = computeUpdatesFromHandle(hx, hy);
+            setLiveTransform(null);
+            onUpdate(finalUpdates);
           }}
         >
           <Circle
-            radius={btnRadius}
-            fill="#ef4444"
-            stroke="#ffffff"
+            radius={9}
+            fill="#06b6d4"
+            stroke="#000000"
             strokeWidth={2}
             shadowColor="#000"
-            shadowBlur={6}
+            shadowBlur={4}
             shadowOpacity={0.5}
-          />
-          <Text
-            text="×"
-            fontSize={20}
-            fill="#ffffff"
-            width={btnRadius * 2}
-            height={btnRadius * 2}
-            offsetX={btnRadius}
-            offsetY={btnRadius}
-            align="center"
-            verticalAlign="middle"
           />
         </Group>
       )}
-    </Group>
+      {/* Live size tooltip while resizing */}
+      {selected && !eraseMode && liveTransform && (
+        <Label
+          x={area.origin_x + handlePos.x + 14}
+          y={area.origin_y + handlePos.y + 14}
+          listening={false}
+        >
+          <Tag fill="rgba(0,0,0,0.8)" cornerRadius={4} />
+          <Text
+            text={aoeLabelText(area.shape, liveTransform.length_ft)}
+            fontSize={12}
+            fill="#ffffff"
+            padding={6}
+          />
+        </Label>
+      )}
+    </>
   );
 }
 

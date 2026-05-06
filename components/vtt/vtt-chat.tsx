@@ -5,10 +5,36 @@ import type { VttMessage } from "@/hooks/useVttChat";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Send } from "lucide-react";
+import { Flame, Send, Swords } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { parseDiceExpression } from "@/lib/utils/dice-parser";
 import { useDiceRoller, type RollResult } from "@/contexts/dice-roller-context";
+
+interface RollPayload {
+  kind: "roll";
+  roll: {
+    expression: string;
+    result: number;
+    breakdown: {
+      rolls: number[];
+      modifier: number;
+      total: number;
+    };
+    label?: string;
+    advantage?: boolean;
+    disadvantage?: boolean;
+  };
+  display_name?: string;
+}
+
+function isRollPayload(p: unknown): p is RollPayload {
+  return (
+    !!p &&
+    typeof p === "object" &&
+    (p as { kind?: string }).kind === "roll" &&
+    !!(p as { roll?: unknown }).roll
+  );
+}
 
 type Props = {
   campaignId: string;
@@ -80,37 +106,13 @@ export function VttChat({
         )}
       </div>
       <ScrollArea className="flex-1 min-h-0 px-3">
-        <div className="py-2 space-y-3">
+        <div className="py-2 space-y-2">
           {loading && (
             <p className="text-xs text-muted-foreground">Loading messages…</p>
           )}
-          {messages.map((m) => {
-            const isRoll =
-              m.payload && (m.payload as { kind?: string }).kind === "roll";
-            return (
-              <div key={m.id} className="text-xs leading-snug">
-                <div>
-                  <span className="font-semibold text-primary">
-                    {m.display_name || "Player"}
-                  </span>
-                  <span className="text-[10px] text-muted-foreground ml-2">
-                    {new Date(m.created_at).toLocaleTimeString([], {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </span>
-                </div>
-                <div
-                  className={cn(
-                    "mt-0.5",
-                    isRoll && "font-mono text-[11px] text-muted-foreground"
-                  )}
-                >
-                  {m.body}
-                </div>
-              </div>
-            );
-          })}
+          {messages.map((m, i) => (
+            <ChatRow key={m.id} message={m} isLast={i === messages.length - 1} />
+          ))}
           <div ref={bottomRef} />
         </div>
       </ScrollArea>
@@ -125,6 +127,139 @@ export function VttChat({
         <Button size="icon" className="h-9 w-9 shrink-0" onClick={submit}>
           <Send className="h-4 w-4" />
         </Button>
+      </div>
+    </div>
+  );
+}
+
+function ChatRow({ message, isLast }: { message: VttMessage; isLast: boolean }) {
+  const time = new Date(message.created_at).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  if (isRollPayload(message.payload)) {
+    return (
+      <ChatRoll
+        roll={message.payload.roll}
+        displayName={message.display_name || message.payload.display_name || "Player"}
+        time={time}
+        isLast={isLast}
+      />
+    );
+  }
+  return (
+    <div className={cn("text-xs leading-snug", isLast && "text-sm")}>
+      <div>
+        <span className={cn("font-semibold text-primary", isLast && "text-sm")}>
+          {message.display_name || "Player"}
+        </span>
+        <span className="ml-2 text-[10px] text-muted-foreground">{time}</span>
+      </div>
+      <div className={cn("mt-0.5", isLast && "font-medium")}>{message.body}</div>
+    </div>
+  );
+}
+
+function ChatRoll({
+  roll,
+  displayName,
+  time,
+  isLast,
+}: {
+  roll: RollPayload["roll"];
+  displayName: string;
+  time: string;
+  isLast: boolean;
+}) {
+  const exprLower = roll.expression.toLowerCase();
+  const isAttack = /^1d20/.test(exprLower);
+  const isD20 = exprLower.includes("d20");
+  const single = roll.breakdown.rolls.length === 1;
+  const isCritHit = isD20 && single && roll.breakdown.rolls[0] === 20;
+  const isCritMiss = isD20 && single && roll.breakdown.rolls[0] === 1;
+
+  const accent = isAttack
+    ? "border-sky-500/40 bg-sky-500/[0.06]"
+    : "border-rose-500/40 bg-rose-500/[0.06]";
+  const accentLast = isAttack
+    ? "border-sky-400 bg-sky-500/10"
+    : "border-rose-400 bg-rose-500/10";
+  const Icon = isAttack ? Swords : Flame;
+  const iconClass = isAttack ? "text-sky-400" : "text-rose-400";
+
+  const totalClass = cn(
+    "shrink-0 font-bold tabular-nums leading-none",
+    isLast ? "text-4xl" : "text-base",
+    isCritHit && "text-emerald-500",
+    isCritMiss && "text-rose-500",
+    !isCritHit && !isCritMiss && (isAttack ? "text-sky-300" : "text-rose-300")
+  );
+
+  return (
+    <div
+      className={cn(
+        "rounded-md border px-3 py-2",
+        isLast ? accentLast : accent,
+        isLast && "shadow-md"
+      )}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5">
+            <Icon className={cn("h-3.5 w-3.5", iconClass)} />
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+              {isAttack ? "Attack" : "Damage"}
+            </span>
+            <span className="text-[10px] text-muted-foreground">·</span>
+            <span className="text-[10px] text-muted-foreground">{time}</span>
+          </div>
+          <div
+            className={cn(
+              "mt-0.5 truncate font-medium",
+              isLast ? "text-sm" : "text-xs"
+            )}
+            title={roll.label}
+          >
+            {roll.label || roll.expression}
+          </div>
+          <div className="text-[10px] text-muted-foreground">{displayName}</div>
+        </div>
+        <div className={totalClass}>{roll.result}</div>
+      </div>
+      <div className="mt-1.5 flex flex-wrap items-center gap-1 font-mono text-[10px]">
+        <span className="text-muted-foreground">{roll.expression}</span>
+        <span className="text-muted-foreground">=</span>
+        {roll.breakdown.rolls.map((r, idx) => (
+          <span
+            key={idx}
+            className={cn(
+              "rounded bg-muted px-1.5 py-0.5 text-foreground tabular-nums",
+              isD20 && r === 20 && "bg-emerald-500/25 font-bold text-emerald-300",
+              isD20 && r === 1 && "bg-rose-500/25 font-bold text-rose-300"
+            )}
+          >
+            {r}
+          </span>
+        ))}
+        {roll.breakdown.modifier !== 0 && (
+          <span className="tabular-nums text-muted-foreground">
+            {roll.breakdown.modifier > 0
+              ? `+ ${roll.breakdown.modifier}`
+              : `− ${Math.abs(roll.breakdown.modifier)}`}
+          </span>
+        )}
+        {(roll.advantage || roll.disadvantage) && (
+          <span
+            className={cn(
+              "rounded px-1.5 py-0.5 text-[9px] uppercase tracking-wide",
+              roll.advantage
+                ? "bg-emerald-500/15 text-emerald-300"
+                : "bg-rose-500/15 text-rose-300"
+            )}
+          >
+            {roll.advantage ? "Adv" : "Dis"}
+          </span>
+        )}
       </div>
     </div>
   );

@@ -68,6 +68,10 @@ type MonsterSummary = {
   type: string | null;
   subtype: string | null;
   challenge_rating: number | null;
+  actions: unknown[] | null;
+  special_abilities: unknown[] | null;
+  reactions: unknown[] | null;
+  legendary_actions: unknown[] | null;
 };
 
 function normalizeName(value: string) {
@@ -101,7 +105,11 @@ async function findSrdMonster(admin: ReturnType<typeof createAdminSupabaseClient
     senses,
     type,
     subtype,
-    challenge_rating
+    challenge_rating,
+    actions,
+    special_abilities,
+    reactions,
+    legendary_actions
   `;
 
   if (id) {
@@ -172,7 +180,11 @@ async function attachMonsterSummaries(
         senses,
         type,
         subtype,
-        challenge_rating
+        challenge_rating,
+        actions,
+        special_abilities,
+        reactions,
+        legendary_actions
       `)
       .in("index", monsterIndexes);
     if (error) throw error;
