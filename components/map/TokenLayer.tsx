@@ -5,6 +5,7 @@ import { Layer } from 'react-konva';
 import { useVttStore } from '@/lib/store/vtt-store';
 import { Token } from './Token';
 import { Token as TokenType } from '@/types/vtt';
+import type { WallSegment } from '@/types/vtt-walls';
 
 interface TokenLayerProps {
   onTokenUpdate: (id: string, updates: Partial<TokenType>) => void;
@@ -12,6 +13,9 @@ interface TokenLayerProps {
   onTokenDragMove?: (id: string, x: number, y: number) => void;
   onTokenDragEnd?: () => void;
   groupDrag?: { leadId: string; dx: number; dy: number } | null;
+  /** When non-null, only tokens whose ids are in this set render (player view). */
+  visibleTokenIds?: Set<string> | null;
+  blockingSegments?: WallSegment[];
 }
 
 const TokenLayerComponent: React.FC<TokenLayerProps> = ({
@@ -20,6 +24,8 @@ const TokenLayerComponent: React.FC<TokenLayerProps> = ({
   onTokenDragMove,
   onTokenDragEnd,
   groupDrag,
+  visibleTokenIds,
+  blockingSegments,
 }) => {
   const tokens = useVttStore((state) => state.tokens);
   const gridSize = useVttStore((state) => state.gridSize);
@@ -64,9 +70,13 @@ const TokenLayerComponent: React.FC<TokenLayerProps> = ({
   const isDraggable = activeTool === 'select' && !pendingTokenPlacement && !ctrlPressed;
   const isInteractive = activeTool === 'select' && !pendingTokenPlacement && !ctrlPressed;
 
+  const renderedTokens = visibleTokenIds
+    ? tokens.filter((t) => visibleTokenIds.has(t.id))
+    : tokens;
+
   return (
     <Layer listening={isInteractive}>
-      {tokens.map((token) => {
+      {renderedTokens.map((token) => {
         const isInGroupDrag =
           groupDrag != null &&
           groupDrag.leadId !== token.id &&
@@ -89,6 +99,7 @@ const TokenLayerComponent: React.FC<TokenLayerProps> = ({
             onUpdate={onTokenUpdate}
             onDragMove={onTokenDragMove}
             onDragEnd={onTokenDragEnd}
+            blockingSegments={blockingSegments}
           />
         );
       })}

@@ -17,8 +17,13 @@ import { useVttOverlays } from '@/hooks/useVttOverlays';
 import { useVttAoeAreas } from '@/hooks/useVttAoeAreas';
 import { useVttDrawings } from '@/hooks/useVttDrawings';
 import { useCombat } from '@/hooks/useCombat';
+import { useVttWalls } from '@/hooks/useVttWalls';
+import { useVttPlayerVisibility } from '@/hooks/useVttPlayerVisibility';
+import { WallLayer, wallEditorSnap } from './WallLayer';
+import { LosMaskLayer } from './LosMaskLayer';
 import type { Token as VttToken } from '@/types/vtt';
 import type { AoeArea, AoeShape, Drawing, DrawingPoint } from '@/types/vtt-aoe';
+import type { Point } from '@/types/vtt-walls';
 import {
   snapDistanceToFeet,
   dragAngleRad,
@@ -29,19 +34,34 @@ import {
   pointInAoe,
   pointNearPolyline,
 } from '@/lib/vtt/aoe-geometry';
+import {
+  computeVisibilityPolygon,
+  sightBlockingSegments,
+  polygonToFlatPoints,
+  pointInPolygon,
+  movementBlockingSegments,
+} from '@/lib/vtt/visibility';
 import { PingLayer } from './PingLayer';
 import { AoeLayer } from './AoeLayer';
 import { DrawingLayer } from './DrawingLayer';
 import { VttTokenDamageHud } from '@/components/vtt/vtt-token-damage-hud';
 import { toast } from 'sonner';
 import { cleanVttDisplayName } from '@/lib/vtt/display-name';
+import { createClient } from '@/lib/supabase/client';
 
 interface GameCanvasProps {
   isDm?: boolean;
   campaignId: string;
+  visionEnabled?: boolean;
+  sceneDark?: boolean;
 }
 
-export const GameCanvas = ({ isDm = false, campaignId }: GameCanvasProps) => {
+export const GameCanvas = ({
+  isDm = false,
+  campaignId,
+  visionEnabled = false,
+  sceneDark = false,
+}: GameCanvasProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [rulerStart, setRulerStart] = useState<Vector2d | null>(null);
@@ -52,13 +72,14 @@ export const GameCanvas = ({ isDm = false, campaignId }: GameCanvasProps) => {
   const [isPanning, setIsPanning] = useState(false);
   const [panStartPos, setPanStartPos] = useState<Vector2d | null>(null);
 
-  const { 
-    stageScale, 
-    stagePos, 
-    setStageScale, 
+  const {
+    stageScale,
+    stagePos,
+    setStageScale,
     setStagePos,
     mapUrl,
     mapId,
+    mapDimensions,
     activeTool,
     gridSize,
     showGrid,
@@ -109,7 +130,92 @@ export const GameCanvas = ({ isDm = false, campaignId }: GameCanvasProps) => {
     clearDrawings,
   } = useVttDrawings(campaignId, mapId ?? null);
 
+  const { walls, createWall, deleteWall, toggleDoor } = useVttWalls(
+    campaignId,
+    mapId ?? null
+  );
+
+  const { memoryPolys, accumulate: accumulateVisibility } =
+    useVttPlayerVisibility(campaignId, mapId ?? null, visionEnabled && !isDm);
+
+  const [selectedWallId, setSelectedWallId] = useState<string | null>(null);
+  const [wallEditorPoints, setWallEditorPoints] = useState<Point[]>([]);
+  const [wallEditorHover, setWallEditorHover] = useState<Point | null>(null);
+
+  const wallEditorMode = useVttStore((s) =>
+    s.activeTool === 'wall' ? s.wallEditorMode : null
+  );
+
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  useEffect(() => {
+    const supabase = createClient();
+    void supabase.auth.getUser().then(({ data }) => {
+      setCurrentUserId(data.user?.id ?? null);
+    });
+  }, []);
+
   const dmPrivateMode = useVttStore((s) => s.dmPrivateMode);
+
+  // Owned tokens for the local user (player view). DM bypasses.
+  const ownedTokens =
+    !visionEnabled || isDm
+      ? []
+      : tokens.filter((t) => {
+          const characterUserId = (t as unknown as { character?: { user_id?: string | null } })
+            .character?.user_id;
+          return !!characterUserId && !!currentUserId && characterUserId === currentUserId;
+        });
+
+  const sightSegs = sightBlockingSegments(walls);
+
+  const visiblePolygons: number[][] = ownedTokens.map((t) => {
+    const center: Point = { x: t.x + gridSize / 2, y: t.y + gridSize / 2 };
+    const poly = computeVisibilityPolygon(center, sightSegs);
+    return polygonToFlatPoints(poly);
+  });
+
+  // Accumulate memory whenever any owned token's position changes.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!visionEnabled || isDm) return;
+    for (const t of ownedTokens) {
+      const center: Point = { x: t.x + gridSize / 2, y: t.y + gridSize / 2 };
+      const poly = computeVisibilityPolygon(center, sightSegs);
+      accumulateVisibility(poly);
+    }
+    // intentionally use joined string for dependency since ownedTokens identity changes every render
+  }, [
+    visionEnabled,
+    isDm,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    ownedTokens.map((t) => `${t.id}:${t.x}:${t.y}`).join('|'),
+    accumulateVisibility,
+    sightSegs.length,
+  ]);
+
+  // Visible token ids for player view: any token whose center falls inside ANY visible polygon.
+  // DM (or vision off): null = render all.
+  const visibleTokenIds: Set<string> | null =
+    isDm || !visionEnabled
+      ? null
+      : (() => {
+          const ids = new Set<string>();
+          for (const t of tokens) {
+            const center: Point = { x: t.x + gridSize / 2, y: t.y + gridSize / 2 };
+            for (const flat of visiblePolygons) {
+              const poly: Point[] = [];
+              for (let i = 0; i < flat.length; i += 2) {
+                poly.push({ x: flat[i], y: flat[i + 1] });
+              }
+              if (pointInPolygon(center, poly)) {
+                ids.add(t.id);
+                break;
+              }
+            }
+          }
+          for (const t of ownedTokens) ids.add(t.id);
+          return ids;
+        })();
 
   // Listen for "clear marks" events dispatched from the toolbar.
   useEffect(() => {
@@ -402,6 +508,25 @@ export const GameCanvas = ({ isDm = false, campaignId }: GameCanvasProps) => {
     return () => window.removeEventListener('keydown', onKey);
   }, [selectedDrawingId, eraseDrawingWithUndo]);
 
+  useEffect(() => {
+    if (activeTool !== 'wall') return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setWallEditorPoints([]);
+      } else if (e.key === 'Enter') {
+        if (
+          useVttStore.getState().wallEditorMode === 'pen' &&
+          wallEditorPoints.length >= 2
+        ) {
+          void createWall({ points: wallEditorPoints, is_door: false });
+          setWallEditorPoints([]);
+        }
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [activeTool, wallEditorPoints, createWall]);
+
   // Handle Zoom
   const handleWheel = (e: KonvaEventObject<WheelEvent>) => {
     e.evt.preventDefault();
@@ -500,6 +625,28 @@ export const GameCanvas = ({ isDm = false, campaignId }: GameCanvasProps) => {
       if (!pointer) return;
       setIsErasing(true);
       eraseAtPoint(pointer.x, pointer.y);
+      return;
+    }
+
+    // Wall editor (DM only)
+    if (activeTool === 'wall' && isDm && e.evt.button === 0) {
+      const stage = e.target.getStage();
+      if (!stage) return;
+      const pointer = stage.getRelativePointerPosition();
+      if (!pointer) return;
+      const useSnap = !e.evt.altKey;
+      const placed = useSnap ? wallEditorSnap(pointer, gridSize) : pointer;
+      const mode = useVttStore.getState().wallEditorMode;
+      if (mode === 'segment' || mode === 'door') {
+        setWallEditorPoints((prev) => {
+          if (prev.length === 0) return [placed];
+          void createWall({ points: [prev[0], placed], is_door: mode === 'door' });
+          return [];
+        });
+        return;
+      }
+      // Pen mode: append vertex; double-click finishes.
+      setWallEditorPoints((prev) => [...prev, placed]);
       return;
     }
 
@@ -667,6 +814,17 @@ export const GameCanvas = ({ isDm = false, campaignId }: GameCanvasProps) => {
       return;
     }
 
+    if (activeTool === 'wall' && isDm) {
+      const stage = e.target.getStage();
+      if (!stage) return;
+      const pointer = stage.getRelativePointerPosition();
+      if (!pointer) return;
+      const useSnap = !e.evt.altKey;
+      const placed = useSnap ? wallEditorSnap(pointer, gridSize) : pointer;
+      setWallEditorHover(placed);
+      return;
+    }
+
     if (isPanning && panStartPos) {
       const stage = e.target.getStage();
       if (!stage) return;
@@ -767,6 +925,7 @@ export const GameCanvas = ({ isDm = false, campaignId }: GameCanvasProps) => {
   else if (activeTool === 'ping' || activeTool.startsWith('aoe-')) cursorClass = 'cursor-crosshair';
   else if (activeTool === 'draw') cursorClass = 'cursor-crosshair';
   else if (activeTool === 'erase') cursorClass = 'cursor-cell';
+  else if (activeTool === 'wall') cursorClass = 'cursor-crosshair';
 
   if (!mapId) {
     return (
@@ -801,6 +960,14 @@ export const GameCanvas = ({ isDm = false, campaignId }: GameCanvasProps) => {
         onContextMenu={(e) => {
           e.evt.preventDefault();
         }}
+        onDblClick={() => {
+          if (activeTool !== 'wall' || !isDm) return;
+          if (useVttStore.getState().wallEditorMode !== 'pen') return;
+          if (wallEditorPoints.length >= 2) {
+            void createWall({ points: wallEditorPoints, is_door: false });
+          }
+          setWallEditorPoints([]);
+        }}
         scale={{ x: stageScale, y: stageScale }}
         x={stagePos.x}
         y={stagePos.y}
@@ -817,8 +984,38 @@ export const GameCanvas = ({ isDm = false, campaignId }: GameCanvasProps) => {
           onTokenDragMove={handleTokenDragMove}
           onTokenDragEnd={handleTokenDragEnd}
           groupDrag={groupDrag}
+          visibleTokenIds={visibleTokenIds}
+          blockingSegments={movementBlockingSegments(walls)}
         />
         <FogLayer onFogUpdate={updateFogShapes} isDm={isDm} />
+        {!isDm && visionEnabled && mapDimensions && (
+          <LosMaskLayer
+            mapWidth={mapDimensions.width}
+            mapHeight={mapDimensions.height}
+            visiblePolygons={visiblePolygons}
+            memoryPolygons={memoryPolys}
+            hidden={false}
+          />
+        )}
+        <WallLayer
+          walls={walls}
+          isDm={!!isDm}
+          editorMode={wallEditorMode}
+          selectedWallId={selectedWallId}
+          onSelectWall={setSelectedWallId}
+          onDeleteWall={(id) => {
+            void deleteWall(id);
+            setSelectedWallId(null);
+          }}
+          onCreateWall={(points, isDoor) => {
+            void createWall({ points, is_door: isDoor });
+          }}
+          onToggleDoor={(id) => void toggleDoor(id)}
+          gridSize={gridSize}
+          editorPoints={wallEditorPoints}
+          editorHover={wallEditorHover}
+          onClearEditorPoints={() => setWallEditorPoints([])}
+        />
         <Layer>
           <RulerLayer
             start={rulerStart}

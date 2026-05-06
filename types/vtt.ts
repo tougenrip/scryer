@@ -22,6 +22,7 @@ export interface Token {
   image_url?: string | null;
   created_at?: string;
   character?: {
+    user_id?: string | null;
     name: string | null;
     image_url: string | null;
     armor_class?: number | null;

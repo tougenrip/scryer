@@ -5,6 +5,8 @@ import { Group, Circle, Image as KonvaImage, Line, Path, Rect, Text } from 'reac
 import { Token as TokenType } from '@/types/vtt';
 import { KonvaEventObject } from 'konva/lib/Node';
 import { cleanVttDisplayName } from '@/lib/vtt/display-name';
+import type { WallSegment } from "@/types/vtt-walls";
+import { slideAgainstWalls } from "@/lib/vtt/movement";
 
 interface TokenProps {
   token: TokenType;
@@ -18,6 +20,8 @@ interface TokenProps {
   onUpdate?: (id: string, updates: Partial<TokenType>) => void;
   onDragMove?: (id: string, x: number, y: number) => void;
   onDragEnd?: () => void;
+  /** Sight+movement-blocking wall segments (filtered by caller). */
+  blockingSegments?: WallSegment[];
 }
 
 const tokenImageCache = new Map<string, HTMLImageElement | null>();
@@ -118,6 +122,7 @@ function TokenComponent({
   onUpdate,
   onDragMove,
   onDragEnd,
+  blockingSegments,
 }: TokenProps) {
   const [image, setImage] = useState<HTMLImageElement | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -159,24 +164,32 @@ function TokenComponent({
   };
 
   const handleDragMove = (e: KonvaEventObject<DragEvent>) => {
-    onDragMove?.(token.id, e.target.x(), e.target.y());
+    const desired = { x: e.target.x(), y: e.target.y() };
+    if (blockingSegments && blockingSegments.length > 0) {
+      const start = { x: token.x, y: token.y };
+      const slid = slideAgainstWalls(start, desired, blockingSegments);
+      e.target.x(slid.x);
+      e.target.y(slid.y);
+      onDragMove?.(token.id, slid.x, slid.y);
+      return;
+    }
+    onDragMove?.(token.id, desired.x, desired.y);
   };
 
   const handleDragEnd = (e: KonvaEventObject<DragEvent>) => {
     setIsDragging(false);
-    const x = Math.round(e.target.x() / gridSize) * gridSize;
-    const y = Math.round(e.target.y() / gridSize) * gridSize;
-
-    // Snap to grid visually
-    e.target.to({
-      x: x,
-      y: y,
-      duration: 0.1
-    });
-
-    if (onUpdate) {
-      onUpdate(token.id, { x, y });
+    let endX = e.target.x();
+    let endY = e.target.y();
+    if (blockingSegments && blockingSegments.length > 0) {
+      const start = { x: token.x, y: token.y };
+      const slid = slideAgainstWalls(start, { x: endX, y: endY }, blockingSegments);
+      endX = slid.x;
+      endY = slid.y;
     }
+    const x = Math.round(endX / gridSize) * gridSize;
+    const y = Math.round(endY / gridSize) * gridSize;
+    e.target.to({ x, y, duration: 0.1 });
+    if (onUpdate) onUpdate(token.id, { x, y });
     onDragEnd?.();
   };
 
@@ -392,5 +405,6 @@ export const Token = memo(TokenComponent, (prev, next) => (
   prev.pendingPlacement === next.pendingPlacement &&
   prev.onSelect === next.onSelect &&
   prev.onContextMenu === next.onContextMenu &&
-  prev.onUpdate === next.onUpdate
+  prev.onUpdate === next.onUpdate &&
+  prev.blockingSegments === next.blockingSegments
 ));

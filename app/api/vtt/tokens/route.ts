@@ -289,6 +289,7 @@ export async function GET(request: Request) {
       .select(`
         *,
         character:characters(
+          user_id,
           image_url,
           name,
           armor_class,
