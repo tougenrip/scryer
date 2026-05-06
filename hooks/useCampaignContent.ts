@@ -15,6 +15,8 @@ export interface MediaItem {
   created_at: string | null;
   grid_config?: Record<string, unknown> | null;
   fog_data?: Record<string, unknown> | null;
+  vision_enabled?: boolean;
+  scene_dark?: boolean;
 }
 
 // Legacy alias for backward compatibility during migration

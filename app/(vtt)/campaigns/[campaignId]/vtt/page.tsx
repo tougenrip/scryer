@@ -18,6 +18,7 @@ import {
   Pencil,
   Eraser,
 } from "lucide-react";
+import { Eye as VisionEyeIcon, EyeOff as VisionEyeOffIcon, Moon, Sun } from "lucide-react";
 import { VttAoePopover } from "@/components/vtt/vtt-aoe-popover";
 import {
   VttClearPopover,
@@ -49,6 +50,7 @@ import { useVttPresence } from "@/hooks/useVttPresence";
 import { VttPresenceStrip } from "@/components/vtt/vtt-presence-strip";
 import { VttGridControls } from "@/components/vtt/vtt-grid-controls";
 import { VttFogControls } from "@/components/vtt/vtt-fog-controls";
+import { VttWallTool } from "@/components/vtt/vtt-wall-tool";
 import { useCombat } from "@/hooks/useCombat";
 import type { RollResult } from "@/contexts/dice-roller-context";
 
@@ -279,7 +281,7 @@ export default function VttPage() {
       setLoading(true);
       const { data, error } = await supabase
         .from("media_items")
-        .select("id, campaign_id, name, image_url, audio_url, type, created_at, grid_config, fog_data")
+        .select("id, campaign_id, name, image_url, audio_url, type, created_at, grid_config, fog_data, vision_enabled, scene_dark")
         .eq("id", mapId)
         .single();
 
@@ -452,6 +454,49 @@ export default function VttPage() {
                   icon={<CloudRain className="h-4 w-4" />}
                   label="Rain"
                 />
+                <ToolButton
+                  active={!!loadedMapItem?.vision_enabled}
+                  onClick={async () => {
+                    if (!mapId) return;
+                    const supabase = createClient();
+                    const next = !loadedMapItem?.vision_enabled;
+                    await supabase
+                      .from('media_items')
+                      .update({ vision_enabled: next } as never)
+                      .eq('id', mapId);
+                    setLoadedMapItem((prev) =>
+                      prev ? { ...prev, vision_enabled: next } : prev
+                    );
+                  }}
+                  icon={
+                    loadedMapItem?.vision_enabled
+                      ? <VisionEyeIcon className="h-4 w-4" />
+                      : <VisionEyeOffIcon className="h-4 w-4" />
+                  }
+                  label="Vision system"
+                />
+                <ToolButton
+                  active={!!loadedMapItem?.scene_dark}
+                  onClick={async () => {
+                    if (!mapId) return;
+                    const supabase = createClient();
+                    const next = !loadedMapItem?.scene_dark;
+                    await supabase
+                      .from('media_items')
+                      .update({ scene_dark: next } as never)
+                      .eq('id', mapId);
+                    setLoadedMapItem((prev) =>
+                      prev ? { ...prev, scene_dark: next } : prev
+                    );
+                  }}
+                  icon={
+                    loadedMapItem?.scene_dark
+                      ? <Moon className="h-4 w-4" />
+                      : <Sun className="h-4 w-4" />
+                  }
+                  label="Scene darkness"
+                />
+                <VttWallTool />
               </div>
             )}
 
@@ -471,7 +516,12 @@ export default function VttPage() {
                 Loading VTT…
               </div>
             ) : (
-              <GameCanvas isDm={!!isDm} campaignId={campaignId} />
+              <GameCanvas
+                isDm={!!isDm}
+                campaignId={campaignId}
+                visionEnabled={!!loadedMapItem?.vision_enabled}
+                sceneDark={!!loadedMapItem?.scene_dark}
+              />
             )}
             {!loading && mapId && (
               <VttTokenActionsBar campaignId={campaignId} sendRollToChat={wrapSendRoll} />
