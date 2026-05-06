@@ -54,8 +54,10 @@ interface VttState {
     | 'aoe-cone'
     | 'aoe-line'
     | 'aoe-square'
-    | 'aoe-ring';
+    | 'aoe-ring'
+    | 'wall';
   aoeShape: 'circle' | 'cone' | 'line' | 'square' | 'ring';
+  wallEditorMode: 'pen' | 'segment' | 'door';
   dmPrivateMode: boolean;
   fogToolType: 'reveal' | 'hide';
   fogToolShape: 'rect' | 'circle' | 'polygon' | 'brush';
@@ -106,8 +108,10 @@ interface VttState {
       | 'aoe-line'
       | 'aoe-square'
       | 'aoe-ring'
+      | 'wall'
   ) => void;
   setAoeShape: (shape: 'circle' | 'cone' | 'line' | 'square' | 'ring') => void;
+  setWallEditorMode: (mode: 'pen' | 'segment' | 'door') => void;
   setDmPrivateMode: (on: boolean) => void;
   resetView: () => void;
 }
@@ -136,6 +140,7 @@ export const useVttStore = create<VttState>((set) => ({
 
   activeTool: 'select',
   aoeShape: 'circle',
+  wallEditorMode: 'pen',
   dmPrivateMode: false,
   fogToolType: 'reveal',
   fogToolShape: 'rect',
@@ -193,6 +198,7 @@ export const useVttStore = create<VttState>((set) => ({
 
   setActiveTool: (tool) => set({ activeTool: tool }),
   setAoeShape: (shape) => set({ aoeShape: shape }),
+  setWallEditorMode: (mode) => set({ wallEditorMode: mode }),
   setDmPrivateMode: (on) => set({ dmPrivateMode: on }),
   resetView: () => set({ stageScale: 1, stagePos: { x: 0, y: 0 } }),
 }));
