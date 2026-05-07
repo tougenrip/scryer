@@ -524,17 +524,9 @@ export function Inventory({
                   {weight.toFixed(1)} lb.
                 </span>
               </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-xs"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  toggleCategory(categoryKey);
-                }}
-              >
+              <span className="text-xs text-muted-foreground">
                 {isExpanded ? "Hide Contents" : "Show Contents"}
-              </Button>
+              </span>
             </div>
           </CollapsibleTrigger>
           <CollapsibleContent>
