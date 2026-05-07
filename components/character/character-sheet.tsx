@@ -80,19 +80,38 @@ export function CharacterSheet({
   const equipmentEffects = useEquipmentEffects(character, inventory);
 
   // Persist computed AC back to characters.armor_class so consumers that just
-  // read the column (e.g., the VTT token inspector via the token→character
+  // read the column (e.g. the VTT token inspector via the token→character
   // join) see the correct value with armor equipped, instead of the
-  // unarmored base.
+  // unarmored base. Routed through onUpdate so RLS errors surface as toasts.
   useEffect(() => {
     if (!editable) return;
     const computedAc = equipmentEffects.armorClass;
     if (!computedAc || computedAc === character.armor_class) return;
-    const supabase = createClient();
-    void supabase
-      .from('characters')
-      .update({ armor_class: computedAc })
-      .eq('id', character.id);
-  }, [editable, equipmentEffects.armorClass, character.id, character.armor_class]);
+    if (!onUpdate) {
+      // Fallback when no parent updater is wired.
+      const supabase = createClient();
+      void supabase
+        .from('characters')
+        .update({ armor_class: computedAc })
+        .eq('id', character.id)
+        .select()
+        .single()
+        .then(({ error }) => {
+          if (error) {
+            console.error('Auto-AC write failed:', error);
+            toast.error('Could not save Armor Class');
+          }
+        });
+      return;
+    }
+    void onUpdate({ armor_class: computedAc });
+  }, [
+    editable,
+    equipmentEffects.armorClass,
+    character.id,
+    character.armor_class,
+    onUpdate,
+  ]);
 
   // Detect level changes from external updates
   useEffect(() => {
