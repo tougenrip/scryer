@@ -198,7 +198,18 @@ export function AddItemDialog({
                       <div>
                         <span className="text-muted-foreground">Damage:</span>
                         <p className="font-medium">
-                          {selectedItem.damage.damage_dice} {selectedItem.damage.damage_type}
+                          {selectedItem.damage.damage_dice}
+                          {(() => {
+                            const dt = selectedItem.damage.damage_type as
+                              | string
+                              | { name?: string; index?: string }
+                              | null
+                              | undefined;
+                            if (!dt) return null;
+                            const label =
+                              typeof dt === "string" ? dt : dt.name ?? dt.index;
+                            return label ? ` ${label}` : null;
+                          })()}
                         </p>
                       </div>
                     )}
