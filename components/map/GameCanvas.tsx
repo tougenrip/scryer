@@ -549,6 +549,28 @@ export const GameCanvas = ({
   }, [selectedDrawingId, eraseDrawingWithUndo]);
 
   useEffect(() => {
+    if (!selectedWallId) return;
+    const onKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const editable =
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.isContentEditable);
+      if (editable) return;
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault();
+        void deleteWall(selectedWallId);
+        setSelectedWallId(null);
+      } else if (e.key === 'Escape') {
+        setSelectedWallId(null);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [selectedWallId, deleteWall]);
+
+  useEffect(() => {
     if (activeTool !== 'wall') return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -738,6 +760,7 @@ export const GameCanvas = ({
       setSelectedTokenId(null);
       setSelectedAoeId(null);
       setSelectedDrawingId(null);
+      setSelectedWallId(null);
     }
 
     if (!isMeasuring) return;

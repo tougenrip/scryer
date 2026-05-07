@@ -116,7 +116,9 @@ function WallShape({
           // delete via stage hit-test, etc.
           if (!selectMode) return;
           e.cancelBubble = true;
-          if (wall.is_door) {
+          // Doors: plain click toggles open/closed (the common action).
+          // Shift+click selects the door so the × delete handle appears.
+          if (wall.is_door && !e.evt.shiftKey) {
             onToggleDoor();
           } else {
             onSelect();
