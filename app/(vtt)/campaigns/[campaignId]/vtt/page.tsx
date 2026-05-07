@@ -18,7 +18,6 @@ import {
   Pencil,
   Eraser,
 } from "lucide-react";
-import { Eye as VisionEyeIcon, EyeOff as VisionEyeOffIcon, Moon, Sun } from "lucide-react";
 import { VttAoePopover } from "@/components/vtt/vtt-aoe-popover";
 import {
   VttClearPopover,
@@ -50,7 +49,7 @@ import { useVttPresence } from "@/hooks/useVttPresence";
 import { VttPresenceStrip } from "@/components/vtt/vtt-presence-strip";
 import { VttGridControls } from "@/components/vtt/vtt-grid-controls";
 import { VttFogControls } from "@/components/vtt/vtt-fog-controls";
-import { VttWallTool } from "@/components/vtt/vtt-wall-tool";
+import { VttVisionTool } from "@/components/vtt/vtt-vision-tool";
 import { useCombat } from "@/hooks/useCombat";
 import type { RollResult } from "@/contexts/dice-roller-context";
 
@@ -454,12 +453,12 @@ export default function VttPage() {
                   icon={<CloudRain className="h-4 w-4" />}
                   label="Rain"
                 />
-                <ToolButton
-                  active={!!loadedMapItem?.vision_enabled}
-                  onClick={async () => {
+                <VttVisionTool
+                  visionEnabled={!!loadedMapItem?.vision_enabled}
+                  sceneDark={!!loadedMapItem?.scene_dark}
+                  onToggleVision={async (next) => {
                     if (!mapId) return;
                     const supabase = createClient();
-                    const next = !loadedMapItem?.vision_enabled;
                     await supabase
                       .from('media_items')
                       .update({ vision_enabled: next } as never)
@@ -468,19 +467,9 @@ export default function VttPage() {
                       prev ? { ...prev, vision_enabled: next } : prev
                     );
                   }}
-                  icon={
-                    loadedMapItem?.vision_enabled
-                      ? <VisionEyeIcon className="h-4 w-4" />
-                      : <VisionEyeOffIcon className="h-4 w-4" />
-                  }
-                  label="Vision system"
-                />
-                <ToolButton
-                  active={!!loadedMapItem?.scene_dark}
-                  onClick={async () => {
+                  onToggleSceneDark={async (next) => {
                     if (!mapId) return;
                     const supabase = createClient();
-                    const next = !loadedMapItem?.scene_dark;
                     await supabase
                       .from('media_items')
                       .update({ scene_dark: next } as never)
@@ -489,14 +478,7 @@ export default function VttPage() {
                       prev ? { ...prev, scene_dark: next } : prev
                     );
                   }}
-                  icon={
-                    loadedMapItem?.scene_dark
-                      ? <Moon className="h-4 w-4" />
-                      : <Sun className="h-4 w-4" />
-                  }
-                  label="Scene darkness"
                 />
-                <VttWallTool />
               </div>
             )}
 
