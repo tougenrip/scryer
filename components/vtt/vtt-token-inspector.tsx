@@ -70,8 +70,15 @@ export function VttTokenInspector({
   const displayHp = sel?.hp_current ?? sourceHp ?? 0;
   const hpPct = maxHp > 0 ? Math.max(0, Math.min(100, (displayHp / maxHp) * 100)) : 0;
   const conditions = sel?.conditions ?? [];
-  const armorClass = sel?.character?.armor_class ?? sel?.monster?.armor_class ?? null;
-  const movement = formatSpeed(sel?.monster?.speed ?? sel?.character?.speed ?? null);
+  // For PC tokens with sparse data, fall back to D&D defaults (10 AC, 30 ft) so
+  // the inspector doesn't read as "Unknown" before the player fills out their sheet.
+  const isPcToken = !!sel?.character_id;
+  const armorClass =
+    sel?.character?.armor_class ??
+    sel?.monster?.armor_class ??
+    (isPcToken ? 10 : null);
+  const speedSource = sel?.monster?.speed ?? sel?.character?.speed ?? null;
+  const movement = formatSpeed(speedSource ?? (isPcToken ? 30 : null));
   const damageResistances = sel?.monster?.damage_resistances ?? [];
   const damageImmunities = sel?.monster?.damage_immunities ?? [];
   const damageVulnerabilities = sel?.monster?.damage_vulnerabilities ?? [];
@@ -214,17 +221,6 @@ export function VttTokenInspector({
           ["Vulnerable", damageVulnerabilities],
           ["Cond. Immune", conditionImmunities],
         ]}
-      />
-
-      <LightRadiusRow
-        token={sel}
-        isDm={isDm}
-        onUpdate={(v) => updateToken(sel.id, { light_radius_ft: v })}
-      />
-      <VisionRangeRow
-        token={sel}
-        isDm={isDm}
-        onUpdate={(v) => updateToken(sel.id, { vision_range_ft: v })}
       />
 
       <div className="space-y-2 rounded-md border border-border bg-background/35 p-3">

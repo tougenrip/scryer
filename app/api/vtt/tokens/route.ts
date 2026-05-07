@@ -412,17 +412,19 @@ export async function POST(request: Request) {
       tokenType === "token"
         ? await findSrdMonster(admin, { id: srdMonsterId, index: monsterIndex, name })
         : null;
-    const startingHp = monster?.hit_points ?? null;
 
     let visionRangeFt = 0;
+    let characterHp: number | null = null;
     if (characterId) {
       const { data: char } = await admin
         .from('characters')
-        .select('race_index')
+        .select('race_index, hp_max')
         .eq('id', characterId)
         .maybeSingle();
       visionRangeFt = inferVisionRangeFt(char?.race_index ?? null);
+      characterHp = (char?.hp_max as number | null | undefined) ?? null;
     }
+    const startingHp = monster?.hit_points ?? characterHp ?? null;
 
     const { data: row, error: insertError } = await admin
       .from("tokens")
