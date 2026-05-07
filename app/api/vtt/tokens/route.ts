@@ -10,6 +10,7 @@ type PlaceTokenPayload = {
     name?: unknown;
     image_url?: unknown;
     type?: unknown;
+    character_id?: unknown;
     monster_index?: unknown;
     monster_source?: unknown;
     srd_monster_id?: unknown;
@@ -41,7 +42,24 @@ const TOKEN_UPDATE_COLUMNS = new Set([
   "hp_max",
   "scale",
   "image_url",
+  "light_radius_ft",
+  "vision_range_ft",
 ]);
+
+const DARKVISION_RACE_INDEXES = new Set([
+  'dwarf', 'hill-dwarf', 'mountain-dwarf',
+  'elf', 'high-elf', 'wood-elf',
+  'gnome', 'forest-gnome', 'rock-gnome',
+  'half-elf', 'half-orc', 'tiefling',
+]);
+const DEEP_DARKVISION_RACE_INDEXES = new Set(['drow']);
+
+function inferVisionRangeFt(raceIndex: string | null | undefined): number {
+  if (!raceIndex) return 0;
+  if (DEEP_DARKVISION_RACE_INDEXES.has(raceIndex)) return 120;
+  if (DARKVISION_RACE_INDEXES.has(raceIndex)) return 60;
+  return 0;
+}
 
 type TokenRow = {
   id: string;
@@ -346,6 +364,7 @@ export async function POST(request: Request) {
       ? token.image_url.trim()
       : null;
   const tokenType = token?.type === "prop" ? "prop" : "token";
+  const characterId = typeof token?.character_id === "string" ? token.character_id : null;
   const monsterIndex = typeof token?.monster_index === "string" ? token.monster_index : null;
   const monsterSource = token?.monster_source === "srd" ? "srd" : null;
   const srdMonsterId = typeof token?.srd_monster_id === "string" ? token.srd_monster_id : null;
@@ -395,6 +414,16 @@ export async function POST(request: Request) {
         : null;
     const startingHp = monster?.hit_points ?? null;
 
+    let visionRangeFt = 0;
+    if (characterId) {
+      const { data: char } = await admin
+        .from('characters')
+        .select('race_index')
+        .eq('id', characterId)
+        .maybeSingle();
+      visionRangeFt = inferVisionRangeFt(char?.race_index ?? null);
+    }
+
     const { data: row, error: insertError } = await admin
       .from("tokens")
       .insert({
@@ -410,8 +439,10 @@ export async function POST(request: Request) {
         image_url: imageUrl,
         hp_current: startingHp,
         hp_max: startingHp,
+        character_id: characterId,
         monster_source: monsterSource ?? (monster ? "srd" : null),
         monster_index: monsterIndex ?? monster?.index ?? null,
+        vision_range_ft: visionRangeFt,
       })
       .select("*")
       .single();

@@ -677,6 +677,7 @@ export function VttAssetsPanel({
                               name: char.name,
                               image_url: char.image_url,
                               type: "token",
+                              character_id: char.id,
                               monster_source: null,
                               monster_index: null,
                               srd_monster_id: null,

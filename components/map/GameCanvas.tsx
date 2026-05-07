@@ -189,13 +189,18 @@ export const GameCanvas = ({
         }))
     : [];
 
-  function clipPolygonToLights(poly: Point[]): Point[][] {
+  function clipPolygonToLights(
+    poly: Point[],
+    ownVisionCircle?: { cx: number; cy: number; r: number } | null
+  ): Point[][] {
     if (!sceneDark) return [poly];
-    if (lightCircles.length === 0) return [];
+    const allCircles = [...lightCircles];
+    if (ownVisionCircle && ownVisionCircle.r > 0) allCircles.push(ownVisionCircle);
+    if (allCircles.length === 0) return [];
     if (poly.length < 3) return [];
     const polyRing: number[][] = poly.map((p) => [p.x, p.y]);
     polyRing.push(polyRing[0]);
-    const circlePolys = lightCircles.map(({ cx, cy, r }) => {
+    const circlePolys = allCircles.map(({ cx, cy, r }) => {
       const ring: number[][] = [];
       const N = 32;
       for (let i = 0; i < N; i++) {
@@ -205,7 +210,7 @@ export const GameCanvas = ({
       ring.push(ring[0]);
       return [ring];
     });
-    // Union of all light circles
+    // Union of all light circles plus this token's vision circle
     const lightUnion = polygonClipping.union(...(circlePolys as never));
     if (!lightUnion || lightUnion.length === 0) return [];
     const intersection = polygonClipping.intersection([polyRing] as never, lightUnion as never);
@@ -216,7 +221,12 @@ export const GameCanvas = ({
   const visiblePolygons: number[][] = ownedTokens.flatMap((t) => {
     const center: Point = { x: t.x + gridSize / 2, y: t.y + gridSize / 2 };
     const losPoly = computeVisibilityPolygon(center, sightSegs);
-    const clipped = clipPolygonToLights(losPoly);
+    const visionFt = t.vision_range_ft ?? 0;
+    const ownVisionCircle =
+      visionFt > 0
+        ? { cx: center.x, cy: center.y, r: (visionFt / feetPerSquare) * gridSize }
+        : null;
+    const clipped = clipPolygonToLights(losPoly, ownVisionCircle);
     return clipped.map((c) => polygonToFlatPoints(c));
   });
 
@@ -229,7 +239,12 @@ export const GameCanvas = ({
     for (const t of ownedTokens) {
       const center: Point = { x: t.x + gridSize / 2, y: t.y + gridSize / 2 };
       const losPoly = computeVisibilityPolygon(center, sightSegs);
-      const clipped = clipPolygonToLights(losPoly);
+      const visionFt = t.vision_range_ft ?? 0;
+      const ownVisionCircle =
+        visionFt > 0
+          ? { cx: center.x, cy: center.y, r: (visionFt / feetPerSquare) * gridSize }
+          : null;
+      const clipped = clipPolygonToLights(losPoly, ownVisionCircle);
       for (const c of clipped) accumulateVisibility(c);
     }
   }, [
@@ -237,7 +252,7 @@ export const GameCanvas = ({
     isDm,
     sceneDark,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    ownedTokens.map((t) => `${t.id}:${t.x}:${t.y}:${t.light_radius_ft ?? 0}`).join('|'),
+    ownedTokens.map((t) => `${t.id}:${t.x}:${t.y}:${t.light_radius_ft ?? 0}:${t.vision_range_ft ?? 0}`).join('|'),
     accumulateVisibility,
     sightSegs.length,
     lightCircles.length,
@@ -1245,6 +1260,7 @@ async function placeTokenFromPointer({
     name: string;
     image_url: string | null;
     type: "token" | "prop";
+    character_id?: string | null;
     monster_source?: "srd" | "homebrew" | null;
     monster_index?: string | null;
     srd_monster_id?: string | null;
@@ -1261,6 +1277,7 @@ async function placeTokenFromPointer({
         name: placement.name,
         image_url: placement.image_url,
         type: placement.type,
+        character_id: placement.character_id ?? null,
         monster_source: placement.monster_source,
         monster_index: placement.monster_index,
         srd_monster_id: placement.srd_monster_id,

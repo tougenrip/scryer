@@ -221,6 +221,11 @@ export function VttTokenInspector({
         isDm={isDm}
         onUpdate={(v) => updateToken(sel.id, { light_radius_ft: v })}
       />
+      <VisionRangeRow
+        token={sel}
+        isDm={isDm}
+        onUpdate={(v) => updateToken(sel.id, { vision_range_ft: v })}
+      />
 
       <div className="space-y-2 rounded-md border border-border bg-background/35 p-3">
         <div className="flex items-center justify-between gap-2">
@@ -474,9 +479,14 @@ function LightRadiusRow({
   return (
     <div className="rounded-md border border-border bg-background/35 p-3">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-[10px] font-semibold uppercase text-muted-foreground">
-          Light radius
-        </p>
+        <div className="min-w-0 flex-1">
+          <p className="text-[10px] font-semibold uppercase text-muted-foreground">
+            Light emitted
+          </p>
+          <p className="mt-0.5 text-[9px] leading-tight text-muted-foreground">
+            How far this token emits light. Shared with all nearby tokens.
+          </p>
+        </div>
         <div className="flex items-center gap-1">
           <Input
             type="number"
@@ -486,6 +496,50 @@ function LightRadiusRow({
               const n = parseInt(value, 10);
               if (!Number.isNaN(n) && n >= 0) onUpdate(n);
               else setValue(String(token.light_radius_ft ?? 0));
+            }}
+            className="h-7 w-20 text-xs"
+          />
+          <span className="text-[10px] text-muted-foreground">ft</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function VisionRangeRow({
+  token,
+  isDm,
+  onUpdate,
+}: {
+  token: import("@/types/vtt").Token;
+  isDm: boolean;
+  onUpdate: (visionFt: number) => void;
+}) {
+  const [value, setValue] = useState(String(token.vision_range_ft ?? 0));
+  useEffect(() => {
+    setValue(String(token.vision_range_ft ?? 0));
+  }, [token.vision_range_ft]);
+  if (!isDm) return null;
+  return (
+    <div className="rounded-md border border-border bg-background/35 p-3">
+      <div className="flex items-center justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <p className="text-[10px] font-semibold uppercase text-muted-foreground">
+            Darkvision
+          </p>
+          <p className="mt-0.5 text-[9px] leading-tight text-muted-foreground">
+            How far this token sees in pitch darkness. 0 = needs light.
+          </p>
+        </div>
+        <div className="flex items-center gap-1">
+          <Input
+            type="number"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            onBlur={() => {
+              const n = parseInt(value, 10);
+              if (!Number.isNaN(n) && n >= 0) onUpdate(n);
+              else setValue(String(token.vision_range_ft ?? 0));
             }}
             className="h-7 w-20 text-xs"
           />

@@ -5,6 +5,7 @@ export type PendingTokenPlacement = {
   name: string;
   image_url: string | null;
   type: 'token' | 'prop';
+  character_id?: string | null;
   monster_source?: 'srd' | 'homebrew' | null;
   monster_index?: string | null;
   srd_monster_id?: string | null;
