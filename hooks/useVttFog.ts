@@ -1,10 +1,12 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useVttStore } from '@/lib/store/vtt-store';
 import { FogData, FogShape } from '@/types/vtt';
 
 export function useVttFog(mapId: string | null) {
-  const supabase = createClient();
+  // Memoize so the supabase reference is stable across renders and the effect
+  // below doesn't re-subscribe a new channel every time the parent re-renders.
+  const supabase = useMemo(() => createClient(), []);
   const { setFogData, fogData } = useVttStore();
 
   useEffect(() => {
@@ -14,12 +16,12 @@ export function useVttFog(mapId: string | null) {
     }
 
     const fetchFogData = async () => {
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('media_items')
         .select('fog_data')
         .eq('id', mapId)
         .single();
-        
+
       if (data?.fog_data) {
         setFogData(data.fog_data as unknown as FogData);
       }
@@ -27,9 +29,14 @@ export function useVttFog(mapId: string | null) {
 
     fetchFogData();
 
-    // Subscribe to changes
+    // Use a per-mount channel topic suffix so we never collide with a
+    // previous mount's channel that's still in the middle of being torn down
+    // (Supabase reuses channels by topic; attaching a listener to a channel
+    // that's already mid-subscribe throws "cannot add postgres_changes
+    // callbacks ... after subscribe()").
+    const topic = `media_items_fog:${mapId}:${Math.random().toString(36).slice(2, 9)}`;
     const channel = supabase
-      .channel(`media_items_fog:${mapId}`)
+      .channel(topic)
       .on(
         'postgres_changes',
         {
