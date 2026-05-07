@@ -7,6 +7,7 @@ import { parseActions, partitionActions, type ParsedAction } from "@/lib/vtt/mon
 import {
   deriveWeaponAction,
   proficiencyBonusForLevel,
+  unarmedStrikeAction,
   type ParsedPcAction,
 } from "@/lib/vtt/pc-actions";
 import { cleanVttDisplayName } from "@/lib/vtt/display-name";
@@ -77,8 +78,19 @@ export function VttTokenActionsBar({ campaignId, sendRollToChat }: Props) {
           }>)
         : [];
       const equipped = inventoryJsonb.filter((i) => i.equipped);
-      if (equipped.length === 0) return;
 
+      const level = (charData.level as number | null) ?? 1;
+      const profBonus = proficiencyBonusForLevel(level);
+      const abilityScores = {
+        strength: (charData.strength as number | null) ?? 10,
+        dexterity: (charData.dexterity as number | null) ?? 10,
+      };
+
+      const derived: ParsedPcAction[] = [];
+      // Every PC always has Unarmed Strike (monks, grappled casters, etc).
+      derived.push(unarmedStrikeAction(abilityScores, profBonus));
+
+      // Only fetch equipment data if the PC actually has equipped items.
       const srdIndices = equipped.filter((i) => i.source === "srd").map((i) => i.index);
       const homebrewIds = equipped.filter((i) => i.source === "homebrew").map((i) => i.index);
 
@@ -92,14 +104,6 @@ export function VttTokenActionsBar({ campaignId, sendRollToChat }: Props) {
       ]);
       if (cancelled) return;
 
-      const level = (charData.level as number | null) ?? 1;
-      const profBonus = proficiencyBonusForLevel(level);
-      const abilityScores = {
-        strength: (charData.strength as number | null) ?? 10,
-        dexterity: (charData.dexterity as number | null) ?? 10,
-      };
-
-      const derived: ParsedPcAction[] = [];
       for (const inv of equipped) {
         let eqData: unknown = null;
         if (inv.source === "srd") {

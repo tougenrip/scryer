@@ -140,3 +140,35 @@ export function deriveWeaponAction(
     damages,
   };
 }
+
+/**
+ * Default unarmed strike — every PC has one. Damage is 1 + STR modifier
+ * (5e PHB). Hit bonus is STR mod + proficiency.
+ */
+export function unarmedStrikeAction(
+  abilityScores: MinimalAbilityScores,
+  proficiencyBonus: number
+): ParsedPcAction {
+  const strMod = Math.floor((abilityScores.strength - 10) / 2);
+  const hitBonusNum = strMod + proficiencyBonus;
+  const hitBonusStr =
+    hitBonusNum >= 0 ? `+${hitBonusNum}` : `${hitBonusNum}`;
+  const attackRoll =
+    hitBonusNum >= 0 ? `1d20+${hitBonusNum}` : `1d20${hitBonusNum}`;
+  // 1 + STR bludgeoning. Express as "1d1+strMod" so the dice roller treats
+  // it uniformly. Falls through to a flat number if you'd rather hardcode.
+  const damageNum = 1 + strMod;
+  const damages: ParsedPcAction["damages"] = [
+    {
+      dice: damageNum >= 0 ? `${damageNum}` : `${damageNum}`,
+      type: "bludgeoning",
+    },
+  ];
+  return {
+    name: "Unarmed Strike",
+    description: "Melee Weapon Attack — fists, feet, headbutts.",
+    attackRoll,
+    hitBonus: hitBonusStr,
+    damages,
+  };
+}

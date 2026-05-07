@@ -17,6 +17,7 @@ import { parseActions, partitionActions, type ParsedAction } from "@/lib/vtt/mon
 import {
   deriveWeaponAction,
   proficiencyBonusForLevel,
+  unarmedStrikeAction,
   type ParsedPcAction,
 } from "@/lib/vtt/pc-actions";
 
@@ -112,7 +113,18 @@ export function VttTokenInspector({
           }>)
         : [];
       const equipped = inventoryJsonb.filter((i) => i.equipped);
-      if (equipped.length === 0) return;
+
+      const level = charData.level ?? 1;
+      const profBonus = proficiencyBonusForLevel(level);
+      const abilityScores = {
+        strength: charData.strength ?? 10,
+        dexterity: charData.dexterity ?? 10,
+      };
+
+      const derived: ParsedPcAction[] = [];
+      // Every PC always has Unarmed Strike — useful for monks, grappled
+      // casters, etc. Comes first in the list.
+      derived.push(unarmedStrikeAction(abilityScores, profBonus));
 
       const srdIndices = equipped.filter((i) => i.source === "srd").map((i) => i.index);
       const homebrewIds = equipped.filter((i) => i.source === "homebrew").map((i) => i.index);
@@ -128,14 +140,6 @@ export function VttTokenInspector({
       ]);
       if (cancelled) return;
 
-      const level = charData.level ?? 1;
-      const profBonus = proficiencyBonusForLevel(level);
-      const abilityScores = {
-        strength: charData.strength ?? 10,
-        dexterity: charData.dexterity ?? 10,
-      };
-
-      const derived: ParsedPcAction[] = [];
       for (const inv of equipped) {
         let eqData: unknown = null;
         if (inv.source === "srd") {
@@ -284,6 +288,19 @@ export function VttTokenInspector({
           </div>
         </div>
       </div>
+
+      {/* Orphan-token diagnostic: token isn't linked to a character or monster.
+          Most common cause: token was placed before the character_id-on-insert
+          fix landed. The user has to re-place it from the Players list. */}
+      {!sel.character_id && !sel.monster_index && (
+        <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-3 text-[11px] leading-snug text-amber-600 dark:text-amber-300">
+          This token isn&apos;t linked to a character or monster, so the
+          inspector can&apos;t pull stats or actions for it. Delete it and
+          re-place from <span className="font-medium">Library → Tokens →
+          Players</span> (for PCs) or <span className="font-medium">Samples →
+          Tokens</span> (for monsters).
+        </div>
+      )}
 
       <div className="grid grid-cols-3 gap-2">
         <InfoTile icon={<Shield className="h-3.5 w-3.5" />} label="AC" value={armorClass ?? "Unknown"} />
