@@ -2007,44 +2007,56 @@ export function CharacterSheet({
                     }
                   }
                   
-                  const supabase = createClient();
-                  
-                  // Get current inventory from JSONB column
-                  const currentInventory = (character.inventory as Array<{
-                    source: 'srd' | 'homebrew';
-                    index: string;
-                    quantity: number;
-                    equipped: boolean;
-                    attuned: boolean;
-                    notes?: string | null;
-                  }>) || [];
-                  
-                  // Find and update the item in the inventory array
-                  const updatedInventory = currentInventory.map(inv => {
-                    if (inv.source === item.source && inv.index === item.index) {
-                      return { ...inv, [field]: value };
-                    }
-                    return inv;
+                  // Build the new inventory off the LIVE local state — the
+                  // character prop's inventory can be stale if multiple toggles
+                  // fire quickly. Project the enriched inventory back to the
+                  // JSONB ref shape.
+                  const updatedInventory = inventory.map((inv) => {
+                    const isMatch = inv.id === itemId;
+                    return {
+                      source: inv.source,
+                      index: inv.index,
+                      quantity: inv.quantity,
+                      equipped: isMatch && field === 'equipped' ? value : inv.equipped,
+                      attuned: isMatch && field === 'attuned' ? value : inv.attuned,
+                      notes: inv.notes ?? null,
+                    };
                   });
-                  
-                  // Update JSONB column in database
-                  const { error } = await supabase
-                    .from('characters')
-                    .update({ inventory: updatedInventory })
-                    .eq('id', character.id);
-                  
-                  if (!error) {
-                    setInventory(prev => prev.map(inv => 
+
+                  // Optimistic local update first.
+                  setInventory((prev) =>
+                    prev.map((inv) =>
                       inv.id === itemId ? { ...inv, [field]: value } : inv
-                    ));
-                    
-                    // Update character prop via callback
-                    if (onUpdate) {
-                      await onUpdate({ inventory: updatedInventory });
-                    }
+                    )
+                  );
+
+                  // Single source of truth: parent's onUpdate. It uses
+                  // .select().single() so RLS denials surface as errors instead
+                  // of being silently swallowed.
+                  if (onUpdate) {
+                    await onUpdate({ inventory: updatedInventory });
                   } else {
-                    console.error('Error updating inventory:', error);
-                    toast.error(`Failed to update ${field === 'equipped' ? 'equipment' : 'attunement'} status`);
+                    // Fallback when no parent updater is wired (shouldn't happen
+                    // in practice, but be defensive).
+                    const supabase = createClient();
+                    const { error } = await supabase
+                      .from('characters')
+                      .update({ inventory: updatedInventory })
+                      .eq('id', character.id)
+                      .select()
+                      .single();
+                    if (error) {
+                      console.error('Error updating inventory:', error);
+                      toast.error(
+                        `Failed to update ${field === 'equipped' ? 'equipment' : 'attunement'} status`
+                      );
+                      // Roll back optimistic update
+                      setInventory((prev) =>
+                        prev.map((inv) =>
+                          inv.id === itemId ? { ...inv, [field]: !value } : inv
+                        )
+                      );
+                    }
                   }
                 }}
                 onItemDelete={async (itemId) => {
