@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { uniqueChannelTopic } from '@/lib/supabase/realtime-topic';
 import {
   notifyVttCombatChanged,
   VTT_COMBAT_CHANGED_EVENT,
@@ -506,7 +507,7 @@ export function useCombat(campaignId: string, mapId?: string, enabled: boolean =
 
     fetchEncounter();
 
-    const channel = supabase.channel(`combat-${campaignId}`)
+    const channel = supabase.channel(uniqueChannelTopic(`combat-${campaignId}`))
       .on(
         'postgres_changes',
         {
