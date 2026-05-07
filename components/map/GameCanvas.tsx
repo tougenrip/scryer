@@ -1041,6 +1041,7 @@ export const GameCanvas = ({
           walls={walls}
           isDm={!!isDm}
           editorMode={wallEditorMode}
+          selectMode={activeTool === 'select'}
           selectedWallId={selectedWallId}
           onSelectWall={setSelectedWallId}
           onDeleteWall={(id) => {
@@ -1100,6 +1101,7 @@ export const GameCanvas = ({
             void updateAoeArea(id, updates);
           }}
           eraseMode={activeTool === 'erase'}
+          selectMode={activeTool === 'select'}
           tokens={tokens}
           gridSize={gridSize}
           feetPerSquare={feetPerSquare}
@@ -1119,6 +1121,7 @@ export const GameCanvas = ({
             setSelectedDrawingId(null);
           }}
           eraseMode={activeTool === 'erase'}
+          selectMode={activeTool === 'select'}
         />
         <PingLayer pings={activePings} gridSize={gridSize} />
         <WeatherOverlay />

@@ -41,6 +41,8 @@ interface Props {
     updates: Partial<Pick<AoeArea, "origin_x" | "origin_y" | "rotation_deg" | "length_ft">>
   ) => void;
   eraseMode: boolean;
+  /** True when Select tool is active. Persistent shapes only respond to clicks then or in eraseMode. */
+  selectMode: boolean;
   tokens: Token[];
   gridSize: number;
   feetPerSquare: number;
@@ -55,6 +57,7 @@ export function AoeLayer({
   onDeleteArea,
   onUpdateArea,
   eraseMode,
+  selectMode,
   tokens,
   gridSize,
   feetPerSquare,
@@ -103,6 +106,7 @@ export function AoeLayer({
           feetPerSquare={feetPerSquare}
           selected={selectedAreaId === a.id}
           eraseMode={eraseMode}
+          selectMode={selectMode}
           onSelect={() => onSelectArea(a.id)}
           onDelete={() => onDeleteArea(a.id)}
           onUpdate={(updates) => onUpdateArea(a.id, updates)}
@@ -277,6 +281,7 @@ function PersistentShape({
   feetPerSquare,
   selected,
   eraseMode,
+  selectMode,
   onSelect,
   onDelete,
   onUpdate,
@@ -286,6 +291,7 @@ function PersistentShape({
   feetPerSquare: number;
   selected: boolean;
   eraseMode: boolean;
+  selectMode: boolean;
   onSelect: () => void;
   onDelete: () => void;
   onUpdate: (
@@ -333,9 +339,16 @@ function PersistentShape({
         y={area.origin_y}
         draggable={selected && !eraseMode}
         onMouseDown={(e) => {
+          if (eraseMode) {
+            e.cancelBubble = true;
+            onDelete();
+            return;
+          }
+          // Inert outside Select tool (and outside eraser mode) so clicks
+          // pass through to the active tool's stage handler.
+          if (!selectMode) return;
           e.cancelBubble = true;
-          if (eraseMode) onDelete();
-          else onSelect();
+          onSelect();
         }}
         onDragEnd={(e) => {
           if (eraseMode) return;

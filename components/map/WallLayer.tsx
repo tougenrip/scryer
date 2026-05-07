@@ -9,6 +9,8 @@ interface Props {
   isDm: boolean;
   /** Active wall-tool sub-mode; null when wall tool isn't active. */
   editorMode: "pen" | "segment" | "door" | null;
+  /** True when the Select tool is active. Walls only respond to clicks then. */
+  selectMode: boolean;
   selectedWallId: string | null;
   onSelectWall: (id: string | null) => void;
   onDeleteWall: (id: string) => void;
@@ -35,6 +37,7 @@ export function WallLayer({
   walls,
   isDm,
   editorMode,
+  selectMode,
   selectedWallId,
   onSelectWall,
   onDeleteWall,
@@ -52,8 +55,8 @@ export function WallLayer({
           key={w.id}
           wall={w}
           isDm={isDm}
-          selected={selectedWallId === w.id && isDm && editorMode !== null}
-          editorMode={editorMode}
+          selected={selectedWallId === w.id && isDm && selectMode}
+          selectMode={selectMode}
           onSelect={() => onSelectWall(w.id)}
           onDelete={() => onDeleteWall(w.id)}
           onToggleDoor={() => onToggleDoor(w.id)}
@@ -74,7 +77,7 @@ function WallShape({
   wall,
   isDm,
   selected,
-  editorMode,
+  selectMode,
   onSelect,
   onDelete,
   onToggleDoor,
@@ -82,7 +85,7 @@ function WallShape({
   wall: Wall;
   isDm: boolean;
   selected: boolean;
-  editorMode: "pen" | "segment" | "door" | null;
+  selectMode: boolean;
   onSelect: () => void;
   onDelete: () => void;
   onToggleDoor: () => void;
@@ -108,11 +111,15 @@ function WallShape({
         hitStrokeWidth={Math.max(14, strokeWidth + 10)}
         onMouseDown={(e: KonvaEventObject<MouseEvent>) => {
           if (e.evt.button !== 0) return;
+          // Walls are inert outside the Select tool: this lets the wall
+          // tool place vertices that land on existing walls, the eraser
+          // delete via stage hit-test, etc.
+          if (!selectMode) return;
           e.cancelBubble = true;
-          if (editorMode && isDm) {
-            onSelect();
-          } else if (wall.is_door) {
+          if (wall.is_door) {
             onToggleDoor();
+          } else {
+            onSelect();
           }
         }}
       />
