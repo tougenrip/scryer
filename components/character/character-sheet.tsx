@@ -2010,12 +2010,17 @@ export function CharacterSheet({
                   // Build the new inventory off the LIVE local state — the
                   // character prop's inventory can be stale if multiple toggles
                   // fire quickly. Project the enriched inventory back to the
-                  // JSONB ref shape.
+                  // JSONB ref shape. The enriched type has no `index` field;
+                  // recover it from the id (`${source}-${index}`).
                   const updatedInventory = inventory.map((inv) => {
                     const isMatch = inv.id === itemId;
+                    const prefix = `${inv.source}-`;
+                    const recoveredIndex = inv.id.startsWith(prefix)
+                      ? inv.id.slice(prefix.length)
+                      : inv.id;
                     return {
                       source: inv.source,
-                      index: inv.index,
+                      index: recoveredIndex,
                       quantity: inv.quantity,
                       equipped: isMatch && field === 'equipped' ? value : inv.equipped,
                       attuned: isMatch && field === 'attuned' ? value : inv.attuned,
