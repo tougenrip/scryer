@@ -441,16 +441,10 @@ export const GameCanvas = ({
     return () => document.removeEventListener('pointerdown', onPointerDown, true);
   }, [selectedTokenIds, setSelectedTokenId]);
 
+  // Eraser tool only deletes drawings now. AOE shapes have their own × button
+  // when selected; the eraser deliberately leaves them alone so it isn't easy
+  // to nuke a Wall of Fire by mistake.
   const eraseAtPoint = (px: number, py: number) => {
-    for (const a of aoeAreas) {
-      const lengthPx = feetToPx(a.length_ft, gridSize, feetPerSquare);
-      const ringPx = feetToPx(ringThicknessFt(), gridSize, feetPerSquare);
-      const linePx = feetToPx(lineWidthFt(), gridSize, feetPerSquare);
-      const rotRad = (a.rotation_deg * Math.PI) / 180;
-      if (pointInAoe(px, py, a.shape, a.origin_x, a.origin_y, lengthPx, rotRad, ringPx, linePx)) {
-        eraseAoeWithUndo(a.id);
-      }
-    }
     for (const d of drawings) {
       const threshold = Math.max(8, d.stroke_width / 2 + 6);
       if (pointNearPolyline(px, py, d.points, threshold)) {
@@ -1136,7 +1130,8 @@ export const GameCanvas = ({
           onUpdateArea={(id, updates) => {
             void updateAoeArea(id, updates);
           }}
-          eraseMode={activeTool === 'erase'}
+          // Eraser intentionally doesn't touch AOE shapes anymore.
+          eraseMode={false}
           selectMode={activeTool === 'select'}
           tokens={tokens}
           gridSize={gridSize}

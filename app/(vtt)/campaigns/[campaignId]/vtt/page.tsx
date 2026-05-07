@@ -15,14 +15,10 @@ import {
   SkipForward,
   ScrollText,
   Crosshair,
-  Pencil,
-  Eraser,
 } from "lucide-react";
 import { VttAoePopover } from "@/components/vtt/vtt-aoe-popover";
-import {
-  VttClearPopover,
-  VttPrivateToggle,
-} from "@/components/vtt/vtt-overlay-controls";
+import { VttPrivateToggle } from "@/components/vtt/vtt-overlay-controls";
+import { VttDrawingsTool } from "@/components/vtt/vtt-drawings-tool";
 import { VttShortcutsHelp } from "@/components/vtt/vtt-shortcuts-help";
 import { VttTokenActionsBar } from "@/components/vtt/vtt-token-actions-bar";
 import { useVttStore } from "@/lib/store/vtt-store";
@@ -411,24 +407,8 @@ export default function VttPage() {
                 icon={<Crosshair className="h-4 w-4" />}
                 label="Ping (or Alt + click)"
               />
-              <ToolButton
-                active={activeTool === "draw"}
-                onClick={() =>
-                  setActiveTool(activeTool === "draw" ? "select" : "draw")
-                }
-                icon={<Pencil className="h-4 w-4" />}
-                label="Draw (Shift + release to keep)"
-              />
               <VttAoePopover />
-              <ToolButton
-                active={activeTool === "erase"}
-                onClick={() =>
-                  setActiveTool(activeTool === "erase" ? "select" : "erase")
-                }
-                icon={<Eraser className="h-4 w-4" />}
-                label="Eraser (click or drag to delete)"
-              />
-              <VttClearPopover
+              <VttDrawingsTool
                 isDm={!!isDm}
                 onClearMine={() =>
                   window.dispatchEvent(new CustomEvent("vtt:clear-mine"))
