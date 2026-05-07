@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { uniqueChannelTopic } from "@/lib/supabase/realtime-topic";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import type {
   AoeShape,
@@ -98,7 +99,7 @@ export function useVttOverlays(campaignId: string | null, mapId: string | null) 
         .maybeSingle();
       if (profile?.display_name) displayNameRef.current = profile.display_name;
 
-      const topic = `vtt_overlays:${campaignId}:${mapId}`;
+      const topic = uniqueChannelTopic(`vtt_overlays:${campaignId}:${mapId}`);
       channel = supabase.channel(topic, { config: { broadcast: { self: false } } });
       channelRef.current = channel;
 

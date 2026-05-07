@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { uniqueChannelTopic } from "@/lib/supabase/realtime-topic";
 
 export type VttTrackedObjectiveSource = "party_objective" | "quest" | "quest_objective";
 
@@ -47,7 +48,7 @@ export function useVttTrackedObjectives(campaignId: string | null) {
     if (!campaignId) return;
     const supabase = createClient();
     const channel = supabase
-      .channel(`vtt-tracked-objectives:${campaignId}`)
+      .channel(uniqueChannelTopic(`vtt-tracked-objectives:${campaignId}`))
       .on(
         "postgres_changes",
         {

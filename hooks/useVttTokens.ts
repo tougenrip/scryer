@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { uniqueChannelTopic } from '@/lib/supabase/realtime-topic';
 import { useVttStore } from '@/lib/store/vtt-store';
 import { Token } from '@/types/vtt';
 import { cleanVttDisplayName } from '@/lib/vtt/display-name';
@@ -45,7 +46,7 @@ export function useVttTokens(mapId: string | null, campaignId?: string | null) {
     fetchTokens();
 
     const channel = supabase
-      .channel(`tokens:${mapId}`)
+      .channel(uniqueChannelTopic(`tokens:${mapId}`))
       .on(
         'postgres_changes',
         {

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { uniqueChannelTopic } from "@/lib/supabase/realtime-topic";
 import { toast } from "sonner";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import type { Point, Wall } from "@/types/vtt-walls";
@@ -40,7 +41,7 @@ export function useVttWalls(campaignId: string | null, mapId: string | null) {
     void fetchAll();
 
     const channel = supabase
-      .channel(`vtt_walls:${mapId}`)
+      .channel(uniqueChannelTopic(`vtt_walls:${mapId}`))
       .on(
         "postgres_changes",
         {
@@ -77,7 +78,7 @@ export function useVttWalls(campaignId: string | null, mapId: string | null) {
   useEffect(() => {
     if (!campaignId || !mapId) return;
     const supabase = createClient();
-    const ch = supabase.channel(`vtt_scene:${campaignId}:${mapId}`);
+    const ch = supabase.channel(uniqueChannelTopic(`vtt_scene:${campaignId}:${mapId}`));
     ch.on("broadcast", { event: "door_toggle" }, ({ payload }) => {
       const p = payload as { id: string; is_open: boolean };
       setWalls((prev) =>

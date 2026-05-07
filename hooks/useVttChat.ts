@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { uniqueChannelTopic } from "@/lib/supabase/realtime-topic";
 import type { RollResult } from "@/contexts/dice-roller-context";
 
 export type VttMessage = {
@@ -86,7 +87,7 @@ export function useVttChat(
     if (!campaignId || !enabled) return;
 
     const channel = supabase
-      .channel(`vtt-chat:${campaignId}`)
+      .channel(uniqueChannelTopic(`vtt-chat:${campaignId}`))
       .on(
         "postgres_changes",
         {

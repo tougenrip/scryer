@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { uniqueChannelTopic } from "@/lib/supabase/realtime-topic";
 import { toast } from "sonner";
 import type { Drawing, DrawingPoint } from "@/types/vtt-aoe";
 
@@ -41,7 +42,7 @@ export function useVttDrawings(campaignId: string | null, mapId: string | null) 
     void fetchAll();
 
     const channel = supabase
-      .channel(`vtt_drawings:${mapId}`)
+      .channel(uniqueChannelTopic(`vtt_drawings:${mapId}`))
       .on(
         "postgres_changes",
         {

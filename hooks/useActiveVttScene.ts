@@ -3,6 +3,7 @@
 import { useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { uniqueChannelTopic } from "@/lib/supabase/realtime-topic";
 
 /**
  * When DM sets campaigns.active_vtt_map_id, all VTT clients (including DM on another tab)
@@ -19,7 +20,7 @@ export function useActiveVttScene(
     if (!campaignId) return;
 
     const channel = supabase
-      .channel(`campaign-vtt-scene:${campaignId}`)
+      .channel(uniqueChannelTopic(`campaign-vtt-scene:${campaignId}`))
       .on(
         "postgres_changes",
         {
