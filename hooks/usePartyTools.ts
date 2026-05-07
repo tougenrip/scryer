@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { uniqueChannelTopic } from '@/lib/supabase/realtime-topic';
 
 // ============================================
 // TYPE DEFINITIONS
@@ -70,7 +71,7 @@ export function useCampaignObjectives(campaignId: string | null) {
     // Real-time subscription
     const supabase = createClient();
     const channel = supabase
-      .channel(`objectives-${campaignId}`)
+      .channel(uniqueChannelTopic(`objectives-${campaignId}`))
       .on(
         'postgres_changes',
         {
@@ -242,7 +243,7 @@ export function usePartyInventory(campaignId: string | null) {
     // Real-time subscription
     const supabase = createClient();
     const channel = supabase
-      .channel(`party-inventory-${campaignId}`)
+      .channel(uniqueChannelTopic(`party-inventory-${campaignId}`))
       .on(
         'postgres_changes',
         {

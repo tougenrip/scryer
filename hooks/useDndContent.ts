@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { uniqueChannelTopic } from '@/lib/supabase/realtime-topic';
 
 // ============================================
 // TYPE DEFINITIONS
@@ -964,7 +965,7 @@ export function useCharacter(characterId: string) {
 
     // Subscribe to real-time updates
     const channel = supabase
-      .channel(`character-${characterId}`)
+      .channel(uniqueChannelTopic(`character-${characterId}`))
       .on(
         'postgres_changes',
         {
@@ -1042,7 +1043,7 @@ export function useCampaignCharacters(campaignId: string) {
     // Note: We listen to all character updates and filter by campaign_id in the handler
     // because Supabase real-time filters don't catch transitions (null -> campaignId)
     const channel = supabase
-      .channel(`campaign-characters-${campaignId}`)
+      .channel(uniqueChannelTopic(`campaign-characters-${campaignId}`))
       .on(
         'postgres_changes',
         {
@@ -1124,7 +1125,7 @@ export function useUserCharacters(userId: string | null) {
 
     // Subscribe to real-time updates
     const channel = supabase
-      .channel(`user-characters-${userId}`)
+      .channel(uniqueChannelTopic(`user-characters-${userId}`))
       .on(
         'postgres_changes',
         {
@@ -1199,7 +1200,7 @@ export function useUnassignedCharacters(userId: string | null) {
 
     // Subscribe to real-time updates
     const channel = supabase
-      .channel(`unassigned-characters-${userId}`)
+      .channel(uniqueChannelTopic(`unassigned-characters-${userId}`))
       .on(
         'postgres_changes',
         {
@@ -1602,7 +1603,7 @@ export function useCharacterClasses(characterId: string) {
       // Subscribe to real-time updates
       const supabase = createClient();
       const channel = supabase
-        .channel(`character-classes-${characterId}`)
+        .channel(uniqueChannelTopic(`character-classes-${characterId}`))
         .on(
           'postgres_changes',
           {

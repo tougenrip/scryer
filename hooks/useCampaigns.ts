@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { uniqueChannelTopic } from '@/lib/supabase/realtime-topic';
 
 // Note: We create client instances fresh in each hook to ensure we have the latest auth session
 // createClient() from @supabase/ssr automatically handles auth via cookies
@@ -186,7 +187,7 @@ export function useCampaign(campaignId: string | null) {
     // Subscribe to real-time updates
     const supabase = createClient();
     const channel = supabase
-      .channel(`campaign-${campaignId}`)
+      .channel(uniqueChannelTopic(`campaign-${campaignId}`))
       .on(
         'postgres_changes',
         {
@@ -410,7 +411,7 @@ export function useCampaignMembers(campaignId: string | null) {
     // Subscribe to real-time updates
     const supabase = createClient();
     const channel = supabase
-      .channel(`campaign-members-${campaignId}`)
+      .channel(uniqueChannelTopic(`campaign-members-${campaignId}`))
       .on(
         'postgres_changes',
         {

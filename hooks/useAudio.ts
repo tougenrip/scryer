@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { uniqueChannelTopic } from '@/lib/supabase/realtime-topic';
 import { v4 as uuidv4 } from 'uuid';
 
 // ============================================
@@ -84,7 +85,7 @@ export function useAudioTracks(campaignId: string) {
     
     const supabase = createClient();
     const channel = supabase
-      .channel(`audio-tracks-${campaignId}`)
+      .channel(uniqueChannelTopic(`audio-tracks-${campaignId}`))
       .on(
         'postgres_changes',
         {
@@ -142,7 +143,7 @@ export function usePlaylists(campaignId: string) {
 
     const supabase = createClient();
     const channel = supabase
-      .channel(`playlists-${campaignId}`)
+      .channel(uniqueChannelTopic(`playlists-${campaignId}`))
       .on(
         'postgres_changes',
         {
@@ -273,7 +274,7 @@ export function useAudioSync(campaignId: string) {
       });
 
     const channel = supabase
-      .channel(`campaign-state-audio-${campaignId}`)
+      .channel(uniqueChannelTopic(`campaign-state-audio-${campaignId}`))
       .on(
         'postgres_changes',
         {
@@ -375,7 +376,7 @@ export function useCampaignAudioState(campaignId: string) {
 
     // Realtime subscription
     const channel = supabase
-      .channel(`campaign-audio-${campaignId}`)
+      .channel(uniqueChannelTopic(`campaign-audio-${campaignId}`))
       .on(
         'postgres_changes',
         {
