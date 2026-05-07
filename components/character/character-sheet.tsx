@@ -79,6 +79,21 @@ export function CharacterSheet({
   // Calculate equipment effects
   const equipmentEffects = useEquipmentEffects(character, inventory);
 
+  // Persist computed AC back to characters.armor_class so consumers that just
+  // read the column (e.g., the VTT token inspector via the token→character
+  // join) see the correct value with armor equipped, instead of the
+  // unarmored base.
+  useEffect(() => {
+    if (!editable) return;
+    const computedAc = equipmentEffects.armorClass;
+    if (!computedAc || computedAc === character.armor_class) return;
+    const supabase = createClient();
+    void supabase
+      .from('characters')
+      .update({ armor_class: computedAc })
+      .eq('id', character.id);
+  }, [editable, equipmentEffects.armorClass, character.id, character.armor_class]);
+
   // Detect level changes from external updates
   useEffect(() => {
     async function checkLevelUp() {

@@ -11,6 +11,7 @@ import { useUpdateVttToken } from "@/hooks/useUpdateVttToken";
 import { useVttStore } from "@/lib/store/vtt-store";
 import { cn } from "@/lib/utils";
 import { cleanVttDisplayName } from "@/lib/vtt/display-name";
+import { createClient } from "@/lib/supabase/client";
 import { Footprints, HeartPulse, Shield, ShieldAlert, Swords, X } from "lucide-react";
 import { parseActions, partitionActions, type ParsedAction } from "@/lib/vtt/monster-actions";
 
@@ -62,7 +63,42 @@ export function VttTokenInspector({
     [participants, sel],
   );
 
-  const sourceHp = sel?.hp_max ?? sel?.character?.hp_max ?? sel?.monster?.hit_points ?? null;
+  // Re-fetch the linked character on selection so equipment/AC changes from the
+  // character sheet show up here without a page refresh. The token's joined
+  // `character` data was a snapshot at token-load time.
+  type FreshChar = {
+    armor_class: number | null;
+    speed: number | null;
+    hp_current: number | null;
+    hp_max: number | null;
+  } | null;
+  const [freshCharacter, setFreshCharacter] = useState<FreshChar>(null);
+  useEffect(() => {
+    setFreshCharacter(null);
+    const cid = sel?.character_id;
+    if (!cid) return;
+    let cancelled = false;
+    const supabase = createClient();
+    void supabase
+      .from('characters')
+      .select('armor_class, speed, hp_current, hp_max')
+      .eq('id', cid)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (cancelled) return;
+        setFreshCharacter((data as FreshChar) ?? null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [sel?.character_id]);
+
+  const sourceHp =
+    sel?.hp_max ??
+    freshCharacter?.hp_max ??
+    sel?.character?.hp_max ??
+    sel?.monster?.hit_points ??
+    null;
   const maxHp = sourceHp ?? 1;
   const hasHp =
     sourceHp !== null &&
@@ -74,10 +110,15 @@ export function VttTokenInspector({
   // the inspector doesn't read as "Unknown" before the player fills out their sheet.
   const isPcToken = !!sel?.character_id;
   const armorClass =
+    freshCharacter?.armor_class ??
     sel?.character?.armor_class ??
     sel?.monster?.armor_class ??
     (isPcToken ? 10 : null);
-  const speedSource = sel?.monster?.speed ?? sel?.character?.speed ?? null;
+  const speedSource =
+    sel?.monster?.speed ??
+    freshCharacter?.speed ??
+    sel?.character?.speed ??
+    null;
   const movement = formatSpeed(speedSource ?? (isPcToken ? 30 : null));
   const damageResistances = sel?.monster?.damage_resistances ?? [];
   const damageImmunities = sel?.monster?.damage_immunities ?? [];
