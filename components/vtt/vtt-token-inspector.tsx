@@ -14,6 +14,11 @@ import { cleanVttDisplayName } from "@/lib/vtt/display-name";
 import { createClient } from "@/lib/supabase/client";
 import { Footprints, HeartPulse, Shield, ShieldAlert, Swords, X } from "lucide-react";
 import { parseActions, partitionActions, type ParsedAction } from "@/lib/vtt/monster-actions";
+import {
+  deriveWeaponAction,
+  proficiencyBonusForLevel,
+  type ParsedPcAction,
+} from "@/lib/vtt/pc-actions";
 
 type Props = {
   campaignId: string;
@@ -71,23 +76,91 @@ export function VttTokenInspector({
     speed: number | null;
     hp_current: number | null;
     hp_max: number | null;
+    level: number | null;
+    strength: number | null;
+    dexterity: number | null;
+    inventory: unknown;
   } | null;
   const [freshCharacter, setFreshCharacter] = useState<FreshChar>(null);
+  const [pcActions, setPcActions] = useState<ParsedPcAction[]>([]);
+
   useEffect(() => {
     setFreshCharacter(null);
+    setPcActions([]);
     const cid = sel?.character_id;
     if (!cid) return;
     let cancelled = false;
     const supabase = createClient();
-    void supabase
-      .from('characters')
-      .select('armor_class, speed, hp_current, hp_max')
-      .eq('id', cid)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (cancelled) return;
-        setFreshCharacter((data as FreshChar) ?? null);
-      });
+    void (async () => {
+      const { data: charData } = await supabase
+        .from('characters')
+        .select('armor_class, speed, hp_current, hp_max, level, strength, dexterity, inventory')
+        .eq('id', cid)
+        .maybeSingle();
+      if (cancelled) return;
+      setFreshCharacter((charData as FreshChar) ?? null);
+
+      // Derive PC weapon actions from equipped inventory
+      if (!charData) return;
+      const inventoryJsonb = Array.isArray(charData.inventory)
+        ? (charData.inventory as Array<{
+            source: "srd" | "homebrew";
+            index: string;
+            equipped: boolean;
+            attuned: boolean;
+            quantity: number;
+          }>)
+        : [];
+      const equipped = inventoryJsonb.filter((i) => i.equipped);
+      if (equipped.length === 0) return;
+
+      const srdIndices = equipped.filter((i) => i.source === "srd").map((i) => i.index);
+      const homebrewIds = equipped.filter((i) => i.source === "homebrew").map((i) => i.index);
+
+      // Fetch equipment data in parallel
+      const [srdResult, homebrewResult] = await Promise.all([
+        srdIndices.length > 0
+          ? supabase.from("srd_equipment").select("*").in("index", srdIndices)
+          : Promise.resolve({ data: [] as unknown[] }),
+        homebrewIds.length > 0
+          ? supabase.from("homebrew_equipment").select("*").in("id", homebrewIds)
+          : Promise.resolve({ data: [] as unknown[] }),
+      ]);
+      if (cancelled) return;
+
+      const level = charData.level ?? 1;
+      const profBonus = proficiencyBonusForLevel(level);
+      const abilityScores = {
+        strength: charData.strength ?? 10,
+        dexterity: charData.dexterity ?? 10,
+      };
+
+      const derived: ParsedPcAction[] = [];
+      for (const inv of equipped) {
+        let eqData: unknown = null;
+        if (inv.source === "srd") {
+          eqData =
+            (srdResult.data as Array<Record<string, unknown>>)?.find(
+              (e) => e.index === inv.index
+            ) ?? null;
+        } else {
+          eqData =
+            (homebrewResult.data as Array<Record<string, unknown>>)?.find(
+              (e) => e.id === inv.index
+            ) ?? null;
+        }
+        if (!eqData) continue;
+        const equipmentDataTyped = eqData as { name?: string } & Record<string, unknown>;
+        const action = deriveWeaponAction(
+          { name: (equipmentDataTyped.name as string) ?? inv.index, equipmentData: eqData },
+          abilityScores,
+          profBonus
+        );
+        if (action) derived.push(action);
+      }
+
+      setPcActions(derived);
+    })();
     return () => {
       cancelled = true;
     };
@@ -333,6 +406,13 @@ export function VttTokenInspector({
       </div>
 
       <ActionsBlock token={sel} runRoll={runRoll} />
+      {sel.character_id && (
+        <PcActionsBlock
+          actions={pcActions}
+          characterName={displayName}
+          runRoll={runRoll}
+        />
+      )}
     </div>
   );
 }
@@ -379,6 +459,93 @@ function ActionsBlock({
         </div>
       ))}
     </>
+  );
+}
+
+function PcActionsBlock({
+  actions,
+  characterName,
+  runRoll,
+}: {
+  actions: ParsedPcAction[];
+  characterName: string;
+  runRoll: (expression: string, label: string) => Promise<void>;
+}) {
+  return (
+    <div className="space-y-1 pt-1">
+      <p className="text-[10px] font-semibold uppercase text-muted-foreground">
+        Actions
+      </p>
+      {actions.length === 0 ? (
+        <p className="text-xs italic text-muted-foreground">
+          No equipped weapons. Equip one in the character sheet.
+        </p>
+      ) : (
+        actions.map((action) => (
+          <PcActionRow
+            key={action.name}
+            action={action}
+            characterName={characterName}
+            runRoll={runRoll}
+          />
+        ))
+      )}
+    </div>
+  );
+}
+
+function PcActionRow({
+  action,
+  characterName,
+  runRoll,
+}: {
+  action: ParsedPcAction;
+  characterName: string;
+  runRoll: (expression: string, label: string) => Promise<void>;
+}) {
+  const summaryParts: string[] = [];
+  if (action.hitBonus !== null) summaryParts.push(action.hitBonus);
+  if (action.damages.length > 0) {
+    summaryParts.push(action.damages.map((d) => d.dice).join(", "));
+  }
+
+  const isRollable = action.attackRoll !== null || action.damages.length > 0;
+
+  const onClick = async () => {
+    if (action.attackRoll) {
+      await runRoll(
+        action.attackRoll,
+        `${characterName} – ${action.name} (attack)`
+      );
+    }
+    for (const dmg of action.damages) {
+      const label = dmg.type
+        ? `${characterName} – ${action.name} (${dmg.type})`
+        : `${characterName} – ${action.name} (damage)`;
+      await runRoll(dmg.dice, label);
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={isRollable ? onClick : undefined}
+      disabled={!isRollable}
+      title={action.description || action.name}
+      className={cn(
+        "flex w-full items-center justify-between gap-2 rounded-md border border-border bg-background/45 px-2 py-1.5 text-xs",
+        isRollable
+          ? "hover:border-amber-400/50 hover:bg-amber-400/10"
+          : "cursor-default opacity-90"
+      )}
+    >
+      <span className="truncate text-left font-medium">{action.name}</span>
+      {summaryParts.length > 0 && (
+        <span className="shrink-0 font-mono text-[10px] text-muted-foreground">
+          {summaryParts.join(" · ")}
+        </span>
+      )}
+    </button>
   );
 }
 
