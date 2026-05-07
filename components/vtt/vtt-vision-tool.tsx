@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useVttStore } from "@/lib/store/vtt-store";
 import { cn } from "@/lib/utils";
+import { cleanVttDisplayName } from "@/lib/vtt/display-name";
 
 interface Props {
   /** Whether vision (LOS) is enabled on this scene. */
@@ -70,8 +71,24 @@ export function VttVisionTool({
   const [open, setOpen] = useState(false);
   const { activeTool, setActiveTool, wallEditorMode, setWallEditorMode } =
     useVttStore();
+  const tokens = useVttStore((s) => s.tokens);
+  const previewAsUserId = useVttStore((s) => s.previewAsUserId);
+  const setPreviewAsUserId = useVttStore((s) => s.setPreviewAsUserId);
   const isWallToolActive = activeTool === "wall";
-  const buttonActive = isWallToolActive || visionEnabled;
+  const buttonActive = isWallToolActive || visionEnabled || !!previewAsUserId;
+
+  // Unique characters on the map (one entry per user_id with a token here).
+  // Used for the "Preview as" dropdown so the DM can verify another user's LOS.
+  const previewable = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const t of tokens) {
+      const uid = (t as unknown as { character?: { user_id?: string | null } })
+        .character?.user_id;
+      if (!uid || seen.has(uid)) continue;
+      seen.set(uid, cleanVttDisplayName(t.name ?? "Unknown") || "Unknown");
+    }
+    return Array.from(seen, ([userId, name]) => ({ userId, name }));
+  }, [tokens]);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -190,6 +207,50 @@ export function VttVisionTool({
               </button>
             )}
           </div>
+
+          {visionEnabled && (
+            <>
+              <div className="border-t border-border" />
+              <div className="space-y-1.5">
+                <p className="text-xs font-semibold">Preview as</p>
+                <p className="text-[10px] leading-snug text-muted-foreground">
+                  Show the scene as one of your players would see it. The map
+                  dims to their LOS, tokens they can&apos;t see hide. Reset to
+                  return to your DM view.
+                </p>
+                <select
+                  value={previewAsUserId ?? ""}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setPreviewAsUserId(v === "" ? null : v);
+                  }}
+                  className="h-8 w-full rounded-md border border-border bg-background px-2 text-xs"
+                  disabled={previewable.length === 0}
+                >
+                  <option value="">DM view (default)</option>
+                  {previewable.map(({ userId, name }) => (
+                    <option key={userId} value={userId}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+                {previewable.length === 0 && (
+                  <p className="text-[10px] text-muted-foreground">
+                    No player-owned tokens on this map yet.
+                  </p>
+                )}
+                {previewAsUserId && (
+                  <button
+                    type="button"
+                    className="mt-1 w-full rounded-md border border-amber-400/40 bg-amber-400/10 px-2 py-1 text-[10px] text-amber-600 hover:bg-amber-400/20 dark:text-amber-300"
+                    onClick={() => setPreviewAsUserId(null)}
+                  >
+                    Exit preview
+                  </button>
+                )}
+              </div>
+            </>
+          )}
         </div>
       </PopoverContent>
     </Popover>

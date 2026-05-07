@@ -58,6 +58,8 @@ interface VttState {
     | 'wall';
   aoeShape: 'circle' | 'cone' | 'line' | 'square' | 'ring';
   wallEditorMode: 'pen' | 'segment' | 'door';
+  /** DM-only: preview the scene as if you were this user (their LOS). null = DM view. */
+  previewAsUserId: string | null;
   dmPrivateMode: boolean;
   fogToolType: 'reveal' | 'hide';
   fogToolShape: 'rect' | 'circle' | 'polygon' | 'brush';
@@ -112,6 +114,7 @@ interface VttState {
   ) => void;
   setAoeShape: (shape: 'circle' | 'cone' | 'line' | 'square' | 'ring') => void;
   setWallEditorMode: (mode: 'pen' | 'segment' | 'door') => void;
+  setPreviewAsUserId: (id: string | null) => void;
   setDmPrivateMode: (on: boolean) => void;
   resetView: () => void;
 }
@@ -141,6 +144,7 @@ export const useVttStore = create<VttState>((set) => ({
   activeTool: 'select',
   aoeShape: 'circle',
   wallEditorMode: 'pen',
+  previewAsUserId: null,
   dmPrivateMode: false,
   fogToolType: 'reveal',
   fogToolShape: 'rect',
@@ -199,6 +203,7 @@ export const useVttStore = create<VttState>((set) => ({
   setActiveTool: (tool) => set({ activeTool: tool }),
   setAoeShape: (shape) => set({ aoeShape: shape }),
   setWallEditorMode: (mode) => set({ wallEditorMode: mode }),
+  setPreviewAsUserId: (id) => set({ previewAsUserId: id }),
   setDmPrivateMode: (on) => set({ dmPrivateMode: on }),
   resetView: () => set({ stageScale: 1, stagePos: { x: 0, y: 0 } }),
 }));

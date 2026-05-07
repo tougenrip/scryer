@@ -156,15 +156,23 @@ export const GameCanvas = ({
   }, []);
 
   const dmPrivateMode = useVttStore((s) => s.dmPrivateMode);
+  const previewAsUserId = useVttStore((s) => s.previewAsUserId);
 
-  // Owned tokens for the local user (player view). DM bypasses.
+  // The DM "previewing as a player" temporarily applies that player's LOS.
+  // Effective for visibility math: pretend the DM is that user.
+  const previewMode = isDm && !!previewAsUserId;
+  const effectiveUserId = previewMode ? previewAsUserId : currentUserId;
+  // For visibility gating, treat the DM as a player while in preview.
+  const isDmForVision = isDm && !previewMode;
+
+  // Owned tokens for whoever's POV we're rendering. DM (no preview) bypasses.
   const ownedTokens =
-    !visionEnabled || isDm
+    !visionEnabled || isDmForVision
       ? []
       : tokens.filter((t) => {
           const characterUserId = (t as unknown as { character?: { user_id?: string | null } })
             .character?.user_id;
-          return !!characterUserId && !!currentUserId && characterUserId === currentUserId;
+          return !!characterUserId && !!effectiveUserId && characterUserId === effectiveUserId;
         });
 
   const sightSegs = sightBlockingSegments(walls);
@@ -213,6 +221,8 @@ export const GameCanvas = ({
   });
 
   // Accumulate memory whenever any owned token's position changes.
+  // The DM never accumulates — even in preview mode, we don't want to write
+  // to a player's memory row from the DM's session.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!visionEnabled || isDm) return;
@@ -234,9 +244,9 @@ export const GameCanvas = ({
   ]);
 
   // Visible token ids for player view: any token whose center falls inside ANY visible polygon.
-  // DM (or vision off): null = render all.
+  // DM (no preview) or vision off: null = render all.
   const visibleTokenIds: Set<string> | null =
-    isDm || !visionEnabled
+    isDmForVision || !visionEnabled
       ? null
       : (() => {
           const ids = new Set<string>();
@@ -1051,12 +1061,15 @@ export const GameCanvas = ({
           blockingSegments={movementBlockingSegments(walls)}
         />
         <FogLayer onFogUpdate={updateFogShapes} isDm={isDm} />
-        {!isDm && visionEnabled && mapDimensions && (
+        {!isDmForVision && visionEnabled && mapDimensions && (
           <LosMaskLayer
             mapWidth={mapDimensions.width}
             mapHeight={mapDimensions.height}
             visiblePolygons={visiblePolygons}
-            memoryPolygons={memoryPolys}
+            // While the DM previews as a player, we don't have that player's
+            // accumulated memory loaded; show pure live LOS so the DM sees
+            // exactly what the player sees right now.
+            memoryPolygons={previewMode ? [] : memoryPolys}
             hidden={false}
           />
         )}
