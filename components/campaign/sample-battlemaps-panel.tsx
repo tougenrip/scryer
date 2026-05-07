@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   ensureSampleBattlemapInCampaign,
@@ -13,6 +13,8 @@ import { labelFromSampleStoragePath } from "@/lib/vtt/sample-storage-label";
 import { cn } from "@/lib/utils";
 import { Loader2 } from "lucide-react";
 import { VttAssetPreviewModal } from "@/components/vtt/vtt-asset-preview-modal";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 type Props = {
   campaignId: string;
@@ -36,6 +38,9 @@ export function SampleBattlemapsPanel({
   const [busyId, setBusyId] = useState<string | null>(null);
   const { data: samplesData, isLoading } = useVttSamples();
   const [previewSample, setPreviewSample] = useState<{ id: string, name: string, publicPath: string, isDb: boolean, dbAsset?: VttSampleAssetRow } | null>(null);
+  const [search, setSearch] = useState("");
+  const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set());
+  const [sortAlpha, setSortAlpha] = useState(false);
 
   const runEnsureHardcoded = async (sampleId: string): Promise<string | null> => {
     setBusyId(sampleId);
@@ -89,7 +94,110 @@ export function SampleBattlemapsPanel({
 
   const dbBattlemaps = samplesData?.assets.filter((a) => a.kind === "battlemap") ?? [];
 
+  // Collect all unique tags from DB battlemaps
+  const allTags = useMemo(() => {
+    const tagSet = new Set<string>();
+    for (const a of dbBattlemaps) {
+      if (Array.isArray(a.tags)) {
+        for (const t of a.tags) {
+          if (typeof t === "string" && t.length > 0) tagSet.add(t);
+        }
+      }
+    }
+    return Array.from(tagSet).sort();
+  }, [dbBattlemaps]);
+
+  const searchLower = search.toLowerCase();
+
+  // Filter & sort hardcoded battlemaps (no tags)
+  const filteredHardcoded = useMemo(() => {
+    let items = SAMPLE_BATTLEMAPS.filter((s) =>
+      s.name.toLowerCase().includes(searchLower)
+    );
+    if (sortAlpha) items = [...items].sort((a, b) => a.name.localeCompare(b.name));
+    return items;
+  }, [searchLower, sortAlpha]);
+
+  // Filter & sort DB battlemaps
+  const filteredDb = useMemo(() => {
+    let items = dbBattlemaps.filter((a) => {
+      const name = a.name ?? labelFromSampleStoragePath(a.storage_path);
+      if (!name.toLowerCase().includes(searchLower)) return false;
+      if (selectedTags.size > 0) {
+        const tags = Array.isArray(a.tags) ? a.tags : [];
+        if (!tags.some((t) => selectedTags.has(t as string))) return false;
+      }
+      return true;
+    });
+    if (sortAlpha) items = [...items].sort((a, b) => {
+      const na = a.name ?? labelFromSampleStoragePath(a.storage_path);
+      const nb = b.name ?? labelFromSampleStoragePath(b.storage_path);
+      return na.localeCompare(nb);
+    });
+    return items;
+  }, [dbBattlemaps, searchLower, selectedTags, sortAlpha]);
+
+  const toggleTag = (tag: string) => {
+    setSelectedTags((prev) => {
+      const next = new Set(prev);
+      if (next.has(tag)) next.delete(tag);
+      else next.add(tag);
+      return next;
+    });
+  };
+
   return (
+    <div className="flex flex-col gap-2">
+      {/* Search + sort controls */}
+      <div className="flex items-center gap-1.5 px-1">
+        <Input
+          placeholder="Search battlemaps..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="h-8 flex-1 text-xs"
+        />
+        <Button
+          type="button"
+          variant={sortAlpha ? "default" : "outline"}
+          size="sm"
+          className="h-8 shrink-0 px-2 text-[10px]"
+          onClick={() => setSortAlpha((v) => !v)}
+          title="Sort A→Z"
+        >
+          A→Z
+        </Button>
+      </div>
+
+      {/* Tag filter pills */}
+      {allTags.length > 0 && (
+        <div className="flex flex-wrap gap-1 px-1">
+          {allTags.map((tag) => (
+            <Button
+              key={tag}
+              type="button"
+              variant={selectedTags.has(tag) ? "default" : "outline"}
+              size="sm"
+              className="h-6 px-2 text-[10px]"
+              onClick={() => toggleTag(tag)}
+            >
+              {tag}
+            </Button>
+          ))}
+          {selectedTags.size > 0 && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-6 px-2 text-[10px] text-muted-foreground"
+              onClick={() => setSelectedTags(new Set())}
+            >
+              Clear tags
+            </Button>
+          )}
+        </div>
+      )}
+
+      {/* Grid/list of battlemaps */}
     <div
       className={cn(
         "gap-2",
@@ -98,7 +206,7 @@ export function SampleBattlemapsPanel({
           : "flex flex-col"
       )}
     >
-      {SAMPLE_BATTLEMAPS.map((s) => {
+      {filteredHardcoded.map((s) => {
         const busy = busyId === s.id;
         return (
           <button
@@ -146,7 +254,7 @@ export function SampleBattlemapsPanel({
         </div>
       )}
 
-      {dbBattlemaps.map((a) => {
+      {filteredDb.map((a) => {
         const busy = busyId === a.id;
         const name = a.name ?? labelFromSampleStoragePath(a.storage_path);
         return (
@@ -189,7 +297,8 @@ export function SampleBattlemapsPanel({
           </button>
         );
       })}
-      
+    </div>
+
       <VttAssetPreviewModal
         isOpen={!!previewSample}
         onClose={() => setPreviewSample(null)}

@@ -34,6 +34,7 @@ import {
 } from "@/lib/vtt/forge-scene-media";
 import { SampleBattlemapsPanel } from "@/components/campaign/sample-battlemaps-panel";
 import { SampleTokensPanel } from "@/components/campaign/sample-tokens-panel";
+import { useCampaignCharacters } from "@/hooks/useDndContent";
 import { VttAssetPreviewModal } from "@/components/vtt/vtt-asset-preview-modal";
 import { cn } from "@/lib/utils";
 import { cleanVttDisplayName } from "@/lib/vtt/display-name";
@@ -136,6 +137,8 @@ export function VttAssetsPanel({
   } | null;
 
   const [previewItem, setPreviewItem] = useState<PreviewItem>(null);
+
+  const { characters } = useCampaignCharacters(campaignId);
 
   const battlemaps = useMemo(() => getBattlemapItems(maps), [maps]);
   const visibleTokenItems = useMemo(
@@ -645,6 +648,66 @@ export function VttAssetsPanel({
                   Upload tokens — Media Library
                 </Link>
               </Button>
+            )}
+            {/* Players section */}
+            {isDm && (
+              <div className="space-y-1.5">
+                <p className="px-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  Players
+                </p>
+                {characters.length === 0 ? (
+                  <p className="px-1 text-[10px] text-muted-foreground">
+                    No player characters in this campaign yet.
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-5 xl:grid-cols-7">
+                    {characters.map((char) => {
+                      const initials = char.name.slice(0, 2).toUpperCase();
+                      return (
+                        <button
+                          key={char.id}
+                          type="button"
+                          disabled={!currentMapId}
+                          onClick={() => {
+                            if (!currentMapId) {
+                              toast.error("Load a scene first, then place tokens.");
+                              return;
+                            }
+                            setPendingTokenPlacement({
+                              name: char.name,
+                              image_url: char.image_url,
+                              type: "token",
+                              monster_source: null,
+                              monster_index: null,
+                              srd_monster_id: null,
+                            });
+                            onStartPlacement?.();
+                            toast.message("Move the cursor over the map. Left click places; right click cancels.");
+                          }}
+                          className={cn(
+                            "group relative overflow-hidden rounded-md border border-border bg-muted hover:ring-2 hover:ring-primary focus:outline-none disabled:opacity-40"
+                          )}
+                          title={char.name}
+                        >
+                          <span className="flex aspect-square items-center justify-center bg-gradient-to-br from-neutral-950 via-stone-900 to-neutral-950 p-2">
+                            <span className={TOKEN_FRAME_CLASS}>
+                              {char.image_url ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={char.image_url} alt="" loading="lazy" decoding="async" className={TOKEN_IMAGE_CLASS} />
+                              ) : (
+                                <span className="text-[10px] font-semibold text-white">{initials}</span>
+                              )}
+                            </span>
+                          </span>
+                          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 to-transparent p-1 pt-5 text-left">
+                            <p className="truncate text-[9px] font-medium text-white">{char.name}</p>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             )}
             {renderLayoutControls("library", "tokens")}
             {renderTokenGrid(visibleTokenItems, "library-tokens", layoutFor("library", "tokens"))}

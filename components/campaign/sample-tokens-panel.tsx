@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import {
   ensureSampleTokenInCampaign,
@@ -51,6 +52,13 @@ export function SampleTokensPanel({
   const [visibleDbTokens, setVisibleDbTokens] = useState(INITIAL_TOKEN_BATCH);
   const { data: samplesData, isLoading } = useVttSamples();
   const { monsters, loading: monstersLoading } = useSrdMonsters();
+
+  // Monster filter state
+  const [minCr, setMinCr] = useState<string>("");
+  const [maxCr, setMaxCr] = useState<string>("");
+  const [filterSize, setFilterSize] = useState<string>("any");
+  const [filterType, setFilterType] = useState<string>("any");
+  const [sortAlpha, setSortAlpha] = useState(false);
 
   const handlePlaceHardcoded = async (sampleId: string) => {
     if (!isDm) {
@@ -167,7 +175,33 @@ export function SampleTokensPanel({
 
   const dbTokens = samplesData?.assets.filter((a) => a.kind === "token") ?? [];
   const searchLower = search.toLowerCase();
-  const filteredMonsters = monsters.filter((m) => m.name.toLowerCase().includes(searchLower));
+
+  // Collect unique monster types for the type filter dropdown
+  const allMonsterTypes = useMemo(() => {
+    const typeSet = new Set<string>();
+    for (const m of monsters) {
+      if (m.type) typeSet.add(m.type);
+    }
+    return Array.from(typeSet).sort();
+  }, [monsters]);
+
+  const parsedMinCr = minCr.trim() !== "" ? parseFloat(minCr) : null;
+  const parsedMaxCr = maxCr.trim() !== "" ? parseFloat(maxCr) : null;
+
+  const filteredMonsters = useMemo(() => {
+    let items = monsters.filter((m) => {
+      if (!m.name.toLowerCase().includes(searchLower)) return false;
+      const cr = m.challenge_rating ?? 0;
+      if (parsedMinCr !== null && !isNaN(parsedMinCr) && cr < parsedMinCr) return false;
+      if (parsedMaxCr !== null && !isNaN(parsedMaxCr) && cr > parsedMaxCr) return false;
+      if (filterSize !== "any" && m.size?.toLowerCase() !== filterSize.toLowerCase()) return false;
+      if (filterType !== "any" && m.type?.toLowerCase() !== filterType.toLowerCase()) return false;
+      return true;
+    });
+    if (sortAlpha) items = [...items].sort((a, b) => a.name.localeCompare(b.name));
+    return items;
+  }, [monsters, searchLower, parsedMinCr, parsedMaxCr, filterSize, filterType, sortAlpha]);
+
   const filteredHardcoded = SAMPLE_TOKENS.filter((s) => s.name.toLowerCase().includes(searchLower));
   const filteredDbTokens = dbTokens.filter((a) => {
     const name = a.name ?? labelFromSampleStoragePath(a.storage_path);
@@ -177,7 +211,7 @@ export function SampleTokensPanel({
   useEffect(() => {
     setVisibleMonsters(INITIAL_TOKEN_BATCH);
     setVisibleDbTokens(INITIAL_TOKEN_BATCH);
-  }, [search]);
+  }, [search, parsedMinCr, parsedMaxCr, filterSize, filterType, sortAlpha]);
 
   const dbTokensToRender = filteredDbTokens.slice(0, visibleDbTokens);
   const monstersToRender = filteredMonsters.slice(0, visibleMonsters);
@@ -267,6 +301,67 @@ export function SampleTokensPanel({
           onChange={(e) => setSearch(e.target.value)}
           className="h-8 text-xs"
         />
+      </div>
+
+      {/* Monster filters row */}
+      <div className="flex flex-wrap items-center gap-1.5 px-1">
+        <span className="shrink-0 text-[10px] text-muted-foreground">CR</span>
+        <Input
+          type="number"
+          placeholder="min"
+          value={minCr}
+          onChange={(e) => setMinCr(e.target.value)}
+          className="h-7 w-14 text-xs"
+          min={0}
+          step={0.125}
+        />
+        <span className="text-[10px] text-muted-foreground">–</span>
+        <Input
+          type="number"
+          placeholder="max"
+          value={maxCr}
+          onChange={(e) => setMaxCr(e.target.value)}
+          className="h-7 w-14 text-xs"
+          min={0}
+          step={0.125}
+        />
+        <Select value={filterSize} onValueChange={setFilterSize}>
+          <SelectTrigger className="h-7 w-[90px] text-xs">
+            <SelectValue placeholder="Size" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="any">Any size</SelectItem>
+            <SelectItem value="tiny">Tiny</SelectItem>
+            <SelectItem value="small">Small</SelectItem>
+            <SelectItem value="medium">Medium</SelectItem>
+            <SelectItem value="large">Large</SelectItem>
+            <SelectItem value="huge">Huge</SelectItem>
+            <SelectItem value="gargantuan">Gargantuan</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={filterType} onValueChange={setFilterType}>
+          <SelectTrigger className="h-7 w-[100px] text-xs">
+            <SelectValue placeholder="Type" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="any">Any type</SelectItem>
+            {allMonsterTypes.map((t) => (
+              <SelectItem key={t} value={t}>
+                {t.charAt(0).toUpperCase() + t.slice(1)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button
+          type="button"
+          variant={sortAlpha ? "default" : "outline"}
+          size="sm"
+          className="h-7 shrink-0 px-2 text-[10px]"
+          onClick={() => setSortAlpha((v) => !v)}
+          title="Sort monsters A→Z"
+        >
+          A→Z
+        </Button>
       </div>
 
       <div
