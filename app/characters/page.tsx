@@ -244,13 +244,17 @@ export default function CharactersPage() {
                                   {character.armor_class}
                                 </div>
                                 <div className="pt-2">
-                                  <Link
-                                    href={`/campaigns/${campaignId}`}
-                                    onClick={(e) => e.stopPropagation()}
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      router.push(`/campaigns/${campaignId}`);
+                                    }}
                                     className="text-xs text-primary hover:underline"
                                   >
                                     View Campaign →
-                                  </Link>
+                                  </button>
                                 </div>
                               </div>
                             </CardContent>
