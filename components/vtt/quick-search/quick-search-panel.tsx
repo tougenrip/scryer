@@ -392,7 +392,7 @@ export function QuickSearchPanel({ campaignId }: QuickSearchPanelProps) {
           </div>
           <div className="flex-1 min-h-0 overflow-y-auto">
             <div className={cn("p-5", PARCHMENT_BG)}>
-              <div className={cn("rounded-md p-4", PARCHMENT_BORDER, "bg-[#f5ecd7]/40")}>
+              <div className={cn("rounded-md p-4", PARCHMENT_BORDER, "bg-card")}>
                 {detail}
               </div>
             </div>
@@ -612,7 +612,7 @@ function subtitle(
 
 function NotFound() {
   return (
-    <p className="italic text-sm text-[#7a1f1f]">
+    <p className="italic text-sm text-amber-400">
       This entry no longer exists.
     </p>
   );

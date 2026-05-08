@@ -187,9 +187,13 @@ function ChatRoll({
   const Icon = isAttack ? Swords : Flame;
   const iconClass = isAttack ? "text-sky-400" : "text-rose-400";
 
+  // Outcomes need to be readable at a glance even when scrolled back through
+  // history, so non-latest rolls now also get a big number (just slightly
+  // smaller than the most recent). Modifiers/breakdown are de-emphasized to
+  // keep the result the visual focus.
   const totalClass = cn(
     "shrink-0 font-bold tabular-nums leading-none",
-    isLast ? "text-4xl" : "text-base",
+    isLast ? "text-5xl" : "text-3xl",
     isCritHit && "text-emerald-500",
     isCritMiss && "text-rose-500",
     !isCritHit && !isCritMiss && (isAttack ? "text-sky-300" : "text-rose-300")
@@ -226,14 +230,14 @@ function ChatRoll({
         </div>
         <div className={totalClass}>{roll.result}</div>
       </div>
-      <div className="mt-1.5 flex flex-wrap items-center gap-1 font-mono text-[10px]">
+      <div className="mt-1.5 flex flex-wrap items-center gap-1 font-mono text-[9px] opacity-70">
         <span className="text-muted-foreground">{roll.expression}</span>
         <span className="text-muted-foreground">=</span>
         {roll.breakdown.rolls.map((r, idx) => (
           <span
             key={idx}
             className={cn(
-              "rounded bg-muted px-1.5 py-0.5 text-foreground tabular-nums",
+              "rounded bg-muted px-1 py-0.5 text-foreground tabular-nums",
               isD20 && r === 20 && "bg-emerald-500/25 font-bold text-emerald-300",
               isD20 && r === 1 && "bg-rose-500/25 font-bold text-rose-300"
             )}

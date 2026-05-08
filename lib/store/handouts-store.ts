@@ -21,6 +21,26 @@ function seenKey(userId: string | null, campaignId: string | null) {
   return `${SEEN_KEY_PREFIX}${userId}:${campaignId}`;
 }
 
+/** Clamp a persisted position so the card header is always reachable in
+ * the current viewport — guards against stale localStorage from a smaller
+ * window or an old build that allowed off-screen drags. */
+function sanitizePos(
+  x: number,
+  y: number,
+  width: number
+): { x: number; y: number } {
+  if (typeof window === "undefined") return { x, y };
+  const HEADER_MIN_VISIBLE_PX = 80;
+  const HEADER_HEIGHT_PX = 28;
+  const maxX = Math.max(0, window.innerWidth - HEADER_MIN_VISIBLE_PX);
+  const maxY = Math.max(0, window.innerHeight - HEADER_HEIGHT_PX);
+  const minX = -(width - HEADER_MIN_VISIBLE_PX);
+  return {
+    x: Math.min(maxX, Math.max(minX, x)),
+    y: Math.min(maxY, Math.max(0, y)),
+  };
+}
+
 function loadCards(userId: string | null, campaignId: string | null): HandoutCard[] {
   if (typeof window === "undefined") return [];
   const k = cardsKey(userId, campaignId);
@@ -30,13 +50,20 @@ function loadCards(userId: string | null, campaignId: string | null): HandoutCar
     if (!raw) return [];
     const parsed = JSON.parse(raw) as Partial<HandoutCard>[];
     if (!Array.isArray(parsed)) return [];
-    return parsed.slice(0, 8).map((c) => ({
-      id: String(c.id ?? ""),
-      x: typeof c.x === "number" ? c.x : 140,
-      y: typeof c.y === "number" ? c.y : 140,
-      width: typeof c.width === "number" ? c.width : 360,
-      height: typeof c.height === "number" ? c.height : 480,
-    }));
+    return parsed.slice(0, 8).map((c, i) => {
+      const w = typeof c.width === "number" ? c.width : 360;
+      const h = typeof c.height === "number" ? c.height : 480;
+      const rawX = typeof c.x === "number" && Number.isFinite(c.x) ? c.x : 140 + i * 28;
+      const rawY = typeof c.y === "number" && Number.isFinite(c.y) ? c.y : 140 + i * 28;
+      const safe = sanitizePos(rawX, rawY, w);
+      return {
+        id: String(c.id ?? ""),
+        x: safe.x,
+        y: safe.y,
+        width: w,
+        height: h,
+      };
+    });
   } catch {
     return [];
   }
@@ -120,12 +147,16 @@ export const useHandoutsStore = create<HandoutsState>((set, get) => ({
   bind: (userId, campaignId) => {
     const cur = get();
     if (cur.ownerUserId === userId && cur.ownerCampaignId === campaignId) return;
+    const sanitized = loadCards(userId, campaignId);
     set({
       ownerUserId: userId,
       ownerCampaignId: campaignId,
-      cards: loadCards(userId, campaignId),
+      cards: sanitized,
       seen: loadSeen(userId, campaignId),
     });
+    // Write back so off-screen positions are healed for next session even
+    // before the user touches a card.
+    persistCards(userId, campaignId, sanitized);
   },
 
   open: (handoutId) => {

@@ -74,12 +74,55 @@ export function FloatingCardShell({
   const [pos, setPos] = useState({ x, y });
   const [size, setSize] = useState({ w: width, h: height });
 
+  /**
+   * Clamp a position so the card's header stays inside the viewport. We
+   * leave a tiny margin around the edges (HEADER_MIN_VISIBLE_PX) so the
+   * close button + drag handle are always reachable, even if the user
+   * dragged the card to the corner or shrank the window.
+   */
+  const HEADER_MIN_VISIBLE_PX = 80;
+  const HEADER_HEIGHT_PX = 28;
+  const clampPos = (
+    px: number,
+    py: number,
+    pw: number
+  ): { x: number; y: number } => {
+    if (typeof window === "undefined") return { x: px, y: py };
+    const maxX = Math.max(
+      0,
+      window.innerWidth - HEADER_MIN_VISIBLE_PX
+    );
+    const maxY = Math.max(
+      0,
+      window.innerHeight - HEADER_HEIGHT_PX
+    );
+    // Also keep a sliver of card visible on the LEFT (don't let the card
+    // disappear off-screen left).
+    const minX = -(pw - HEADER_MIN_VISIBLE_PX);
+    return {
+      x: Math.min(maxX, Math.max(minX, px)),
+      y: Math.min(maxY, Math.max(0, py)),
+    };
+  };
+
   useEffect(() => {
-    setPos({ x, y });
-  }, [x, y]);
+    setPos(clampPos(x, y, width));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [x, y, width]);
   useEffect(() => {
     setSize({ w: width, h: height });
   }, [width, height]);
+
+  // Re-clamp if the window shrinks and a previously-valid position is now
+  // off-screen.
+  useEffect(() => {
+    const onResize = () => {
+      setPos((prev) => clampPos(prev.x, prev.y, size.w));
+    };
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [size.w]);
 
   const onPointerDown = (e: React.PointerEvent) => {
     if (e.button !== 0) return;
@@ -96,9 +139,7 @@ export function FloatingCardShell({
     if (!dragState.current || dragState.current.pointerId !== e.pointerId) return;
     const dx = e.clientX - dragState.current.startX;
     const dy = e.clientY - dragState.current.startY;
-    const nx = Math.max(0, dragState.current.cardX + dx);
-    const ny = Math.max(0, dragState.current.cardY + dy);
-    setPos({ x: nx, y: ny });
+    setPos(clampPos(dragState.current.cardX + dx, dragState.current.cardY + dy, size.w));
   };
   const onPointerUp = (e: React.PointerEvent) => {
     if (!dragState.current || dragState.current.pointerId !== e.pointerId) return;
@@ -155,7 +196,7 @@ export function FloatingCardShell({
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
-        className="flex items-center gap-1 px-2 py-1 cursor-move bg-[#7a1f1f] text-[#f5ecd7] rounded-t-md select-none"
+        className="flex items-center gap-1 px-2 py-1 cursor-move bg-amber-500/15 text-amber-400 border-b border-amber-500/30 rounded-t-md select-none"
       >
         <span className="text-[10px] uppercase tracking-wider font-bold flex-1 truncate font-serif">
           {label}
@@ -167,7 +208,7 @@ export function FloatingCardShell({
             e.stopPropagation();
             onClose(cardId);
           }}
-          className="h-5 w-5 flex items-center justify-center hover:bg-white/15 rounded"
+          className="h-5 w-5 flex items-center justify-center hover:bg-amber-500/20 rounded"
           title="Close"
         >
           <X className="h-3 w-3" />
@@ -184,7 +225,7 @@ export function FloatingCardShell({
         title="Resize"
         style={{
           backgroundImage:
-            "linear-gradient(135deg, transparent 0 50%, rgba(122,31,31,0.55) 50% 60%, transparent 60% 70%, rgba(122,31,31,0.55) 70% 80%, transparent 80%)",
+            "linear-gradient(135deg, transparent 0 50%, rgba(245,158,11,0.55) 50% 60%, transparent 60% 70%, rgba(245,158,11,0.55) 70% 80%, transparent 80%)",
         }}
       />
     </div>

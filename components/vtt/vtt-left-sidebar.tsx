@@ -1,10 +1,10 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { Library, Music, CheckCircle2, Swords, HelpCircle, BookOpen, Inbox } from "lucide-react";
+import { Library, Music, CheckCircle2, Swords, HelpCircle, BookOpen, Inbox, NotebookPen, Users, Dices } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
-export type VttLeftTab = "assets" | "music" | "objectives" | "combat" | "library" | "handouts" | null;
+export type VttLeftTab = "assets" | "music" | "objectives" | "combat" | "library" | "handouts" | "notes" | "party" | "dice" | null;
 
 type NavButtonProps = {
   title: string;
@@ -50,6 +50,9 @@ type VttLeftSidebarProps = {
   combatPanel?: React.ReactNode;
   libraryPanel?: React.ReactNode;
   handoutsPanel?: React.ReactNode;
+  notesPanel?: React.ReactNode;
+  partyPanel?: React.ReactNode;
+  dicePanel?: React.ReactNode;
 };
 
 export function VttLeftSidebar({
@@ -65,6 +68,9 @@ export function VttLeftSidebar({
   combatPanel,
   libraryPanel,
   handoutsPanel,
+  notesPanel,
+  partyPanel,
+  dicePanel,
 }: VttLeftSidebarProps) {
   const open = activeTab !== null;
   const panelWidthClass = activeTab === "assets" ? ASSETS_PANEL_W_CLASS : PANEL_W_CLASS;
@@ -111,6 +117,30 @@ export function VttLeftSidebar({
               onClick={() => onActiveTabChange(activeTab === "handouts" ? null : "handouts")}
             />
           )}
+          {notesPanel && (
+            <NavButton
+              title="Notes"
+              isActive={activeTab === "notes"}
+              icon={NotebookPen}
+              onClick={() => onActiveTabChange(activeTab === "notes" ? null : "notes")}
+            />
+          )}
+          {partyPanel && (
+            <NavButton
+              title="Party"
+              isActive={activeTab === "party"}
+              icon={Users}
+              onClick={() => onActiveTabChange(activeTab === "party" ? null : "party")}
+            />
+          )}
+          {dicePanel && (
+            <NavButton
+              title="Dice history"
+              isActive={activeTab === "dice"}
+              icon={Dices}
+              onClick={() => onActiveTabChange(activeTab === "dice" ? null : "dice")}
+            />
+          )}
           <div className="flex-1" />
           {showCombat && (
             <NavButton
@@ -150,6 +180,9 @@ export function VttLeftSidebar({
             {activeTab === "combat" && combatPanel}
             {activeTab === "library" && libraryPanel}
             {activeTab === "handouts" && handoutsPanel}
+            {activeTab === "notes" && notesPanel}
+            {activeTab === "party" && partyPanel}
+            {activeTab === "dice" && dicePanel}
           </div>
         </div>
       </div>

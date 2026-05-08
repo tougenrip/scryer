@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { uniqueChannelTopic } from "@/lib/supabase/realtime-topic";
 import { toast } from "sonner";
 
-export type HandoutKind = "pin" | "scene";
+export type HandoutKind = "pin" | "scene" | "bounty";
 
 export type PinSnapshot = {
   kind: "pin";
@@ -47,7 +47,24 @@ export type SceneSnapshot = {
   markers: EmbeddedMarker[];
 };
 
-export type HandoutSnapshot = PinSnapshot | SceneSnapshot;
+export type BountySnapshot = {
+  kind: "bounty";
+  /** id from bounty_board, null if the source row was deleted later. */
+  bounty_id: string | null;
+  /** Display fields. `name` is the bounty title for inbox/header parity. */
+  name: string;
+  description: string | null;
+  target_name: string;
+  target_type: "npc" | "monster" | "other";
+  reward: string | null;
+  location: string | null;
+  status: "available" | "claimed" | "completed";
+  /** Carried for parity with the other snapshot variants — bounties don't
+   * have their own image yet, so this is always null today. */
+  image_url: string | null;
+};
+
+export type HandoutSnapshot = PinSnapshot | SceneSnapshot | BountySnapshot;
 
 export interface Handout {
   id: string;

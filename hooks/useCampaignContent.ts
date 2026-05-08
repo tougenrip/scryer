@@ -1414,6 +1414,7 @@ export interface Bounty {
   posted_by: string | null;
   hidden_from_players: boolean;
   dm_notes: string | null;
+  image_url: string | null;
   created_by: string;
   created_at: string | null;
   updated_at: string | null;
@@ -1481,6 +1482,7 @@ export function useCreateBounty() {
     posted_by?: string | null;
     hidden_from_players?: boolean;
     dm_notes?: string | null;
+    image_url?: string | null;
     created_by: string;
   }) => {
     try {
@@ -1502,6 +1504,7 @@ export function useCreateBounty() {
           posted_by: bountyData.posted_by || null,
           hidden_from_players: bountyData.hidden_from_players ?? true,
           dm_notes: bountyData.dm_notes || null,
+          image_url: bountyData.image_url ?? null,
           created_by: bountyData.created_by,
         })
         .select()
@@ -1540,6 +1543,7 @@ export function useUpdateBounty() {
       posted_by?: string | null;
       hidden_from_players?: boolean;
       dm_notes?: string | null;
+      image_url?: string | null;
     }
   ) => {
     try {

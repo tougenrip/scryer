@@ -77,7 +77,7 @@ export function MonsterStatblock({ monster }: Props) {
     <div className="space-y-3 font-serif">
       <header>
         <ParchmentTitle>{monster.name}</ParchmentTitle>
-        <p className="italic text-sm text-[#2b1d10]/80">{typeLine}</p>
+        <p className="italic text-sm text-muted-foreground">{typeLine}</p>
       </header>
 
       <ParchmentRule />
@@ -93,11 +93,11 @@ export function MonsterStatblock({ monster }: Props) {
 
       <ParchmentRule />
 
-      <div className="grid grid-cols-6 gap-1 text-center bg-[#e8d9b3] rounded">
+      <div className="grid grid-cols-6 gap-1 text-center bg-amber-500/10 border border-amber-500/30 rounded">
         {abilities.map(([label]) => (
           <div
             key={`h-${label}`}
-            className="py-1 text-xs font-bold text-[#7a1f1f]"
+            className="py-1 text-xs font-bold text-amber-400"
           >
             {label}
           </div>

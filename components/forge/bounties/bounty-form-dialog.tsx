@@ -23,6 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useCampaignNPCs } from "@/hooks/useCampaignContent";
+import { FactionImageUpload } from "@/components/forge/factions/faction-image-upload";
 
 interface BountyFormDialogProps {
   open: boolean;
@@ -44,6 +45,7 @@ interface BountyFormDialogProps {
     posted_by?: string | null;
     hidden_from_players?: boolean;
     dm_notes?: string | null;
+    image_url?: string | null;
     created_by: string;
   }) => Promise<{ success: boolean; error?: Error }>;
   onUpdate: (
@@ -60,6 +62,7 @@ interface BountyFormDialogProps {
       posted_by?: string | null;
       hidden_from_players?: boolean;
       dm_notes?: string | null;
+      image_url?: string | null;
     }
   ) => Promise<{ success: boolean; error?: Error }>;
 }
@@ -88,6 +91,7 @@ export function BountyFormDialog({
     posted_by: "",
     hidden_from_players: true,
     dm_notes: "",
+    image_url: null as string | null,
   });
 
   useEffect(() => {
@@ -104,6 +108,7 @@ export function BountyFormDialog({
         posted_by: bounty.posted_by || "",
         hidden_from_players: bounty.hidden_from_players ?? true,
         dm_notes: bounty.dm_notes || "",
+        image_url: bounty.image_url ?? null,
       });
     } else {
       setFormData({
@@ -118,6 +123,7 @@ export function BountyFormDialog({
         posted_by: "",
         hidden_from_players: true,
         dm_notes: "",
+        image_url: null,
       });
     }
   }, [bounty, open]);
@@ -140,6 +146,7 @@ export function BountyFormDialog({
         posted_by: formData.posted_by || null,
         hidden_from_players: formData.hidden_from_players,
         dm_notes: formData.dm_notes || null,
+        image_url: formData.image_url ?? null,
         created_by: userId,
       };
 
@@ -191,6 +198,17 @@ export function BountyFormDialog({
               required
             />
           </div>
+
+          <FactionImageUpload
+            label="Wanted poster (optional)"
+            folder="bounties"
+            campaignId={campaignId}
+            imageUrl={formData.image_url}
+            onImageChange={(url) =>
+              setFormData((prev) => ({ ...prev, image_url: url }))
+            }
+            disabled={loading}
+          />
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">

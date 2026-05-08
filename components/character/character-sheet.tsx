@@ -6,6 +6,7 @@ import type { Character } from "@/hooks/useDndContent";
 import { useRaces, useClasses, useCharacterClasses } from "@/hooks/useDndContent";
 // import { AbilityScores } from "./ability-scores";
 import { CombatStats } from "./combat-stats";
+import { RestControls } from "./rest-controls";
 import { SavingThrows } from "./saving-throws";
 import { SensesCard } from "./senses-card";
 import { SkillsPanel } from "./skills-panel";
@@ -1697,6 +1698,20 @@ export function CharacterSheet({
 
         {/* Right Column: Combat Stats and Main Content */}
         <div className="lg:col-span-10 space-y-2">
+          {editable && (
+            <RestControls
+              characterId={character.id}
+              hpMax={character.hp_max || 0}
+              hpCurrent={character.hp_current || 0}
+              constitution={character.constitution || 10}
+              hitDiceCurrent={character.hit_dice_current ?? null}
+              hitDiceTotal={character.hit_dice_total ?? null}
+              onUpdate={async (updates) => {
+                if (onUpdate) await onUpdate(updates);
+              }}
+              editable={editable}
+            />
+          )}
           {/* Combat Stats Row - Made Shorter */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
             <CombatStats

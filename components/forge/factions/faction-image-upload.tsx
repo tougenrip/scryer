@@ -12,6 +12,8 @@ interface FactionImageUploadProps {
   campaignId: string;
   disabled?: boolean;
   label?: string;
+  /** Storage folder under campaigns/{campaignId}/. Defaults to "factions". */
+  folder?: string;
 }
 
 export function FactionImageUpload({
@@ -20,6 +22,7 @@ export function FactionImageUpload({
   campaignId,
   disabled = false,
   label = "Emblem/Sigil",
+  folder = "factions",
 }: FactionImageUploadProps) {
   const [uploading, setUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
@@ -52,7 +55,7 @@ export function FactionImageUpload({
 
       // Get file extension for filename
       const timestamp = Date.now();
-      const fileName = `${campaignId}/factions/${timestamp}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+      const fileName = `${campaignId}/${folder}/${timestamp}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
 
       // Upload to campaigns bucket
       const { error: uploadError } = await supabase.storage

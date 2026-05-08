@@ -243,7 +243,14 @@ export function VttTokenInspector({
 
   const removeCondition = (condition: string) => {
     if (!isDm) return;
-    void updateToken(sel.id, { conditions: conditions.filter((item) => item !== condition) });
+    const durations = {
+      ...((sel.condition_durations as Record<string, number> | undefined) ?? {}),
+    };
+    delete durations[condition];
+    void updateToken(sel.id, {
+      conditions: conditions.filter((item) => item !== condition),
+      condition_durations: durations,
+    });
   };
 
   return (
@@ -411,30 +418,68 @@ export function VttTokenInspector({
         </div>
         {conditions.length > 0 ? (
           <div className="flex flex-wrap gap-1">
-            {conditions.map((condition) => (
-              <Badge key={condition} variant="outline" className="gap-1 text-[10px] capitalize">
-                {condition}
-                <InfoIconButton
-                  size="xs"
-                  target={{
-                    type: "conditions",
-                    source: "srd",
-                    index: condition.toLowerCase(),
-                  }}
-                  className="ml-0.5"
-                />
-                {isDm && (
-                  <button
-                    type="button"
-                    className="-mr-0.5 rounded-sm text-muted-foreground hover:text-foreground"
-                    onClick={() => removeCondition(condition)}
-                    title={`Remove ${condition}`}
-                  >
-                    <X className="h-2.5 w-2.5" />
-                  </button>
-                )}
-              </Badge>
-            ))}
+            {conditions.map((condition) => {
+              const durations =
+                (sel.condition_durations as Record<string, number> | undefined) ?? {};
+              const dur = durations[condition];
+              const setDuration = (next: number | null) => {
+                const updated = { ...durations };
+                if (next === null || next <= 0) delete updated[condition];
+                else updated[condition] = next;
+                void updateToken(sel.id, { condition_durations: updated });
+              };
+              return (
+                <Badge
+                  key={condition}
+                  variant="outline"
+                  className="gap-1 text-[10px] capitalize"
+                >
+                  {condition}
+                  {dur !== undefined && (
+                    <span className="rounded bg-amber-500/15 text-amber-300 px-1 py-px text-[9px] font-bold tabular-nums">
+                      {dur}r
+                    </span>
+                  )}
+                  <InfoIconButton
+                    size="xs"
+                    target={{
+                      type: "conditions",
+                      source: "srd",
+                      index: condition.toLowerCase(),
+                    }}
+                    className="ml-0.5"
+                  />
+                  {isDm && (
+                    <>
+                      <button
+                        type="button"
+                        className="rounded-sm text-muted-foreground hover:text-foreground text-[9px] px-0.5"
+                        onClick={() => {
+                          const raw = window.prompt(
+                            `Duration for ${condition} (rounds, blank for indefinite):`,
+                            dur != null ? String(dur) : ""
+                          );
+                          if (raw === null) return;
+                          const n = parseInt(raw, 10);
+                          setDuration(Number.isFinite(n) && n > 0 ? n : null);
+                        }}
+                        title="Set duration in rounds"
+                      >
+                        ⏱
+                      </button>
+                      <button
+                        type="button"
+                        className="-mr-0.5 rounded-sm text-muted-foreground hover:text-foreground"
+                        onClick={() => removeCondition(condition)}
+                        title={`Remove ${condition}`}
+                      >
+                        <X className="h-2.5 w-2.5" />
+                      </button>
+                    </>
+                  )}
+                </Badge>
+              );
+            })}
           </div>
         ) : (
           <p className="text-xs text-muted-foreground">No conditions</p>

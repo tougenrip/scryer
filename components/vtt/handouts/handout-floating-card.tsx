@@ -27,6 +27,15 @@ export function HandoutFloatingCard({ campaignId, userId, card }: Props) {
     void markRead(handout.id);
   }, [handout, markRead]);
 
+  const label =
+    handout?.snapshot.kind === "bounty"
+      ? "Bounty"
+      : handout?.snapshot.kind === "scene"
+      ? "Scene"
+      : handout?.snapshot.kind === "pin"
+      ? "Pin"
+      : "Handout";
+
   return (
     <FloatingCardShell
       cardId={card.id}
@@ -34,7 +43,7 @@ export function HandoutFloatingCard({ campaignId, userId, card }: Props) {
       y={card.y}
       width={card.width}
       height={card.height}
-      label="Handout"
+      label={label}
       onMove={moveCard}
       onResize={resizeCard}
       onClose={(id) => {
@@ -46,7 +55,7 @@ export function HandoutFloatingCard({ campaignId, userId, card }: Props) {
       {handout ? (
         <HandoutDetail handout={handout} />
       ) : (
-        <p className="text-sm italic text-[#7a1f1f]">Handout no longer available.</p>
+        <p className="text-sm italic text-amber-400">Handout no longer available.</p>
       )}
     </FloatingCardShell>
   );

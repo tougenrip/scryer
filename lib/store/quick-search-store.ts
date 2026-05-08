@@ -42,17 +42,31 @@ function loadCards(userId: string | null, campaignId: string | null): FloatingCa
     if (!Array.isArray(parsed)) return [];
     // Backfill defaults for fields added after the persisted shape was first
     // written (e.g., width/height) so old localStorage data still renders.
-    return parsed.slice(0, 8).map((c) => ({
-      id: String(c.id ?? ""),
-      type: (c.type ?? "spells") as FloatingCard["type"],
-      source: (c.source ?? "srd") as FloatingCard["source"],
-      index: String(c.index ?? ""),
-      x: typeof c.x === "number" ? c.x : 100,
-      y: typeof c.y === "number" ? c.y : 100,
-      width: typeof c.width === "number" ? c.width : 360,
-      height: typeof c.height === "number" ? c.height : 540,
-      minimized: Boolean(c.minimized),
-    }));
+    const HEADER_MIN_VISIBLE_PX = 80;
+    const HEADER_HEIGHT_PX = 28;
+    const winW = typeof window !== "undefined" ? window.innerWidth : 1200;
+    const winH = typeof window !== "undefined" ? window.innerHeight : 800;
+    return parsed.slice(0, 8).map((c, i) => {
+      const w = typeof c.width === "number" ? c.width : 360;
+      const h = typeof c.height === "number" ? c.height : 540;
+      const rawX = typeof c.x === "number" && Number.isFinite(c.x) ? c.x : 100 + i * 28;
+      const rawY = typeof c.y === "number" && Number.isFinite(c.y) ? c.y : 100 + i * 28;
+      // Clamp so a card stuck off-screen by an earlier drag is recoverable.
+      const maxX = Math.max(0, winW - HEADER_MIN_VISIBLE_PX);
+      const maxY = Math.max(0, winH - HEADER_HEIGHT_PX);
+      const minX = -(w - HEADER_MIN_VISIBLE_PX);
+      return {
+        id: String(c.id ?? ""),
+        type: (c.type ?? "spells") as FloatingCard["type"],
+        source: (c.source ?? "srd") as FloatingCard["source"],
+        index: String(c.index ?? ""),
+        x: Math.min(maxX, Math.max(minX, rawX)),
+        y: Math.min(maxY, Math.max(0, rawY)),
+        width: w,
+        height: h,
+        minimized: Boolean(c.minimized),
+      };
+    });
   } catch {
     return [];
   }

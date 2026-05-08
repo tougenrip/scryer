@@ -14,6 +14,9 @@ export interface Token {
   rotation: number;
   visible_to?: string[] | null;
   conditions: string[];
+  /** Optional name → rounds-remaining map. Conditions without an entry are
+   * treated as indefinite. Decremented when the affected token's turn ends. */
+  condition_durations?: Record<string, number> | null;
   hp_current?: number | null;
   hp_max?: number | null;
   scale: number;

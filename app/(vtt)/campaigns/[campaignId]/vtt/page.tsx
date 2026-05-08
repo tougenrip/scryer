@@ -49,6 +49,9 @@ import { FloatingCardLayer } from "@/components/vtt/quick-search/floating-card-l
 import { useQuickSearchStore } from "@/lib/store/quick-search-store";
 import { HandoutsPanel } from "@/components/vtt/handouts/handouts-panel";
 import { HandoutsLayer } from "@/components/vtt/handouts/handouts-layer";
+import { NotesPanel } from "@/components/vtt/notes/notes-panel";
+import { PartyPanel } from "@/components/vtt/party/party-panel";
+import { DiceHistoryPanel } from "@/components/vtt/dice-history/dice-history-panel";
 import { VttFogControls } from "@/components/vtt/vtt-fog-controls";
 import { VttVisionTool } from "@/components/vtt/vtt-vision-tool";
 import { useCombat } from "@/hooks/useCombat";
@@ -588,6 +591,21 @@ export default function VttPage() {
                   isDm={!!isDm}
                 />
               }
+              notesPanel={
+                <NotesPanel
+                  campaignId={campaignId}
+                  userId={userId}
+                  isDm={!!isDm}
+                />
+              }
+              partyPanel={
+                <PartyPanel
+                  campaignId={campaignId}
+                  userId={userId}
+                  isDm={!!isDm}
+                />
+              }
+              dicePanel={<DiceHistoryPanel campaignId={campaignId} />}
             />
             <FloatingCardLayer campaignId={campaignId} userId={userId} />
             <HandoutsLayer campaignId={campaignId} userId={userId} isDm={!!isDm} />

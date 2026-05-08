@@ -69,19 +69,35 @@ export function BountyCard({ bounty, isDm, onEdit, onDelete, onStatusChange }: B
 
       <div
         style={{
-          height: 80,
+          height: 120,
           marginBottom: 10,
           borderRadius: 6,
-          background: `repeating-linear-gradient(135deg, color-mix(in srgb, var(--foreground) 7%, transparent) 0 8px, transparent 8px 16px)`,
+          background: bounty.image_url
+            ? "var(--muted)"
+            : `repeating-linear-gradient(135deg, color-mix(in srgb, var(--foreground) 7%, transparent) 0 8px, transparent 8px 16px)`,
           border: "1px solid var(--border)",
           display: "grid",
           placeItems: "center",
+          overflow: "hidden",
           fontSize: 10,
           color: "var(--muted-foreground)",
           fontFamily: "ui-monospace, monospace",
         }}
       >
-        portrait
+        {bounty.image_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={bounty.image_url}
+            alt={bounty.target_name}
+            style={{
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+            }}
+          />
+        ) : (
+          "portrait"
+        )}
       </div>
 
       <div className="font-serif text-center text-base mb-1.5 leading-tight">{bounty.target_name}</div>

@@ -2,7 +2,13 @@
 
 import { useVttHandouts } from "@/hooks/useVttHandouts";
 import { useHandoutsStore } from "@/lib/store/handouts-store";
-import { Inbox, MapPinned, Image as ImageIcon } from "lucide-react";
+import {
+  Inbox,
+  MapPinned,
+  Image as ImageIcon,
+  ScrollText,
+  X,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -27,6 +33,12 @@ function relativeTime(iso: string): string {
 export function HandoutsInbox({ campaignId, userId, isDm }: Props) {
   const { handouts, reads, readCount } = useVttHandouts(campaignId, userId);
   const open = useHandoutsStore((s) => s.open);
+  const closeCard = useHandoutsStore((s) => s.closeCard);
+  // Subscribe to the cards array reference directly — deriving a new array
+  // (.map) inside the selector returns a fresh value every render and breaks
+  // useSyncExternalStore's snapshot caching ("infinite loop" warning).
+  const cards = useHandoutsStore((s) => s.cards);
+  const openSet = new Set(cards.map((c) => c.id));
 
   if (handouts.length === 0) {
     return (
@@ -44,15 +56,18 @@ export function HandoutsInbox({ campaignId, userId, isDm }: Props) {
         const unread = !own?.read_at;
         const counts = isDm ? readCount(h.id) : null;
         const s = h.snapshot;
+        const isOpen = openSet.has(h.id);
         return (
           <li key={h.id}>
             <button
               type="button"
-              onClick={() => open(h.id)}
+              onClick={() => (isOpen ? closeCard(h.id) : open(h.id))}
               className={cn(
                 "w-full text-left flex items-center gap-3 px-3 py-2 hover:bg-muted/40 transition-colors",
-                unread && "bg-amber-500/5"
+                unread && "bg-amber-500/5",
+                isOpen && "bg-amber-500/10"
               )}
+              title={isOpen ? "Close handout window" : "Open handout"}
             >
               <div className="h-9 w-9 shrink-0 rounded overflow-hidden bg-muted flex items-center justify-center">
                 {s.image_url ? (
@@ -60,6 +75,8 @@ export function HandoutsInbox({ campaignId, userId, isDm }: Props) {
                   <img src={s.image_url} alt="" className="h-full w-full object-cover" />
                 ) : s.kind === "pin" ? (
                   <MapPinned className="h-4 w-4 text-muted-foreground" />
+                ) : s.kind === "bounty" ? (
+                  <ScrollText className="h-4 w-4 text-amber-400" />
                 ) : (
                   <ImageIcon className="h-4 w-4 text-muted-foreground" />
                 )}
@@ -74,10 +91,18 @@ export function HandoutsInbox({ campaignId, userId, isDm }: Props) {
                   </p>
                 </div>
                 <p className="text-[10px] text-muted-foreground">
-                  {s.kind === "scene" ? "Scene" : "Pin"} · {relativeTime(h.created_at)}
+                  {s.kind === "scene"
+                    ? "Scene"
+                    : s.kind === "bounty"
+                    ? "Bounty"
+                    : "Pin"}{" "}
+                  · {relativeTime(h.created_at)}
                   {counts && ` · ${counts.read} read`}
                 </p>
               </div>
+              {isOpen && (
+                <X className="h-4 w-4 text-amber-400 shrink-0" />
+              )}
             </button>
           </li>
         );

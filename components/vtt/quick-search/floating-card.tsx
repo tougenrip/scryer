@@ -128,7 +128,7 @@ function CardBody({ campaignId, card }: { campaignId: string | null; card: CardM
       return feature ? (
         <FeatureDetail feature={feature} />
       ) : (
-        <p className="text-xs italic text-[#7a1f1f]">Loading…</p>
+        <p className="text-xs italic text-amber-400">Loading…</p>
       );
     default:
       return null;
@@ -137,7 +137,7 @@ function CardBody({ campaignId, card }: { campaignId: string | null; card: CardM
 
 function Missing() {
   return (
-    <p className="text-sm italic text-[#7a1f1f]">
+    <p className="text-sm italic text-amber-400">
       This entry no longer exists.
     </p>
   );

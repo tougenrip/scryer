@@ -447,6 +447,46 @@ export function useCombat(campaignId: string, mapId?: string, enabled: boolean =
       nextRound++;
     }
 
+    // Tick condition durations on the token whose turn just ENDED.
+    // Decrement each tracked duration by 1; remove the condition when it
+    // reaches 0. Untracked conditions stay indefinite.
+    const ending = participants[activeEncounter.current_turn_index];
+    if (ending?.token_id) {
+      try {
+        const { data: tokenRow } = await supabase
+          .from('tokens')
+          .select('conditions, condition_durations')
+          .eq('id', ending.token_id)
+          .single();
+        if (tokenRow) {
+          const durations = (tokenRow.condition_durations ?? {}) as Record<string, number>;
+          const conds: string[] = Array.isArray(tokenRow.conditions)
+            ? tokenRow.conditions
+            : [];
+          if (Object.keys(durations).length > 0) {
+            const nextDurations: Record<string, number> = {};
+            const expired = new Set<string>();
+            for (const [name, rounds] of Object.entries(durations)) {
+              const next = (rounds ?? 0) - 1;
+              if (next <= 0) expired.add(name);
+              else nextDurations[name] = next;
+            }
+            const nextConds = conds.filter((c) => !expired.has(c));
+            await supabase
+              .from('tokens')
+              .update({
+                conditions: nextConds,
+                condition_durations: nextDurations,
+              })
+              .eq('id', ending.token_id);
+          }
+        }
+      } catch (tickErr) {
+        // Don't block the turn advance if duration ticking fails.
+        console.error('Condition duration tick failed:', tickErr);
+      }
+    }
+
     try {
       const { data, error } = await supabase
         .from('combat_encounters')

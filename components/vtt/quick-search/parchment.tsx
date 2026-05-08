@@ -3,13 +3,14 @@
 import { cn } from "@/lib/utils";
 
 /**
- * Shared parchment styling — D&D 5e statblock vibe.
- * Cream background, burgundy serif headers with double rule, dark brown ink.
+ * Themed "parchment" surface. We keep the D&D-sourcebook *typography* (serif,
+ * small-caps section heads, double-rule dividers) but swap the cream/burgundy
+ * palette for the rest of the site's amber-on-dark theme so handouts and the
+ * Quick Search detail view look at home with the chrome around them.
  */
-export const PARCHMENT_BG =
-  "bg-[linear-gradient(180deg,#f5ecd7_0%,#efe2c0_100%)] text-[#2b1d10]";
+export const PARCHMENT_BG = "bg-card text-foreground";
 
-export const PARCHMENT_BORDER = "border border-[#7a1f1f]/30";
+export const PARCHMENT_BORDER = "border border-amber-500/30";
 
 export function ParchmentTitle({
   children,
@@ -21,7 +22,7 @@ export function ParchmentTitle({
   return (
     <h2
       className={cn(
-        "font-serif text-2xl font-bold tracking-wide text-[#7a1f1f]",
+        "font-serif text-2xl font-bold tracking-wide text-amber-400",
         className
       )}
       style={{ fontVariant: "small-caps" }}
@@ -44,7 +45,7 @@ export function ParchmentSection({
     <section className={cn("space-y-2", className)}>
       {title && (
         <h3
-          className="font-serif text-lg font-semibold text-[#7a1f1f] border-t-2 border-b border-[#7a1f1f]/60 pt-1"
+          className="font-serif text-lg font-semibold text-amber-400 border-t-2 border-b border-amber-500/60 pt-1"
           style={{ fontVariant: "small-caps" }}
         >
           {title}
@@ -56,7 +57,7 @@ export function ParchmentSection({
 }
 
 export function ParchmentRule() {
-  return <div className="h-px bg-[#7a1f1f]/40 my-2" />;
+  return <div className="h-px bg-amber-500/30 my-2" />;
 }
 
 export function ParchmentLabel({
@@ -68,13 +69,20 @@ export function ParchmentLabel({
 }) {
   return (
     <p className="text-sm font-serif">
-      <span className="font-bold text-[#7a1f1f]">{label}</span>
+      <span className="font-bold text-amber-400">{label}</span>
       {children !== undefined && (
-        <span className="ml-1 text-[#2b1d10]">{children}</span>
+        <span className="ml-1 text-foreground">{children}</span>
       )}
     </p>
   );
 }
+
+/**
+ * Tailwind class string for tooltip surfaces. Site-themed: dark popover
+ * background, amber accent border, serif body for D&D vibe.
+ */
+export const PARCHMENT_TOOLTIP_CLASS =
+  "bg-popover text-popover-foreground border border-amber-500/40 shadow-lg font-serif";
 
 /** Italic feature line: "**Trait Name.** description" */
 export function ParchmentFeature({
@@ -86,8 +94,8 @@ export function ParchmentFeature({
 }) {
   return (
     <p className="text-sm font-serif leading-relaxed">
-      <span className="italic font-semibold">{name}.</span>{" "}
-      <span className="text-[#2b1d10]">{text}</span>
+      <span className="italic font-semibold text-amber-300">{name}.</span>{" "}
+      <span className="text-foreground">{text}</span>
     </p>
   );
 }

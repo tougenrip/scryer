@@ -12,6 +12,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useScenes, useLocationMarkers } from "@/hooks/useForgeContent";
 import type { LocationMarker, Scene } from "@/hooks/useForgeContent";
+import { useCampaignBounties } from "@/hooks/useCampaignContent";
+import type { Bounty } from "@/hooks/useCampaignContent";
 import {
   useVttHandouts,
   type HandoutSnapshot,
@@ -19,7 +21,13 @@ import {
 } from "@/hooks/useVttHandouts";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
-import { Loader2, MapPinned, Image as ImageIcon, Send } from "lucide-react";
+import {
+  Loader2,
+  MapPinned,
+  Image as ImageIcon,
+  Send,
+  ScrollText,
+} from "lucide-react";
 
 interface Props {
   open: boolean;
@@ -28,7 +36,7 @@ interface Props {
   userId: string | null;
 }
 
-type Tab = "scene" | "pin";
+type Tab = "scene" | "pin" | "bounty";
 
 export function HandoutPickerDialog({ open, onOpenChange, campaignId, userId }: Props) {
   const [tab, setTab] = useState<Tab>("scene");
@@ -41,6 +49,10 @@ export function HandoutPickerDialog({ open, onOpenChange, campaignId, userId }: 
   const { markers, loading: markersLoading } = useLocationMarkers(
     campaignId && tab === "pin" ? campaignId : null,
     selectedSceneId ?? undefined
+  );
+  const { bounties, loading: bountiesLoading } = useCampaignBounties(
+    campaignId && tab === "bounty" ? campaignId : null,
+    /* isDm */ true
   );
   const { sendHandout } = useVttHandouts(campaignId, userId);
 
@@ -66,6 +78,16 @@ export function HandoutPickerDialog({ open, onOpenChange, campaignId, userId }: 
     if (!q) return markers;
     return markers.filter((m) => (m.name ?? "").toLowerCase().includes(q));
   }, [markers, selectedSceneId, query]);
+
+  const filteredBounties = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return bounties;
+    return bounties.filter(
+      (b) =>
+        b.title.toLowerCase().includes(q) ||
+        b.target_name.toLowerCase().includes(q)
+    );
+  }, [bounties, query]);
 
   const sendScene = async (scene: Scene) => {
     setSending(true);
@@ -94,6 +116,25 @@ export function HandoutPickerDialog({ open, onOpenChange, campaignId, userId }: 
       sceneId: scene.id,
       snapshot,
     });
+    setSending(false);
+    onOpenChange(false);
+  };
+
+  const sendBounty = async (bounty: Bounty) => {
+    setSending(true);
+    const snapshot: HandoutSnapshot = {
+      kind: "bounty",
+      bounty_id: bounty.id,
+      name: bounty.title,
+      description: bounty.description,
+      target_name: bounty.target_name,
+      target_type: bounty.target_type,
+      reward: bounty.reward,
+      location: bounty.location,
+      status: bounty.status,
+      image_url: bounty.image_url,
+    };
+    await sendHandout({ kind: "bounty", snapshot });
     setSending(false);
     onOpenChange(false);
   };
@@ -132,7 +173,7 @@ export function HandoutPickerDialog({ open, onOpenChange, campaignId, userId }: 
         </DialogHeader>
 
         <div className="flex gap-1 border-b">
-          {(["scene", "pin"] as const).map((t) => (
+          {(["scene", "pin", "bounty"] as const).map((t) => (
             <button
               key={t}
               type="button"
@@ -147,7 +188,7 @@ export function HandoutPickerDialog({ open, onOpenChange, campaignId, userId }: 
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
-              {t === "scene" ? "Scene" : "Pin"}
+              {t === "scene" ? "Scene" : t === "pin" ? "Pin" : "Bounty"}
             </button>
           ))}
         </div>
@@ -155,7 +196,13 @@ export function HandoutPickerDialog({ open, onOpenChange, campaignId, userId }: 
         <Input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder={tab === "scene" ? "Search scenes…" : "Search pins…"}
+          placeholder={
+            tab === "scene"
+              ? "Search scenes…"
+              : tab === "pin"
+              ? "Search pins…"
+              : "Search bounties…"
+          }
           className="h-8 text-sm"
         />
 
@@ -271,6 +318,61 @@ export function HandoutPickerDialog({ open, onOpenChange, campaignId, userId }: 
                 </ul>
               )}
             </div>
+          )}
+
+          {tab === "bounty" && (
+            <ul className="divide-y">
+              {bountiesLoading && (
+                <li className="px-3 py-6 text-center text-xs text-muted-foreground inline-flex items-center gap-1 justify-center w-full">
+                  <Loader2 className="h-3 w-3 animate-spin" /> Loading bounties…
+                </li>
+              )}
+              {!bountiesLoading && filteredBounties.length === 0 && (
+                <li className="px-3 py-6 text-center text-xs text-muted-foreground">
+                  No bounties posted.
+                </li>
+              )}
+              {filteredBounties.map((b) => (
+                <li key={b.id} className="flex items-center gap-3 px-3 py-2">
+                  <div className="h-9 w-9 shrink-0 rounded-full bg-amber-500/15 border border-amber-500/40 flex items-center justify-center text-amber-400">
+                    <ScrollText className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="truncate text-sm font-medium">
+                        {b.title}
+                      </p>
+                      <span
+                        className={cn(
+                          "shrink-0 rounded border px-1.5 py-px text-[9px] font-bold uppercase tracking-wider",
+                          b.status === "available" &&
+                            "bg-emerald-500/15 text-emerald-300 border-emerald-500/30",
+                          b.status === "claimed" &&
+                            "bg-amber-500/15 text-amber-300 border-amber-500/30",
+                          b.status === "completed" &&
+                            "bg-neutral-500/15 text-neutral-300 border-neutral-500/30"
+                        )}
+                      >
+                        {b.status}
+                      </span>
+                    </div>
+                    <p className="truncate text-xs text-muted-foreground">
+                      Target: {b.target_name}
+                      {b.reward ? ` · Reward: ${b.reward}` : ""}
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={sending}
+                    onClick={() => sendBounty(b)}
+                  >
+                    <Send className="h-3.5 w-3.5 mr-1" />
+                    Send
+                  </Button>
+                </li>
+              ))}
+            </ul>
           )}
         </div>
         {/* Hidden ref to satisfy unused-var linter for selectedPinId */}

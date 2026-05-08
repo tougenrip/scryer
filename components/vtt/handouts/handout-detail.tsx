@@ -12,13 +12,23 @@ import {
   richTextHtmlToPlainText,
 } from "@/lib/utils/rich-text-html";
 import { SceneHandoutMap } from "./scene-handout-map";
+import { cn } from "@/lib/utils";
 
 interface Props {
   handout: Handout;
 }
 
+const STATUS_STYLES: Record<
+  "available" | "claimed" | "completed",
+  string
+> = {
+  available: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30",
+  claimed: "bg-amber-500/15 text-amber-300 border-amber-500/30",
+  completed: "bg-neutral-500/15 text-neutral-300 border-neutral-500/30",
+};
+
 /**
- * Body content for a handout — pin or scene snapshot, parchment styled.
+ * Body content for a handout — pin / scene / bounty snapshot, parchment styled.
  */
 export function HandoutDetail({ handout }: Props) {
   const s = handout.snapshot;
@@ -28,11 +38,86 @@ export function HandoutDetail({ handout }: Props) {
     s.description != null && !isRichTextHtmlVisuallyEmpty(s.description)
       ? richTextHtmlToPlainText(s.description)
       : "";
+
+  // Bounty handouts get a dedicated layout — they have very different fields
+  // (target/reward/status) and benefit from a wanted-poster styling.
+  if (s.kind === "bounty") {
+    return (
+      <div className="space-y-3 font-serif">
+        <header>
+          <div className="flex items-start justify-between gap-2">
+            <ParchmentTitle>{s.name || "Wanted"}</ParchmentTitle>
+            <span
+              className={cn(
+                "shrink-0 rounded border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider",
+                STATUS_STYLES[s.status] ?? STATUS_STYLES.available
+              )}
+            >
+              {s.status}
+            </span>
+          </div>
+          <p className="italic text-sm text-muted-foreground">
+            Bounty · {s.target_type === "npc"
+              ? "NPC target"
+              : s.target_type === "monster"
+              ? "Monster target"
+              : "Target"}
+          </p>
+        </header>
+
+        <ParchmentRule />
+
+        {/* Wanted-poster banner */}
+        <div className="rounded border border-amber-500/40 bg-amber-500/5 p-3 text-center space-y-2">
+          <p
+            className="text-[10px] uppercase tracking-[0.2em] text-amber-400 font-bold"
+          >
+            Wanted
+          </p>
+          {s.image_url && (
+            <div className="rounded overflow-hidden border border-amber-500/30 bg-black/20">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={s.image_url}
+                alt={s.target_name}
+                className="block w-full max-h-72 object-cover"
+              />
+            </div>
+          )}
+          <p
+            className="font-serif text-xl font-bold text-amber-300 leading-tight"
+            style={{ fontVariant: "small-caps" }}
+          >
+            {s.target_name}
+          </p>
+          {s.reward && (
+            <p className="text-sm text-foreground">
+              Reward: <span className="font-semibold">{s.reward}</span>
+            </p>
+          )}
+        </div>
+
+        {s.location && <ParchmentLabel label="Last seen">{s.location}</ParchmentLabel>}
+
+        {descPlain ? (
+          <p className="text-sm whitespace-pre-wrap leading-relaxed">
+            {descPlain}
+          </p>
+        ) : (
+          <p className="text-sm italic text-muted-foreground">
+            No further details provided.
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  // Pin / scene layout (existing).
   return (
     <div className="space-y-3 font-serif">
       <header>
         <ParchmentTitle>{s.name || "(untitled)"}</ParchmentTitle>
-        <p className="italic text-sm text-[#2b1d10]/80">
+        <p className="italic text-sm text-muted-foreground">
           {s.kind === "scene" ? "Scene handout" : "Pin handout"}
         </p>
       </header>
@@ -42,7 +127,7 @@ export function HandoutDetail({ handout }: Props) {
       {s.kind === "scene" && s.image_url ? (
         <SceneHandoutMap imageUrl={s.image_url} markers={s.markers ?? []} />
       ) : s.image_url ? (
-        <div className="rounded overflow-hidden border border-[#7a1f1f]/30">
+        <div className="rounded overflow-hidden border border-amber-500/30">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={s.image_url}
@@ -58,7 +143,7 @@ export function HandoutDetail({ handout }: Props) {
           <MapPinned className="h-5 w-5" />
         </div>
       ) : (
-        <div className="h-12 w-12 rounded bg-[#7a1f1f]/10 flex items-center justify-center text-[#7a1f1f]">
+        <div className="h-12 w-12 rounded bg-amber-500/10 flex items-center justify-center text-amber-400">
           <ImageIcon className="h-5 w-5" />
         </div>
       )}
@@ -68,7 +153,7 @@ export function HandoutDetail({ handout }: Props) {
           {descPlain}
         </p>
       ) : (
-        <p className="text-sm italic text-[#2b1d10]/60">
+        <p className="text-sm italic text-muted-foreground">
           No description provided.
         </p>
       )}
@@ -81,3 +166,4 @@ export function HandoutDetail({ handout }: Props) {
     </div>
   );
 }
+

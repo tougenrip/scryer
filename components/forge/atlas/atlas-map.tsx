@@ -750,14 +750,19 @@ export function AtlasMap({
                       <TooltipContent
                         side="top"
                         sideOffset={8}
-                        className="max-w-xs"
+                        className="max-w-xs bg-popover text-popover-foreground border border-amber-500/40 shadow-lg font-serif"
                       >
                         <div className="space-y-1">
                           {tooltipText && (
-                            <p className="font-semibold">{tooltipText}</p>
+                            <p
+                              className="font-bold text-amber-400"
+                              style={{ fontVariant: "small-caps" }}
+                            >
+                              {tooltipText}
+                            </p>
                           )}
                           {!isRichTextHtmlVisuallyEmpty(tooltipDescription) && (
-                            <p className="text-xs opacity-90 whitespace-normal">
+                            <p className="text-xs whitespace-normal leading-relaxed">
                               {richTextHtmlToPlainText(tooltipDescription ?? "")}
                             </p>
                           )}
