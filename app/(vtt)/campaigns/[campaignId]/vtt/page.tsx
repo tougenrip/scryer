@@ -53,6 +53,7 @@ import { NotesPanel } from "@/components/vtt/notes/notes-panel";
 import { PartyPanel } from "@/components/vtt/party/party-panel";
 import { CharacterCardsLayer } from "@/components/vtt/party/character-cards-layer";
 import { DiceHistoryPanel } from "@/components/vtt/dice-history/dice-history-panel";
+import { LootTabPanel } from "@/components/vtt/loot/loot-tab-panel";
 import { VttFogControls } from "@/components/vtt/vtt-fog-controls";
 import { VttVisionTool } from "@/components/vtt/vtt-vision-tool";
 import { useCombat } from "@/hooks/useCombat";
@@ -607,6 +608,13 @@ export default function VttPage() {
                 />
               }
               dicePanel={<DiceHistoryPanel campaignId={campaignId} />}
+              lootPanel={
+                <LootTabPanel
+                  campaignId={campaignId}
+                  userId={userId}
+                  isDm={!!isDm}
+                />
+              }
             />
             <FloatingCardLayer campaignId={campaignId} userId={userId} />
             <HandoutsLayer campaignId={campaignId} userId={userId} isDm={!!isDm} />

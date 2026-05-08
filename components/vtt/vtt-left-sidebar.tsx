@@ -1,10 +1,10 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { Library, Music, CheckCircle2, Swords, HelpCircle, BookOpen, Inbox, NotebookPen, Users, Dices } from "lucide-react";
+import { Library, Music, CheckCircle2, Swords, HelpCircle, BookOpen, Inbox, NotebookPen, Users, Dices, Coins } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
-export type VttLeftTab = "assets" | "music" | "objectives" | "combat" | "library" | "handouts" | "notes" | "party" | "dice" | null;
+export type VttLeftTab = "assets" | "music" | "objectives" | "combat" | "library" | "handouts" | "notes" | "party" | "dice" | "loot" | null;
 
 type NavButtonProps = {
   title: string;
@@ -55,6 +55,7 @@ type VttLeftSidebarProps = {
   notesPanel?: React.ReactNode;
   partyPanel?: React.ReactNode;
   dicePanel?: React.ReactNode;
+  lootPanel?: React.ReactNode;
 };
 
 export function VttLeftSidebar({
@@ -73,6 +74,7 @@ export function VttLeftSidebar({
   notesPanel,
   partyPanel,
   dicePanel,
+  lootPanel,
 }: VttLeftSidebarProps) {
   const open = activeTab !== null;
   const panelWidthClass = activeTab === "assets" ? ASSETS_PANEL_W_CLASS : PANEL_W_CLASS;
@@ -135,6 +137,14 @@ export function VttLeftSidebar({
               onClick={() => onActiveTabChange(activeTab === "party" ? null : "party")}
             />
           )}
+          {lootPanel && (
+            <NavButton
+              title="Loot · Party Treasury"
+              isActive={activeTab === "loot"}
+              icon={Coins}
+              onClick={() => onActiveTabChange(activeTab === "loot" ? null : "loot")}
+            />
+          )}
           {dicePanel && (
             <NavButton
               title="Dice history"
@@ -184,6 +194,7 @@ export function VttLeftSidebar({
             {activeTab === "handouts" && handoutsPanel}
             {activeTab === "notes" && notesPanel}
             {activeTab === "party" && partyPanel}
+            {activeTab === "loot" && lootPanel}
             {activeTab === "dice" && dicePanel}
           </div>
         </div>

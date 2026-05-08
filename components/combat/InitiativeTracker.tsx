@@ -5,15 +5,17 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { 
-  SkipBack, 
-  SkipForward, 
-  Sword, 
-  X, 
-  Plus, 
+import {
+  SkipBack,
+  SkipForward,
+  Sword,
+  X,
+  Plus,
   RefreshCw,
-  Check
+  Check,
+  Coins,
 } from 'lucide-react';
+import { EndWithLootDialog } from '@/components/vtt/loot/end-with-loot-dialog';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useVttStore } from '@/lib/store/vtt-store';
@@ -44,6 +46,7 @@ export function InitiativeTracker({ campaignId, mapId, isDm = false, className }
   const setSelectedTokenId = useVttStore((s) => s.setSelectedTokenId);
 
   const [isStarting, setIsStarting] = useState(false);
+  const [endLootOpen, setEndLootOpen] = useState(false);
   const [addingTokenIds, setAddingTokenIds] = useState<Set<string>>(() => new Set());
   const [apiTableTokens, setApiTableTokens] = useState<Token[]>([]);
   const [selectedStartTokenIds, setSelectedStartTokenIds] = useState<Set<string>>(() => new Set());
@@ -368,10 +371,19 @@ export function InitiativeTracker({ campaignId, mapId, isDm = false, className }
           <Badge variant="outline" className="h-5 px-1.5 text-[10px]">Round {activeEncounter.round_number}</Badge>
         </div>
         {isDm && (
-          <div className="flex justify-between items-center pt-0.5">
-             <Button variant="ghost" size="sm" onClick={() => endEncounter()} className="text-destructive h-6 px-2">
-               <X className="h-3 w-3 mr-1" /> End
-             </Button>
+          <div className="flex items-center gap-1 pt-0.5">
+            <Button variant="ghost" size="sm" onClick={() => endEncounter()} className="text-destructive h-6 px-2">
+              <X className="h-3 w-3 mr-1" /> End
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setEndLootOpen(true)}
+              className="text-amber-400 h-6 px-2"
+              title="Roll loot, review, then end the encounter"
+            >
+              <Coins className="h-3 w-3 mr-1" /> End with Loot
+            </Button>
           </div>
         )}
       </CardHeader>
@@ -535,6 +547,21 @@ export function InitiativeTracker({ campaignId, mapId, isDm = false, className }
           </div>
         )}
       </CardFooter>
+
+      <EndWithLootDialog
+        open={endLootOpen}
+        onOpenChange={setEndLootOpen}
+        campaignId={campaignId}
+        encounterId={activeEncounter.id ?? null}
+        encounterName={activeEncounter.name ?? null}
+        monsters={participants
+          .map((p) => p.token?.monster?.challenge_rating)
+          .filter((cr): cr is number => typeof cr === "number")
+          .map((cr) => ({ challenge_rating: cr }))}
+        onCommitted={async () => {
+          await endEncounter();
+        }}
+      />
     </Card>
   );
 }
