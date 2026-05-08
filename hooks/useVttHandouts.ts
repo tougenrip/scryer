@@ -19,6 +19,23 @@ export type PinSnapshot = {
   image_url: string | null;
 };
 
+/** Frozen-at-send-time copy of a pin so the handout still renders if the
+ * source pin is later edited or deleted. Only the fields AtlasMap needs to
+ * draw the marker are kept. */
+export type EmbeddedMarker = {
+  id: string;
+  x: number;
+  y: number;
+  name: string | null;
+  description: string | null;
+  icon_type: string | null;
+  background_shape: string | null;
+  status_icon: string | null;
+  color: string;
+  size: "small" | "medium" | "large";
+  visible: boolean;
+};
+
 export type SceneSnapshot = {
   kind: "scene";
   scene_id: string | null;
@@ -26,6 +43,8 @@ export type SceneSnapshot = {
   description: string | null;
   image_url: string | null;
   pin_count: number;
+  /** Snapshot of the visible pins on the scene at send time. */
+  markers: EmbeddedMarker[];
 };
 
 export type HandoutSnapshot = PinSnapshot | SceneSnapshot;

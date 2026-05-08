@@ -15,7 +15,9 @@ import type { LocationMarker, Scene } from "@/hooks/useForgeContent";
 import {
   useVttHandouts,
   type HandoutSnapshot,
+  type EmbeddedMarker,
 } from "@/hooks/useVttHandouts";
+import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { Loader2, MapPinned, Image as ImageIcon, Send } from "lucide-react";
 
@@ -67,13 +69,25 @@ export function HandoutPickerDialog({ open, onOpenChange, campaignId, userId }: 
 
   const sendScene = async (scene: Scene) => {
     setSending(true);
+    // Snapshot the visible pins on this scene so the handout renders the
+    // same map the DM sees in the Forge, even if pins are later edited.
+    const supabase = createClient();
+    const { data: pinRows } = await supabase
+      .from("location_markers")
+      .select(
+        "id,x,y,name,description,icon_type,background_shape,status_icon,color,size,visible"
+      )
+      .eq("scene_id", scene.id)
+      .eq("visible", true);
+    const markers: EmbeddedMarker[] = (pinRows ?? []) as EmbeddedMarker[];
     const snapshot: HandoutSnapshot = {
       kind: "scene",
       scene_id: scene.id,
       name: scene.name,
       description: scene.description,
       image_url: scene.image_url,
-      pin_count: 0,
+      pin_count: markers.length,
+      markers,
     };
     await sendHandout({
       kind: "scene",
