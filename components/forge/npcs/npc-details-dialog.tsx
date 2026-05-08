@@ -11,6 +11,8 @@ interface NPCDetailsDialogProps {
   onOpenChange: (open: boolean) => void;
   classNameLabel?: string;
   speciesLabel?: string;
+  /** Pass to enable @-mention popovers inside the lore sections. */
+  campaignId?: string | null;
 }
 
 export function NPCDetailsDialog({
@@ -19,6 +21,7 @@ export function NPCDetailsDialog({
   onOpenChange,
   classNameLabel,
   speciesLabel,
+  campaignId,
 }: NPCDetailsDialogProps) {
   if (!npc) return null;
 
@@ -97,7 +100,7 @@ export function NPCDetailsDialog({
                 </TabsList>
                 
                 <TabsContent value="lore" className="space-y-6 mt-0">
-                  {renderLore(npc)}
+                  {renderLore(npc, campaignId)}
                 </TabsContent>
                 
                 <TabsContent value="combat" className="mt-0">
@@ -112,7 +115,7 @@ export function NPCDetailsDialog({
               </Tabs>
             ) : (
               <div className="space-y-6">
-                {renderLore(npc)}
+                {renderLore(npc, campaignId)}
               </div>
             )}
           </div>
@@ -122,9 +125,9 @@ export function NPCDetailsDialog({
   );
 }
 
-function renderLore(npc: NPC) {
+function renderLore(npc: NPC, campaignId?: string | null) {
   const hasLore = npc.description || npc.appearance || npc.personality || npc.background;
-  
+
   if (!hasLore) {
     return <p className="text-muted-foreground italic text-center py-8">No details have been added for this NPC yet.</p>;
   }
@@ -134,32 +137,32 @@ function renderLore(npc: NPC) {
       {npc.description && (
         <section className="space-y-2">
           <h3 className="text-lg font-semibold border-b pb-1 font-serif">Description</h3>
-          <RichTextDisplay content={npc.description} />
+          <RichTextDisplay content={npc.description} campaignId={campaignId} />
         </section>
       )}
       {npc.appearance && (
         <section className="space-y-2">
           <h3 className="text-lg font-semibold border-b pb-1 font-serif">Appearance</h3>
-          <RichTextDisplay content={npc.appearance} />
+          <RichTextDisplay content={npc.appearance} campaignId={campaignId} />
         </section>
       )}
       {npc.personality && (
         <section className="space-y-2">
           <h3 className="text-lg font-semibold border-b pb-1 font-serif">Personality</h3>
-          <RichTextDisplay content={npc.personality} />
+          <RichTextDisplay content={npc.personality} campaignId={campaignId} />
         </section>
       )}
       {npc.background && (
         <section className="space-y-2">
           <h3 className="text-lg font-semibold border-b pb-1 font-serif">Background</h3>
-          <RichTextDisplay content={npc.background} />
+          <RichTextDisplay content={npc.background} campaignId={campaignId} />
         </section>
       )}
       {npc.notes && (
         <section className="space-y-2 pt-4">
           <h3 className="text-lg font-semibold border-b border-warning/30 text-warning pb-1 font-serif">DM Notes</h3>
           <div className="bg-warning/10 p-4 rounded-md">
-            <RichTextDisplay content={npc.notes} />
+            <RichTextDisplay content={npc.notes} campaignId={campaignId} />
           </div>
         </section>
       )}

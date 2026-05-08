@@ -35,8 +35,10 @@ function NavButton({ title, isActive, icon: Icon, onClick }: NavButtonProps) {
   );
 }
 
-const PANEL_W_CLASS = "w-[min(360px,calc(100vw-5rem))]";
-const PANEL_MINW_CLASS = "min-w-[min(360px,calc(100vw-5rem))]";
+// Account for BOTH sidebar nav columns (left + right = 7rem total) plus a
+// little breathing room so the panel can never push past the viewport.
+const PANEL_W_CLASS = "w-[min(360px,calc(100vw-7rem))]";
+const PANEL_MINW_CLASS = "min-w-0 max-w-[min(360px,calc(100vw-7rem))]";
 
 type VttRightSidebarProps = {
   openState: VttRightTabState;

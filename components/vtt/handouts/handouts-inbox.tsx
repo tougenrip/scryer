@@ -7,6 +7,7 @@ import {
   MapPinned,
   Image as ImageIcon,
   ScrollText,
+  User as UserIcon,
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -77,6 +78,8 @@ export function HandoutsInbox({ campaignId, userId, isDm }: Props) {
                   <MapPinned className="h-4 w-4 text-muted-foreground" />
                 ) : s.kind === "bounty" ? (
                   <ScrollText className="h-4 w-4 text-amber-400" />
+                ) : s.kind === "npc" ? (
+                  <UserIcon className="h-4 w-4 text-amber-400" />
                 ) : (
                   <ImageIcon className="h-4 w-4 text-muted-foreground" />
                 )}
@@ -95,6 +98,8 @@ export function HandoutsInbox({ campaignId, userId, isDm }: Props) {
                     ? "Scene"
                     : s.kind === "bounty"
                     ? "Bounty"
+                    : s.kind === "npc"
+                    ? "NPC"
                     : "Pin"}{" "}
                   · {relativeTime(h.created_at)}
                   {counts && ` · ${counts.read} read`}

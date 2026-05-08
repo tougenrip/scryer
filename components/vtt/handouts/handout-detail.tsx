@@ -6,13 +6,14 @@ import {
   ParchmentRule,
   ParchmentLabel,
 } from "@/components/vtt/quick-search/parchment";
-import { MapPinned, Image as ImageIcon } from "lucide-react";
+import { MapPinned, Image as ImageIcon, User as UserIcon } from "lucide-react";
 import {
   isRichTextHtmlVisuallyEmpty,
   richTextHtmlToPlainText,
 } from "@/lib/utils/rich-text-html";
 import { SceneHandoutMap } from "./scene-handout-map";
 import { cn } from "@/lib/utils";
+import { RichTextDisplay } from "@/components/shared/rich-text-display";
 
 interface Props {
   handout: Handout;
@@ -38,6 +39,75 @@ export function HandoutDetail({ handout }: Props) {
     s.description != null && !isRichTextHtmlVisuallyEmpty(s.description)
       ? richTextHtmlToPlainText(s.description)
       : "";
+
+  // NPC handouts use the same general layout as the Forge NPC details page:
+  // header card with portrait + name + species/class/location, then stacked
+  // sections (Description / Appearance / Personality / Background) using
+  // RichTextDisplay so anything authored in the Forge editor renders as
+  // formatted HTML — not plain text.
+  if (s.kind === "npc") {
+    const sub = [s.species_label, s.class_label, s.location]
+      .filter(Boolean)
+      .join(" · ");
+    const sections: Array<[string, string | null]> = [
+      ["Description", s.description],
+      ["Appearance", s.appearance],
+      ["Personality", s.personality],
+      ["Background", s.background],
+    ];
+    const populated = sections.filter(
+      ([, body]) => body && !isRichTextHtmlVisuallyEmpty(body)
+    );
+    return (
+      <div className="space-y-4 font-serif">
+        <header className="flex items-start gap-3">
+          <div className="h-16 w-16 shrink-0 rounded-md overflow-hidden bg-muted border border-amber-500/30 flex items-center justify-center text-amber-400">
+            {s.image_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={s.image_url}
+                alt={s.name}
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <UserIcon className="h-6 w-6" />
+            )}
+          </div>
+          <div className="min-w-0">
+            <ParchmentTitle>{s.name || "(unnamed NPC)"}</ParchmentTitle>
+            {sub && (
+              <p className="italic text-xs text-muted-foreground capitalize mt-0.5">
+                {sub}
+              </p>
+            )}
+          </div>
+        </header>
+        <ParchmentRule />
+        {populated.length === 0 ? (
+          <p className="text-sm italic text-muted-foreground">
+            No further details provided.
+          </p>
+        ) : (
+          populated.map(([title, body]) => (
+            <section key={title} className="space-y-1.5">
+              <h3
+                className="text-sm font-bold text-amber-400 border-b border-amber-500/30 pb-1"
+                style={{ fontVariant: "small-caps" }}
+              >
+                {title}
+              </h3>
+              <div className="text-sm leading-relaxed [&_p]:m-0 [&_p+p]:mt-2">
+                <RichTextDisplay
+                  content={body!}
+                  campaignId={handout.campaign_id}
+                />
+              </div>
+            </section>
+          ))
+        )}
+      </div>
+    );
+  }
 
   // Bounty handouts get a dedicated layout — they have very different fields
   // (target/reward/status) and benefit from a wanted-poster styling.

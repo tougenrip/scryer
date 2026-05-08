@@ -3,6 +3,7 @@
 import { useCampaignCharacters } from "@/hooks/useDndContent";
 import { ExternalLink, User as UserIcon } from "lucide-react";
 import Link from "next/link";
+import { useCharacterCardsStore } from "@/lib/store/character-cards-store";
 
 interface Props {
   campaignId: string | null;
@@ -11,12 +12,15 @@ interface Props {
 }
 
 /**
- * In-VTT party roster. Lists every character assigned to the campaign and
- * links to the existing character-sheet route. Non-owners get the sheet
- * read-only via the sheet's `editable` prop (already wired in the page).
+ * In-VTT party roster. Lists every character assigned to the campaign.
+ * Click a row → opens a draggable/resizable parchment-style floating card
+ * with the full sheet (read-only for non-owners), matching the info-modal
+ * UX. Use the inline external-link icon to open the full route in a new
+ * tab instead.
  */
 export function PartyPanel({ campaignId, userId }: Props) {
   const { characters, loading } = useCampaignCharacters(campaignId ?? "");
+  const openSheet = useCharacterCardsStore((s) => s.open);
 
   if (!campaignId) return null;
 
@@ -52,19 +56,20 @@ export function PartyPanel({ campaignId, userId }: Props) {
             .filter(Boolean)
             .join(" · ");
           return (
-            <Link
+            <div
               key={c.id}
-              href={`/campaigns/${campaignId}/characters/${c.id}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-3 rounded border border-border bg-background hover:bg-muted/40 transition-colors p-2 group"
+              className="flex items-center gap-3 rounded border border-border bg-background hover:bg-muted/40 transition-colors p-2 group cursor-pointer"
+              onClick={() => openSheet(c.id)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  openSheet(c.id);
+                }
+              }}
             >
-              <div
-                className="h-10 w-10 shrink-0 rounded-full bg-muted overflow-hidden flex items-center justify-center text-amber-400 capitalize text-sm font-bold"
-                style={{
-                  backgroundColor: c.image_url ? undefined : undefined,
-                }}
-              >
+              <div className="h-10 w-10 shrink-0 rounded-full bg-muted overflow-hidden flex items-center justify-center text-amber-400 capitalize text-sm font-bold">
                 {c.image_url ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={c.image_url} alt="" className="h-full w-full object-cover" />
@@ -90,8 +95,17 @@ export function PartyPanel({ campaignId, userId }: Props) {
                   HP {c.hp_current ?? "?"}/{c.hp_max ?? "?"} · AC {c.armor_class ?? "?"}
                 </p>
               </div>
-              <ExternalLink className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
-            </Link>
+              <Link
+                href={`/campaigns/${campaignId}/characters/${c.id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                title="Open in new tab"
+                className="h-7 w-7 flex items-center justify-center rounded text-muted-foreground hover:text-amber-400 hover:bg-muted transition-colors shrink-0"
+              >
+                <ExternalLink className="h-3.5 w-3.5" />
+              </Link>
+            </div>
           );
         })}
       </div>

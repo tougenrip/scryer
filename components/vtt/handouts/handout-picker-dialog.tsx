@@ -12,8 +12,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useScenes, useLocationMarkers } from "@/hooks/useForgeContent";
 import type { LocationMarker, Scene } from "@/hooks/useForgeContent";
-import { useCampaignBounties } from "@/hooks/useCampaignContent";
-import type { Bounty } from "@/hooks/useCampaignContent";
+import { useCampaignBounties, useCampaignNPCs } from "@/hooks/useCampaignContent";
+import type { Bounty, NPC } from "@/hooks/useCampaignContent";
 import {
   useVttHandouts,
   type HandoutSnapshot,
@@ -27,6 +27,7 @@ import {
   Image as ImageIcon,
   Send,
   ScrollText,
+  User as UserIcon,
 } from "lucide-react";
 
 interface Props {
@@ -36,7 +37,7 @@ interface Props {
   userId: string | null;
 }
 
-type Tab = "scene" | "pin" | "bounty";
+type Tab = "scene" | "pin" | "bounty" | "npc";
 
 export function HandoutPickerDialog({ open, onOpenChange, campaignId, userId }: Props) {
   const [tab, setTab] = useState<Tab>("scene");
@@ -52,6 +53,10 @@ export function HandoutPickerDialog({ open, onOpenChange, campaignId, userId }: 
   );
   const { bounties, loading: bountiesLoading } = useCampaignBounties(
     campaignId && tab === "bounty" ? campaignId : null,
+    /* isDm */ true
+  );
+  const { npcs, loading: npcsLoading } = useCampaignNPCs(
+    campaignId && tab === "npc" ? campaignId : null,
     /* isDm */ true
   );
   const { sendHandout } = useVttHandouts(campaignId, userId);
@@ -89,6 +94,16 @@ export function HandoutPickerDialog({ open, onOpenChange, campaignId, userId }: 
     );
   }, [bounties, query]);
 
+  const filteredNpcs = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return npcs;
+    return npcs.filter(
+      (n) =>
+        n.name.toLowerCase().includes(q) ||
+        (n.location ?? "").toLowerCase().includes(q)
+    );
+  }, [npcs, query]);
+
   const sendScene = async (scene: Scene) => {
     setSending(true);
     // Snapshot the visible pins on this scene so the handout renders the
@@ -116,6 +131,35 @@ export function HandoutPickerDialog({ open, onOpenChange, campaignId, userId }: 
       sceneId: scene.id,
       snapshot,
     });
+    setSending(false);
+    onOpenChange(false);
+  };
+
+  const sendNpc = async (npc: NPC) => {
+    setSending(true);
+    // Resolve display labels for class/species (which live in srd/* tables)
+    // best-effort: store the slug if we can't resolve a name. For now leave
+    // them as the raw indices — pretty-name resolution can come later.
+    const classLabel =
+      npc.custom_class ?? npc.class_index ?? null;
+    const speciesLabel =
+      npc.custom_species ?? npc.species_index ?? null;
+    const snapshot: HandoutSnapshot = {
+      kind: "npc",
+      npc_id: npc.id,
+      name: npc.name,
+      description: npc.description,
+      appearance: npc.appearance,
+      personality: npc.personality,
+      background: npc.background,
+      // DM Notes are deliberately NOT included — they're DM-private context.
+      notes: null,
+      location: npc.location,
+      class_label: classLabel,
+      species_label: speciesLabel,
+      image_url: npc.image_url,
+    };
+    await sendHandout({ kind: "npc", snapshot });
     setSending(false);
     onOpenChange(false);
   };
@@ -173,7 +217,7 @@ export function HandoutPickerDialog({ open, onOpenChange, campaignId, userId }: 
         </DialogHeader>
 
         <div className="flex gap-1 border-b">
-          {(["scene", "pin", "bounty"] as const).map((t) => (
+          {(["scene", "pin", "bounty", "npc"] as const).map((t) => (
             <button
               key={t}
               type="button"
@@ -188,7 +232,13 @@ export function HandoutPickerDialog({ open, onOpenChange, campaignId, userId }: 
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
-              {t === "scene" ? "Scene" : t === "pin" ? "Pin" : "Bounty"}
+              {t === "scene"
+                ? "Scene"
+                : t === "pin"
+                ? "Pin"
+                : t === "bounty"
+                ? "Bounty"
+                : "NPC"}
             </button>
           ))}
         </div>
@@ -201,7 +251,9 @@ export function HandoutPickerDialog({ open, onOpenChange, campaignId, userId }: 
               ? "Search scenes…"
               : tab === "pin"
               ? "Search pins…"
-              : "Search bounties…"
+              : tab === "bounty"
+              ? "Search bounties…"
+              : "Search NPCs…"
           }
           className="h-8 text-sm"
         />
@@ -318,6 +370,56 @@ export function HandoutPickerDialog({ open, onOpenChange, campaignId, userId }: 
                 </ul>
               )}
             </div>
+          )}
+
+          {tab === "npc" && (
+            <ul className="divide-y">
+              {npcsLoading && (
+                <li className="px-3 py-6 text-center text-xs text-muted-foreground inline-flex items-center gap-1 justify-center w-full">
+                  <Loader2 className="h-3 w-3 animate-spin" /> Loading NPCs…
+                </li>
+              )}
+              {!npcsLoading && filteredNpcs.length === 0 && (
+                <li className="px-3 py-6 text-center text-xs text-muted-foreground">
+                  No NPCs created yet.
+                </li>
+              )}
+              {filteredNpcs.map((n) => (
+                <li key={n.id} className="flex items-center gap-3 px-3 py-2">
+                  <div className="h-10 w-10 shrink-0 rounded overflow-hidden bg-muted flex items-center justify-center text-amber-400">
+                    {n.image_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={n.image_url}
+                        alt=""
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <UserIcon className="h-4 w-4" />
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">{n.name}</p>
+                    {(n.location || n.species_index || n.class_index) && (
+                      <p className="truncate text-xs text-muted-foreground">
+                        {[n.species_index, n.class_index, n.location]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </p>
+                    )}
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={sending}
+                    onClick={() => sendNpc(n)}
+                  >
+                    <Send className="h-3.5 w-3.5 mr-1" />
+                    Send
+                  </Button>
+                </li>
+              ))}
+            </ul>
           )}
 
           {tab === "bounty" && (

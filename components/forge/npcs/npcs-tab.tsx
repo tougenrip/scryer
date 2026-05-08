@@ -473,6 +473,7 @@ export function NPCsTab({ campaignId, isDm }: NPCsTabProps) {
         onOpenChange={(open) => !open && setViewingNPC(null)}
         classNameLabel={viewingNPC ? getNPCClassName(viewingNPC) || undefined : undefined}
         speciesLabel={viewingNPC ? getNPCSpeciesName(viewingNPC) || undefined : undefined}
+        campaignId={campaignId}
       />
 
       {/* AI Generation Dialog */}

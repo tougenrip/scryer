@@ -51,6 +51,7 @@ import { HandoutsPanel } from "@/components/vtt/handouts/handouts-panel";
 import { HandoutsLayer } from "@/components/vtt/handouts/handouts-layer";
 import { NotesPanel } from "@/components/vtt/notes/notes-panel";
 import { PartyPanel } from "@/components/vtt/party/party-panel";
+import { CharacterCardsLayer } from "@/components/vtt/party/character-cards-layer";
 import { DiceHistoryPanel } from "@/components/vtt/dice-history/dice-history-panel";
 import { VttFogControls } from "@/components/vtt/vtt-fog-controls";
 import { VttVisionTool } from "@/components/vtt/vtt-vision-tool";
@@ -609,6 +610,7 @@ export default function VttPage() {
             />
             <FloatingCardLayer campaignId={campaignId} userId={userId} />
             <HandoutsLayer campaignId={campaignId} userId={userId} isDm={!!isDm} />
+            <CharacterCardsLayer campaignId={campaignId} userId={userId} />
             <VttRightSidebar
               openState={rightDock}
               onToggleTab={(tab) => setRightDock(prev => ({ ...prev, [tab]: !prev[tab] }))}

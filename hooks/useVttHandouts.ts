@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { uniqueChannelTopic } from "@/lib/supabase/realtime-topic";
 import { toast } from "sonner";
 
-export type HandoutKind = "pin" | "scene" | "bounty";
+export type HandoutKind = "pin" | "scene" | "bounty" | "npc";
 
 export type PinSnapshot = {
   kind: "pin";
@@ -64,7 +64,34 @@ export type BountySnapshot = {
   image_url: string | null;
 };
 
-export type HandoutSnapshot = PinSnapshot | SceneSnapshot | BountySnapshot;
+export type NpcSnapshot = {
+  kind: "npc";
+  /** id from `npcs`, null if the source row was deleted later. */
+  npc_id: string | null;
+  name: string;
+  /** Aggregate description shown at the top of the inbox row + handout
+   * card; for NPCs we use the rich-text bio as `description` for
+   * cross-kind parity with pin/scene/bounty. */
+  description: string | null;
+  appearance: string | null;
+  personality: string | null;
+  background: string | null;
+  /** "DM Notes" — only ever included when the DM intentionally sends them
+   * (always omitted in v1). */
+  notes: string | null;
+  location: string | null;
+  /** Display labels resolved at send time (class + species names). The
+   * source rows live elsewhere so we freeze the human-readable strings. */
+  class_label: string | null;
+  species_label: string | null;
+  image_url: string | null;
+};
+
+export type HandoutSnapshot =
+  | PinSnapshot
+  | SceneSnapshot
+  | BountySnapshot
+  | NpcSnapshot;
 
 export interface Handout {
   id: string;

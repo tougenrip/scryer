@@ -34,6 +34,8 @@ export function HandoutFloatingCard({ campaignId, userId, card }: Props) {
       ? "Scene"
       : handout?.snapshot.kind === "pin"
       ? "Pin"
+      : handout?.snapshot.kind === "npc"
+      ? "NPC"
       : "Handout";
 
   return (

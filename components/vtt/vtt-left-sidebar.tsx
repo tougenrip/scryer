@@ -32,10 +32,12 @@ function NavButton({ title, isActive, icon: Icon, onClick }: NavButtonProps) {
   );
 }
 
-const PANEL_W_CLASS = "w-[min(360px,calc(100vw-5rem))]";
-const PANEL_MINW_CLASS = "min-w-[min(360px,calc(100vw-5rem))]";
-const ASSETS_PANEL_W_CLASS = "w-[min(760px,calc(100vw-5rem))]";
-const ASSETS_PANEL_MINW_CLASS = "min-w-[min(760px,calc(100vw-5rem))]";
+// Account for BOTH sidebar nav columns (left + right = 7rem) so the slide-
+// out panel can never push past the opposite sidebar's nav column.
+const PANEL_W_CLASS = "w-[min(360px,calc(100vw-7rem))]";
+const PANEL_MINW_CLASS = "min-w-0 max-w-[min(360px,calc(100vw-7rem))]";
+const ASSETS_PANEL_W_CLASS = "w-[min(760px,calc(100vw-7rem))]";
+const ASSETS_PANEL_MINW_CLASS = "min-w-0 max-w-[min(760px,calc(100vw-7rem))]";
 
 type VttLeftSidebarProps = {
   activeTab: VttLeftTab;

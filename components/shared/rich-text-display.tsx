@@ -1,24 +1,37 @@
 "use client";
 
+import { useRef } from "react";
 import { cn } from "@/lib/utils";
 import { isRichTextHtmlVisuallyEmpty } from "@/lib/utils/rich-text-html";
+import { MentionPopoverHost } from "./mention-popover-host";
 
 interface RichTextDisplayProps {
   content: string;
   className?: string;
+  /** When provided, `.mention[data-id]` spans become clickable popovers
+   * that surface the linked NPC/location/faction/quest. */
+  campaignId?: string | null;
 }
 
 /**
  * Read-only renderer for rich text HTML content.
  * Renders Tiptap HTML output with consistent styling and clickable @mention links.
  */
-export function RichTextDisplay({ content, className }: RichTextDisplayProps) {
+export function RichTextDisplay({
+  content,
+  className,
+  campaignId,
+}: RichTextDisplayProps) {
+  const ref = useRef<HTMLDivElement>(null);
+
   if (isRichTextHtmlVisuallyEmpty(content)) {
     return null;
   }
 
   return (
+    <>
     <div
+      ref={ref}
       className={cn(
         "prose prose-sm dark:prose-invert max-w-none",
         "prose-headings:font-serif prose-headings:mb-2 prose-headings:mt-3",
@@ -40,5 +53,9 @@ export function RichTextDisplay({ content, className }: RichTextDisplayProps) {
       )}
       dangerouslySetInnerHTML={{ __html: content }}
     />
+    {campaignId && (
+      <MentionPopoverHost containerRef={ref} campaignId={campaignId} />
+    )}
+    </>
   );
 }

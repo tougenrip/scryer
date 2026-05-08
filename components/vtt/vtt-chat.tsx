@@ -105,8 +105,8 @@ export function VttChat({
           </Button>
         )}
       </div>
-      <ScrollArea className="flex-1 min-h-0 px-3">
-        <div className="py-2 space-y-2">
+      <ScrollArea className="flex-1 min-h-0 px-3 overflow-x-hidden">
+        <div className="py-2 space-y-2 w-full max-w-full">
           {loading && (
             <p className="text-xs text-muted-foreground">Loading messages…</p>
           )}
@@ -187,13 +187,12 @@ function ChatRoll({
   const Icon = isAttack ? Swords : Flame;
   const iconClass = isAttack ? "text-sky-400" : "text-rose-400";
 
-  // Outcomes need to be readable at a glance even when scrolled back through
-  // history, so non-latest rolls now also get a big number (just slightly
-  // smaller than the most recent). Modifiers/breakdown are de-emphasized to
-  // keep the result the visual focus.
+  // Outcomes need to be readable at a glance, but the chat sidebar is narrow
+  // (~360px) so we cap how big the number can get to keep it from
+  // overflowing on three-digit results.
   const totalClass = cn(
     "shrink-0 font-bold tabular-nums leading-none",
-    isLast ? "text-5xl" : "text-3xl",
+    isLast ? "text-4xl" : "text-2xl",
     isCritHit && "text-emerald-500",
     isCritMiss && "text-rose-500",
     !isCritHit && !isCritMiss && (isAttack ? "text-sky-300" : "text-rose-300")
@@ -202,20 +201,25 @@ function ChatRoll({
   return (
     <div
       className={cn(
-        "rounded-md border px-3 py-2",
+        "rounded-md border px-3 py-2 w-full max-w-full overflow-hidden",
         isLast ? accentLast : accent,
         isLast && "shadow-md"
       )}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5">
-            <Icon className={cn("h-3.5 w-3.5", iconClass)} />
-            <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+      {/* Top row: BIG result number + metadata stacked next to it. The
+          number sits in the normal flow as `shrink-0` so it never gets
+          pushed out, and the metadata column is `min-w-0` so any long
+          title truncates with an ellipsis. */}
+      <div className="flex items-start gap-2 min-w-0">
+        <div className={cn(totalClass, "self-center")}>{roll.result}</div>
+        <div className="min-w-0 flex-1 overflow-hidden">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <Icon className={cn("h-3.5 w-3.5 shrink-0", iconClass)} />
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground shrink-0">
               {isAttack ? "Attack" : "Damage"}
             </span>
-            <span className="text-[10px] text-muted-foreground">·</span>
-            <span className="text-[10px] text-muted-foreground">{time}</span>
+            <span className="text-[10px] text-muted-foreground shrink-0">·</span>
+            <span className="text-[10px] text-muted-foreground truncate">{time}</span>
           </div>
           <div
             className={cn(
@@ -226,9 +230,8 @@ function ChatRoll({
           >
             {roll.label || roll.expression}
           </div>
-          <div className="text-[10px] text-muted-foreground">{displayName}</div>
+          <div className="text-[10px] text-muted-foreground truncate">{displayName}</div>
         </div>
-        <div className={totalClass}>{roll.result}</div>
       </div>
       <div className="mt-1.5 flex flex-wrap items-center gap-1 font-mono text-[9px] opacity-70">
         <span className="text-muted-foreground">{roll.expression}</span>
