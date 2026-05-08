@@ -56,6 +56,8 @@ interface FactionFormDialogProps {
     motto_creed?: string | null;
     public_agenda?: string | null;
     secret_agenda?: string | null;
+    hidden_from_players?: boolean;
+    dm_notes?: string | null;
   }) => void;
   loading?: boolean;
   isDm?: boolean;
@@ -90,6 +92,8 @@ export function FactionFormDialog({
   const [mottoCreed, setMottoCreed] = useState("");
   const [publicAgenda, setPublicAgenda] = useState("");
   const [secretAgenda, setSecretAgenda] = useState("");
+  const [hiddenFromPlayers, setHiddenFromPlayers] = useState(false);
+  const [dmNotes, setDmNotes] = useState("");
   
   const [headquartersLocationId, setHeadquartersLocationId] = useState<string | null>(null);
   const [leaderNpcId, setLeaderNpcId] = useState<string | null>(null);
@@ -117,6 +121,8 @@ export function FactionFormDialog({
       setMottoCreed(faction.motto_creed || "");
       setPublicAgenda(faction.public_agenda || "");
       setSecretAgenda(faction.secret_agenda || "");
+      setHiddenFromPlayers(faction.hidden_from_players ?? false);
+      setDmNotes(faction.dm_notes || "");
       setHeadquartersLocationId(faction.headquarters_location_id || null);
       setLeaderNpcId(faction.leader_npc_id || null);
       setLeaderName(faction.leader_name || "");
@@ -133,6 +139,8 @@ export function FactionFormDialog({
       setMottoCreed("");
       setPublicAgenda("");
       setSecretAgenda("");
+      setHiddenFromPlayers(false);
+      setDmNotes("");
       setHeadquartersLocationId(null);
       setLeaderNpcId(null);
       setLeaderName("");
@@ -204,6 +212,8 @@ export function FactionFormDialog({
       motto_creed: mottoCreed.trim() || null,
       public_agenda: publicAgenda.trim() || null,
       secret_agenda: secretAgenda.trim() || null,
+      hidden_from_players: hiddenFromPlayers,
+      dm_notes: dmNotes.trim() || null,
       headquarters_location_id: headquartersLocationId,
       leader_npc_id: leaderNpcId,
       leader_name: leaderName.trim() || null,
@@ -358,6 +368,44 @@ export function FactionFormDialog({
                     disabled={loading}
                     minHeight="100px"
                   />
+                </div>
+              )}
+
+              {isDm && (
+                <div className="space-y-2 rounded-md border border-amber-500/30 bg-amber-500/5 p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <Label htmlFor="hidden-from-players" className="text-amber-400">
+                        Hide from players
+                      </Label>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">
+                        When on, this faction is invisible to players
+                        anywhere it appears.
+                      </p>
+                    </div>
+                    <input
+                      id="hidden-from-players"
+                      type="checkbox"
+                      checked={hiddenFromPlayers}
+                      onChange={(e) => setHiddenFromPlayers(e.target.checked)}
+                      disabled={loading}
+                      className="h-4 w-4 accent-amber-500"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="dm-notes" className="text-amber-400">
+                      DM Notes <span className="text-xs text-muted-foreground">(never sent to players)</span>
+                    </Label>
+                    <RichTextEditor
+                      id="dm-notes"
+                      value={dmNotes}
+                      onChange={setDmNotes}
+                      placeholder="Plot threads, twists, anything you want to remember…"
+                      campaignId={campaignId}
+                      disabled={loading}
+                      minHeight="100px"
+                    />
+                  </div>
                 </div>
               )}
 

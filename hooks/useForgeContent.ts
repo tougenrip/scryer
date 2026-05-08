@@ -222,6 +222,8 @@ export interface Faction {
   public_agenda: string | null;
   scene_id: string | null; // Associated scene map for this faction
   secret_agenda: string | null;
+  hidden_from_players: boolean;
+  dm_notes: string | null;
   metadata: Record<string, unknown> | null; // JSONB field for tags, associates, etc.
   created_at: string | null;
   updated_at: string | null;
@@ -1544,6 +1546,8 @@ export function useCreateFaction() {
     motto_creed?: string | null;
     public_agenda?: string | null;
     secret_agenda?: string | null;
+    hidden_from_players?: boolean;
+    dm_notes?: string | null;
   }) => {
     try {
       setLoading(true);

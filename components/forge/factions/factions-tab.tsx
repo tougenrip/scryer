@@ -93,6 +93,8 @@ export function FactionsTab({ campaignId, isDm }: FactionsTabProps) {
     motto_creed?: string | null;
     public_agenda?: string | null;
     secret_agenda?: string | null;
+    hidden_from_players?: boolean;
+    dm_notes?: string | null;
   }) => {
     const result = await createFaction({
       campaign_id: campaignId,
@@ -122,6 +124,8 @@ export function FactionsTab({ campaignId, isDm }: FactionsTabProps) {
     motto_creed?: string | null;
     public_agenda?: string | null;
     secret_agenda?: string | null;
+    hidden_from_players?: boolean;
+    dm_notes?: string | null;
   }) => {
     if (!editingFaction) return;
     const result = await updateFaction(editingFaction.id, data);
