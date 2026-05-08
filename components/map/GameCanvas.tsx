@@ -719,11 +719,16 @@ export const GameCanvas = ({
       const placed = useSnap ? wallEditorSnap(pointer, gridSize) : pointer;
       const mode = useVttStore.getState().wallEditorMode;
       if (mode === 'segment' || mode === 'door') {
-        setWallEditorPoints((prev) => {
-          if (prev.length === 0) return [placed];
-          void createWall({ points: [prev[0], placed], is_door: mode === 'door' });
-          return [];
-        });
+        // IMPORTANT: never trigger side effects (DB writes) from inside a
+        // setState updater — React 18 / StrictMode runs updater functions
+        // twice to detect impurity, which would create the wall twice.
+        if (wallEditorPoints.length === 0) {
+          setWallEditorPoints([placed]);
+        } else {
+          const start = wallEditorPoints[0];
+          setWallEditorPoints([]);
+          void createWall({ points: [start, placed], is_door: mode === 'door' });
+        }
         return;
       }
       // Pen mode: append vertex; double-click finishes.

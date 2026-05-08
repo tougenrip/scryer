@@ -47,6 +47,8 @@ import { VttGridControls } from "@/components/vtt/vtt-grid-controls";
 import { QuickSearchPanel } from "@/components/vtt/quick-search/quick-search-panel";
 import { FloatingCardLayer } from "@/components/vtt/quick-search/floating-card-layer";
 import { useQuickSearchStore } from "@/lib/store/quick-search-store";
+import { HandoutsPanel } from "@/components/vtt/handouts/handouts-panel";
+import { HandoutsLayer } from "@/components/vtt/handouts/handouts-layer";
 import { VttFogControls } from "@/components/vtt/vtt-fog-controls";
 import { VttVisionTool } from "@/components/vtt/vtt-vision-tool";
 import { useCombat } from "@/hooks/useCombat";
@@ -579,8 +581,16 @@ export default function VttPage() {
                   <QuickSearchPanel campaignId={campaignId} />
                 </div>
               }
+              handoutsPanel={
+                <HandoutsPanel
+                  campaignId={campaignId}
+                  userId={userId}
+                  isDm={!!isDm}
+                />
+              }
             />
             <FloatingCardLayer campaignId={campaignId} userId={userId} />
+            <HandoutsLayer campaignId={campaignId} userId={userId} isDm={!!isDm} />
             <VttRightSidebar
               openState={rightDock}
               onToggleTab={(tab) => setRightDock(prev => ({ ...prev, [tab]: !prev[tab] }))}

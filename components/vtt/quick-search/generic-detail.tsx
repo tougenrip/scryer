@@ -135,37 +135,6 @@ export function EquipmentDetail({ equipment }: { equipment: Equipment }) {
   );
 }
 
-export function MagicItemDetail({
-  item,
-}: {
-  item: {
-    name: string;
-    equipment_category?: string | null;
-    rarity?: string | null;
-    description?: string | null;
-    requires_attunement?: boolean | string | null;
-  };
-}) {
-  return (
-    <div className="space-y-3 font-serif">
-      <header>
-        <ParchmentTitle>{item.name}</ParchmentTitle>
-        <p className="italic text-sm">
-          {item.equipment_category ?? "Wondrous Item"}
-          {item.rarity ? `, ${item.rarity}` : ""}
-          {item.requires_attunement ? " (requires attunement)" : ""}
-        </p>
-      </header>
-      <ParchmentRule />
-      {item.description && (
-        <p className="text-sm whitespace-pre-wrap leading-relaxed">
-          {item.description}
-        </p>
-      )}
-    </div>
-  );
-}
-
 export function ConditionDetail({ name }: { name: string }) {
   const key = name.toLowerCase();
   const desc = CONDITION_DESCRIPTIONS[key] ?? "No description available.";

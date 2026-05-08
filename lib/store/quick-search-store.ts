@@ -4,7 +4,6 @@ export type QuickSearchTab =
   | "spells"
   | "monsters"
   | "equipment"
-  | "magic-items"
   | "conditions"
   | "races"
   | "classes"
@@ -20,6 +19,8 @@ export type FloatingCard = EntityRef & {
   id: string;
   x: number;
   y: number;
+  width: number;
+  height: number;
   minimized: boolean;
 };
 
@@ -37,9 +38,21 @@ function loadCards(userId: string | null, campaignId: string | null): FloatingCa
   try {
     const raw = window.localStorage.getItem(key);
     if (!raw) return [];
-    const parsed = JSON.parse(raw) as FloatingCard[];
+    const parsed = JSON.parse(raw) as Partial<FloatingCard>[];
     if (!Array.isArray(parsed)) return [];
-    return parsed.slice(0, 8);
+    // Backfill defaults for fields added after the persisted shape was first
+    // written (e.g., width/height) so old localStorage data still renders.
+    return parsed.slice(0, 8).map((c) => ({
+      id: String(c.id ?? ""),
+      type: (c.type ?? "spells") as FloatingCard["type"],
+      source: (c.source ?? "srd") as FloatingCard["source"],
+      index: String(c.index ?? ""),
+      x: typeof c.x === "number" ? c.x : 100,
+      y: typeof c.y === "number" ? c.y : 100,
+      width: typeof c.width === "number" ? c.width : 360,
+      height: typeof c.height === "number" ? c.height : 540,
+      minimized: Boolean(c.minimized),
+    }));
   } catch {
     return [];
   }
@@ -81,6 +94,9 @@ interface QuickSearchState {
   closeCard: (id: string) => void;
   toggleMinimize: (id: string) => void;
   moveCard: (id: string, x: number, y: number) => void;
+  resizeCard: (id: string, width: number, height: number) => void;
+  /** Bring a card to the front (last in z-order via DOM order). */
+  focusCard: (id: string) => void;
 }
 
 const MAX_CARDS = 8;
@@ -126,7 +142,7 @@ export const useQuickSearchStore = create<QuickSearchState>((set, get) => ({
     const id = `${selected.type}:${selected.source}:${selected.index}:${Date.now()}`;
     const next = [
       ...cards,
-      { ...selected, id, x, y, minimized: false },
+      { ...selected, id, x, y, width: 360, height: 540, minimized: false },
     ].slice(-MAX_CARDS);
     set({ cards: next });
     persistCards(ownerUserId, ownerCampaignId, next);
@@ -151,6 +167,26 @@ export const useQuickSearchStore = create<QuickSearchState>((set, get) => ({
   moveCard: (id, x, y) => {
     const { cards, ownerUserId, ownerCampaignId } = get();
     const next = cards.map((c) => (c.id === id ? { ...c, x, y } : c));
+    set({ cards: next });
+    persistCards(ownerUserId, ownerCampaignId, next);
+  },
+
+  resizeCard: (id, width, height) => {
+    const { cards, ownerUserId, ownerCampaignId } = get();
+    const next = cards.map((c) =>
+      c.id === id ? { ...c, width, height } : c
+    );
+    set({ cards: next });
+    persistCards(ownerUserId, ownerCampaignId, next);
+  },
+
+  focusCard: (id) => {
+    const { cards, ownerUserId, ownerCampaignId } = get();
+    const target = cards.find((c) => c.id === id);
+    if (!target) return;
+    // Already on top? No-op so we don't churn state on every pointerdown.
+    if (cards[cards.length - 1]?.id === id) return;
+    const next = [...cards.filter((c) => c.id !== id), target];
     set({ cards: next });
     persistCards(ownerUserId, ownerCampaignId, next);
   },
