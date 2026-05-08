@@ -85,6 +85,10 @@ export function CharacterSheet({
   // unarmored base. Routed through onUpdate so RLS errors surface as toasts.
   useEffect(() => {
     if (!editable) return;
+    // Don't write while the inventory is still loading — equipmentEffects is
+    // computed from an empty `inventory` until the fetch resolves, which would
+    // race-write the unarmored AC (10) and clobber the correct value.
+    if (loading) return;
     const computedAc = equipmentEffects.armorClass;
     if (!computedAc || computedAc === character.armor_class) return;
     if (!onUpdate) {
@@ -107,6 +111,7 @@ export function CharacterSheet({
     void onUpdate({ armor_class: computedAc });
   }, [
     editable,
+    loading,
     equipmentEffects.armorClass,
     character.id,
     character.armor_class,

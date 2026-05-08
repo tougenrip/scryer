@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
+import { InfoIconButton } from "@/components/vtt/quick-search/info-icon-button";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -271,8 +272,17 @@ export function VttTokenInspector({
           )}
         </div>
         <div className="min-w-0 flex-1 pt-1">
-          <div className="truncate text-base font-semibold leading-tight text-foreground" title={displayName}>
-            {displayName}
+          <div className="flex items-center gap-1 text-base font-semibold leading-tight text-foreground" title={displayName}>
+            <span className="truncate">{displayName}</span>
+            {sel.monster_index && (
+              <InfoIconButton
+                target={{
+                  type: "monsters",
+                  source: (sel.monster_source as "srd" | "homebrew") ?? "srd",
+                  index: sel.monster_index,
+                }}
+              />
+            )}
           </div>
           {creatureMeta.length > 0 && (
             <p className="mt-1 truncate text-[11px] text-muted-foreground">
@@ -404,6 +414,15 @@ export function VttTokenInspector({
             {conditions.map((condition) => (
               <Badge key={condition} variant="outline" className="gap-1 text-[10px] capitalize">
                 {condition}
+                <InfoIconButton
+                  size="xs"
+                  target={{
+                    type: "conditions",
+                    source: "srd",
+                    index: condition.toLowerCase(),
+                  }}
+                  className="ml-0.5"
+                />
                 {isDm && (
                   <button
                     type="button"

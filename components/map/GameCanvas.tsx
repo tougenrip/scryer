@@ -1067,7 +1067,7 @@ export const GameCanvas = ({
           onTokenDragEnd={handleTokenDragEnd}
           groupDrag={groupDrag}
           visibleTokenIds={visibleTokenIds}
-          blockingSegments={movementBlockingSegments(walls)}
+          blockingSegments={[]}
         />
         <FogLayer onFogUpdate={updateFogShapes} isDm={isDm} />
         {!isDmForVision && visionEnabled && mapDimensions && (

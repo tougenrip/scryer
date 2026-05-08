@@ -70,24 +70,20 @@ export function computeVisibilityPolygon(
   segments: WallSegment[]
 ): Point[] {
   const angles: number[] = [];
+  // Always seed with a full 360° baseline so directions that don't point at
+  // any wall endpoint still get rays cast and extend out to VIEW_RADIUS_PX.
+  // Without this, when all walls cluster in one area, every endpoint-angle
+  // ray hits that cluster and the resulting polygon collapses to the wall
+  // cluster's footprint instead of the actually-visible region.
+  const BASELINE_RAYS = 64;
+  for (let i = 0; i < BASELINE_RAYS; i++) {
+    angles.push((i / BASELINE_RAYS) * Math.PI * 2 - Math.PI);
+  }
   for (const s of segments) {
     for (const p of [s.a, s.b]) {
       const a = Math.atan2(p.y - viewpoint.y, p.x - viewpoint.x);
       angles.push(a, a + RAY_EPSILON, a - RAY_EPSILON);
     }
-  }
-  // If there are no walls, the polygon is just a big circle approximation.
-  if (angles.length === 0) {
-    const out: Point[] = [];
-    const N = 32;
-    for (let i = 0; i < N; i++) {
-      const a = (i / N) * Math.PI * 2;
-      out.push({
-        x: viewpoint.x + Math.cos(a) * VIEW_RADIUS_PX,
-        y: viewpoint.y + Math.sin(a) * VIEW_RADIUS_PX,
-      });
-    }
-    return out;
   }
 
   angles.sort((a, b) => a - b);

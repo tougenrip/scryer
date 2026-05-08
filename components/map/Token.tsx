@@ -157,7 +157,7 @@ function TokenComponent({
   const displayName = cleanVttDisplayName(token.name);
   const conditions = token.conditions ?? [];
   const firstCondition = conditions[0];
-  const conditionMarkerSize = Math.max(20, Math.min(28, width * 0.42));
+  const conditionMarkerSize = width * 0.42;
 
   const handleDragStart = () => {
     setIsDragging(true);
@@ -326,44 +326,41 @@ function TokenComponent({
             perfectDrawEnabled={false}
           />
           <ConditionIcon condition={firstCondition} size={conditionMarkerSize} />
-          {conditions.length > 1 && (
-            <>
-              <Circle
-                x={conditionMarkerSize + 4}
-                y={conditionMarkerSize * 0.28}
-                radius={8}
-                fill="black"
-                opacity={0.9}
-                stroke="white"
-                strokeWidth={1}
-                perfectDrawEnabled={false}
-              />
-              <Line
-                points={[
-                  conditionMarkerSize - 1,
-                  conditionMarkerSize * 0.28,
-                  conditionMarkerSize + 9,
-                  conditionMarkerSize * 0.28,
-                ]}
-                stroke="white"
-                strokeWidth={2}
-                lineCap="round"
-                perfectDrawEnabled={false}
-              />
-              <Line
-                points={[
-                  conditionMarkerSize + 4,
-                  conditionMarkerSize * 0.28 - 5,
-                  conditionMarkerSize + 4,
-                  conditionMarkerSize * 0.28 + 5,
-                ]}
-                stroke="white"
-                strokeWidth={2}
-                lineCap="round"
-                perfectDrawEnabled={false}
-              />
-            </>
-          )}
+          {conditions.length > 1 && (() => {
+            const plusRadius = conditionMarkerSize * 0.32;
+            const plusCx = conditionMarkerSize + plusRadius / 2;
+            const plusCy = conditionMarkerSize * 0.28;
+            const armLen = plusRadius * 0.7;
+            const stroke = Math.max(1, conditionMarkerSize * 0.08);
+            return (
+              <>
+                <Circle
+                  x={plusCx}
+                  y={plusCy}
+                  radius={plusRadius}
+                  fill="black"
+                  opacity={0.9}
+                  stroke="white"
+                  strokeWidth={Math.max(0.5, stroke / 2)}
+                  perfectDrawEnabled={false}
+                />
+                <Line
+                  points={[plusCx - armLen, plusCy, plusCx + armLen, plusCy]}
+                  stroke="white"
+                  strokeWidth={stroke}
+                  lineCap="round"
+                  perfectDrawEnabled={false}
+                />
+                <Line
+                  points={[plusCx, plusCy - armLen, plusCx, plusCy + armLen]}
+                  stroke="white"
+                  strokeWidth={stroke}
+                  lineCap="round"
+                  perfectDrawEnabled={false}
+                />
+              </>
+            );
+          })()}
           {isConditionHover && (
             <Group x={-Math.max(0, width - 122)} y={-28}>
               <Rect

@@ -1,10 +1,10 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { Library, Music, CheckCircle2, Swords, HelpCircle } from "lucide-react";
+import { Library, Music, CheckCircle2, Swords, HelpCircle, BookOpen } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
-export type VttLeftTab = "assets" | "music" | "objectives" | "combat" | null;
+export type VttLeftTab = "assets" | "music" | "objectives" | "combat" | "library" | null;
 
 type NavButtonProps = {
   title: string;
@@ -48,6 +48,7 @@ type VttLeftSidebarProps = {
   musicPanel: React.ReactNode;
   objectivesPanel: React.ReactNode;
   combatPanel?: React.ReactNode;
+  libraryPanel?: React.ReactNode;
 };
 
 export function VttLeftSidebar({
@@ -61,6 +62,7 @@ export function VttLeftSidebar({
   musicPanel,
   objectivesPanel,
   combatPanel,
+  libraryPanel,
 }: VttLeftSidebarProps) {
   const open = activeTab !== null;
   const panelWidthClass = activeTab === "assets" ? ASSETS_PANEL_W_CLASS : PANEL_W_CLASS;
@@ -89,6 +91,14 @@ export function VttLeftSidebar({
               isActive={activeTab === "objectives"}
               icon={CheckCircle2}
               onClick={() => onActiveTabChange(activeTab === "objectives" ? null : "objectives")}
+            />
+          )}
+          {libraryPanel && (
+            <NavButton
+              title="Quick Search · Rules Library"
+              isActive={activeTab === "library"}
+              icon={BookOpen}
+              onClick={() => onActiveTabChange(activeTab === "library" ? null : "library")}
             />
           )}
           <div className="flex-1" />
@@ -128,6 +138,7 @@ export function VttLeftSidebar({
             {activeTab === "music" && musicPanel}
             {activeTab === "objectives" && objectivesPanel}
             {activeTab === "combat" && combatPanel}
+            {activeTab === "library" && libraryPanel}
           </div>
         </div>
       </div>

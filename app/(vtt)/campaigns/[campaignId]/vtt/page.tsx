@@ -44,6 +44,9 @@ import { useActiveVttScene } from "@/hooks/useActiveVttScene";
 import { useVttPresence } from "@/hooks/useVttPresence";
 import { VttPresenceStrip } from "@/components/vtt/vtt-presence-strip";
 import { VttGridControls } from "@/components/vtt/vtt-grid-controls";
+import { QuickSearchPanel } from "@/components/vtt/quick-search/quick-search-panel";
+import { FloatingCardLayer } from "@/components/vtt/quick-search/floating-card-layer";
+import { useQuickSearchStore } from "@/lib/store/quick-search-store";
 import { VttFogControls } from "@/components/vtt/vtt-fog-controls";
 import { VttVisionTool } from "@/components/vtt/vtt-vision-tool";
 import { useCombat } from "@/hooks/useCombat";
@@ -119,6 +122,17 @@ export default function VttPage() {
   const [sceneTitle, setSceneTitle] = useState<string>("");
   const [loadedMapItem, setLoadedMapItem] = useState<MediaItem | null>(null);
   const [leftDock, setLeftDock] = useState<VttLeftTab>(null);
+
+  // Sync Quick Search store's drawerOpen with the left sidebar's library tab.
+  const quickSearchOpen = useQuickSearchStore((s) => s.drawerOpen);
+  const closeQuickSearch = useQuickSearchStore((s) => s.close);
+  useEffect(() => {
+    if (quickSearchOpen) setLeftDock("library");
+  }, [quickSearchOpen]);
+  useEffect(() => {
+    // Closing the sidebar tab should close the store's drawer flag too.
+    if (leftDock !== "library" && quickSearchOpen) closeQuickSearch();
+  }, [leftDock, quickSearchOpen, closeQuickSearch]);
   const [rightDock, setRightDock] = useState<VttRightTabState>({ inspector: false, chat: false });
   const [diceDockOpen, setDiceDockOpen] = useState(true);
   const [localMessagesCleared, setLocalMessagesCleared] = useState(false);
@@ -560,7 +574,13 @@ export default function VttPage() {
                   <LazyVttCombatPanel campaignId={campaignId} mapId={mapId} isDm={!!isDm} />
                 </div>
               }
+              libraryPanel={
+                <div className="min-h-0 flex-1 overflow-hidden">
+                  <QuickSearchPanel campaignId={campaignId} />
+                </div>
+              }
             />
+            <FloatingCardLayer campaignId={campaignId} userId={userId} />
             <VttRightSidebar
               openState={rightDock}
               onToggleTab={(tab) => setRightDock(prev => ({ ...prev, [tab]: !prev[tab] }))}
