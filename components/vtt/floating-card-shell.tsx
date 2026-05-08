@@ -7,9 +7,20 @@ import {
   PARCHMENT_BG,
   PARCHMENT_BORDER,
 } from "@/components/vtt/quick-search/parchment";
+import { useFloatingZStore } from "@/lib/store/floating-z-store";
 
-const MIN_W = 240;
-const MIN_H = 160;
+// Minimums clamp to viewport so a card on a phone can't be set to a width
+// larger than the screen.
+const MIN_W_DESKTOP = 240;
+const MIN_H_DESKTOP = 160;
+function getMinW() {
+  if (typeof window === "undefined") return MIN_W_DESKTOP;
+  return Math.min(MIN_W_DESKTOP, window.innerWidth - 32);
+}
+function getMinH() {
+  if (typeof window === "undefined") return MIN_H_DESKTOP;
+  return Math.min(MIN_H_DESKTOP, window.innerHeight - 32);
+}
 
 export interface FloatingCardShellProps {
   /** Stable id used for focus/move/resize/close store actions. */
@@ -164,8 +175,8 @@ export function FloatingCardShell({
     if (!resizeState.current || resizeState.current.pointerId !== e.pointerId) return;
     const dx = e.clientX - resizeState.current.startX;
     const dy = e.clientY - resizeState.current.startY;
-    const w = Math.max(MIN_W, resizeState.current.startW + dx);
-    const h = Math.max(MIN_H, resizeState.current.startH + dy);
+    const w = Math.max(getMinW(), resizeState.current.startW + dx);
+    const h = Math.max(getMinH(), resizeState.current.startH + dy);
     setSize({ w, h });
   };
   const onResizeUp = (e: React.PointerEvent) => {
@@ -175,11 +186,27 @@ export function FloatingCardShell({
     resizeState.current = null;
   };
 
+  // Cross-store z ordering. Subscribe to this card's current z so changes
+  // re-render. On any pointerdown anywhere on the card, ALSO promote it to
+  // the global front so it stacks above cards from other stores.
+  const z = useFloatingZStore((s) => s.zMap[cardId] ?? 20);
+  const focusGlobal = useFloatingZStore((s) => s.focus);
+  const releaseGlobal = useFloatingZStore((s) => s.release);
+  // Initialize this card's global z on mount; release on unmount.
+  useEffect(() => {
+    focusGlobal(cardId);
+    return () => releaseGlobal(cardId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cardId]);
+
   return (
     <div
-      onPointerDownCapture={() => onFocus(cardId)}
+      onPointerDownCapture={() => {
+        onFocus(cardId);
+        focusGlobal(cardId);
+      }}
       className={cn(
-        "fixed z-20 shadow-2xl rounded-md flex flex-col",
+        "fixed shadow-2xl rounded-md flex flex-col",
         PARCHMENT_BORDER,
         PARCHMENT_BG
       )}
@@ -188,6 +215,7 @@ export function FloatingCardShell({
         top: pos.y,
         width: size.w,
         height: size.h,
+        zIndex: z,
       }}
     >
       <div
@@ -214,7 +242,7 @@ export function FloatingCardShell({
           <X className="h-3 w-3" />
         </button>
       </div>
-      <div className="flex-1 min-h-0 overflow-y-auto p-3">{children}</div>
+      <div className="flex-1 min-h-0 overflow-auto p-3">{children}</div>
       <div
         ref={resizeRef}
         onPointerDown={onResizeDown}

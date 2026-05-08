@@ -12,6 +12,8 @@ import { cn } from "@/lib/utils";
 interface Props {
   campaignId: string | null;
   userId: string | null;
+  /** Active map id, threaded through to the duels tab for presence. */
+  mapId: string | null;
   isDm: boolean;
 }
 
@@ -24,7 +26,7 @@ interface Props {
  */
 type SubTab = "roster" | "loot" | "duels";
 
-export function PartyPanel({ campaignId, userId, isDm }: Props) {
+export function PartyPanel({ campaignId, userId, mapId, isDm }: Props) {
   const { characters, loading } = useCampaignCharacters(campaignId ?? "");
   const openSheet = useCharacterCardsStore((s) => s.open);
   const [tab, setTab] = useState<SubTab>("roster");
@@ -68,7 +70,12 @@ export function PartyPanel({ campaignId, userId, isDm }: Props) {
         // includes the treasury strip, claim/assign UI, and DM controls.
         <LootTabPanel campaignId={campaignId} userId={userId} isDm={isDm} />
       ) : tab === "duels" ? (
-        <CasualDuelsTab campaignId={campaignId} userId={userId} isDm={isDm} />
+        <CasualDuelsTab
+          campaignId={campaignId}
+          userId={userId}
+          mapId={mapId}
+          isDm={isDm}
+        />
       ) : (
         <RosterContent
           campaignId={campaignId}

@@ -129,15 +129,21 @@ export const useCharacterCardsStore = create<State>((set, get) => ({
     }
     const idx = cards.length % 5;
     const id = `${characterId}:${Date.now()}`;
+    // Adapt default size to viewport so the sheet isn't immediately
+    // overflowing on phones / narrow windows.
+    const vw = typeof window !== "undefined" ? window.innerWidth : 1200;
+    const vh = typeof window !== "undefined" ? window.innerHeight : 800;
+    const width = Math.min(720, vw - 80);
+    const height = Math.min(720, vh - 80);
     const next = [
       ...cards,
       {
         id,
         characterId,
-        x: 100 + idx * 32,
-        y: 80 + idx * 32,
-        width: 720,
-        height: 720,
+        x: Math.max(8, Math.min(100 + idx * 32, vw - width - 8)),
+        y: Math.max(8, Math.min(80 + idx * 32, vh - 60)),
+        width,
+        height,
       },
     ].slice(-MAX_CARDS);
     set({ cards: next });

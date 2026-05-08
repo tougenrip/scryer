@@ -13,7 +13,13 @@ type NavButtonProps = {
   onClick: () => void;
 };
 
-function NavButton({ title, isActive, icon: Icon, onClick }: NavButtonProps) {
+function NavButton({
+  title,
+  isActive,
+  icon: Icon,
+  onClick,
+  badge,
+}: NavButtonProps & { badge?: boolean }) {
   return (
     <button
       type="button"
@@ -28,6 +34,12 @@ function NavButton({ title, isActive, icon: Icon, onClick }: NavButtonProps) {
         <div className="absolute left-0 top-1/2 h-1/2 w-0.5 -translate-y-1/2 bg-amber-500 rounded-r-full" />
       )}
       <Icon className="h-5 w-5" strokeWidth={isActive ? 2.5 : 2} />
+      {badge && (
+        <span
+          className="absolute right-3 top-2.5 h-2 w-2 rounded-full bg-amber-400 animate-pulse ring-2 ring-neutral-950"
+          aria-label={`${title} has activity`}
+        />
+      )}
     </button>
   );
 }
@@ -54,6 +66,9 @@ type VttLeftSidebarProps = {
   handoutsPanel?: React.ReactNode;
   notesPanel?: React.ReactNode;
   partyPanel?: React.ReactNode;
+  /** When true, the Party nav button shows a pulsing dot to draw attention
+   * (e.g. there's a live duel waiting). */
+  partyBadge?: boolean;
   dicePanel?: React.ReactNode;
 };
 
@@ -72,6 +87,7 @@ export function VttLeftSidebar({
   handoutsPanel,
   notesPanel,
   partyPanel,
+  partyBadge,
   dicePanel,
 }: VttLeftSidebarProps) {
   const open = activeTab !== null;
@@ -133,6 +149,7 @@ export function VttLeftSidebar({
               isActive={activeTab === "party"}
               icon={Users}
               onClick={() => onActiveTabChange(activeTab === "party" ? null : "party")}
+              badge={partyBadge}
             />
           )}
           {dicePanel && (

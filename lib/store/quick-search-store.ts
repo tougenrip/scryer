@@ -151,12 +151,16 @@ export const useQuickSearchStore = create<QuickSearchState>((set, get) => ({
     if (!selected) return;
     // Cascade position: 24px offset per existing card, wrap at 6.
     const idx = cards.length % 6;
-    const x = 120 + idx * 28;
-    const y = 100 + idx * 28;
+    const vw = typeof window !== "undefined" ? window.innerWidth : 1200;
+    const vh = typeof window !== "undefined" ? window.innerHeight : 800;
+    const width = Math.min(360, vw - 80);
+    const height = Math.min(540, vh - 80);
+    const x = Math.max(8, Math.min(120 + idx * 28, vw - width - 8));
+    const y = Math.max(8, Math.min(100 + idx * 28, vh - 60));
     const id = `${selected.type}:${selected.source}:${selected.index}:${Date.now()}`;
     const next = [
       ...cards,
-      { ...selected, id, x, y, width: 360, height: 540, minimized: false },
+      { ...selected, id, x, y, width, height, minimized: false },
     ].slice(-MAX_CARDS);
     set({ cards: next });
     persistCards(ownerUserId, ownerCampaignId, next);

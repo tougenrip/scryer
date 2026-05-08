@@ -150,6 +150,9 @@ function ChatRow({ message, isLast }: { message: VttMessage; isLast: boolean }) 
   if (isDuelResultPayload(message.payload)) {
     return <ChatDuelResult message={message} time={time} />;
   }
+  if (isCoinFlipPayload(message.payload)) {
+    return <ChatCoinFlip message={message} time={time} />;
+  }
   return (
     <div className={cn("text-xs leading-snug", isLast && "text-sm")}>
       <div>
@@ -179,6 +182,52 @@ function isDuelResultPayload(p: unknown): p is DuelResultPayload {
     !!p &&
     typeof p === "object" &&
     (p as { kind?: string }).kind === "duel-result"
+  );
+}
+
+interface CoinFlipPayload {
+  kind: "coin-flip";
+  outcome: "heads" | "tails";
+  flipped_by_character_id: string | null;
+  flipped_by_name: string;
+}
+
+function isCoinFlipPayload(p: unknown): p is CoinFlipPayload {
+  return (
+    !!p &&
+    typeof p === "object" &&
+    (p as { kind?: string }).kind === "coin-flip"
+  );
+}
+
+function ChatCoinFlip({
+  message,
+  time,
+}: {
+  message: VttMessage;
+  time: string;
+}) {
+  const p = message.payload as CoinFlipPayload;
+  return (
+    <div className="rounded-md border border-amber-500/40 bg-amber-500/5 px-3 py-2">
+      <div className="flex items-center gap-1.5">
+        <span className="text-base">🪙</span>
+        <span className="text-[10px] font-semibold uppercase tracking-wide text-amber-400">
+          Coin Flip
+        </span>
+        <span className="text-[10px] text-muted-foreground">·</span>
+        <span className="text-[10px] text-muted-foreground">{time}</span>
+      </div>
+      <p className="mt-0.5 text-sm font-serif">
+        {p.flipped_by_name} flipped:{" "}
+        <span
+          className="font-bold text-amber-300"
+          style={{ fontVariant: "small-caps" }}
+        >
+          {p.outcome}
+        </span>
+      </p>
+    </div>
   );
 }
 

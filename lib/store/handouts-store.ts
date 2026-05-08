@@ -167,14 +167,18 @@ export const useHandoutsStore = create<HandoutsState>((set, get) => ({
       return;
     }
     const idx = cards.length % 6;
+    const vw = typeof window !== "undefined" ? window.innerWidth : 1200;
+    const vh = typeof window !== "undefined" ? window.innerHeight : 800;
+    const width = Math.min(360, vw - 80);
+    const height = Math.min(480, vh - 80);
     const next: HandoutCard[] = [
       ...cards,
       {
         id: handoutId,
-        x: 160 + idx * 28,
-        y: 140 + idx * 28,
-        width: 360,
-        height: 480,
+        x: Math.max(8, Math.min(160 + idx * 28, vw - width - 8)),
+        y: Math.max(8, Math.min(140 + idx * 28, vh - 60)),
+        width,
+        height,
       },
     ].slice(-MAX_CARDS);
     set({ cards: next });

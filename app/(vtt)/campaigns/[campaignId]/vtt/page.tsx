@@ -54,6 +54,7 @@ import { PartyPanel } from "@/components/vtt/party/party-panel";
 import { CharacterCardsLayer } from "@/components/vtt/party/character-cards-layer";
 import { DiceHistoryPanel } from "@/components/vtt/dice-history/dice-history-panel";
 import { DuelLayer } from "@/components/vtt/loot/duel/duel-modal";
+import { useLootDuels } from "@/hooks/useLootDuels";
 import { VttFogControls } from "@/components/vtt/vtt-fog-controls";
 import { VttVisionTool } from "@/components/vtt/vtt-vision-tool";
 import { useCombat } from "@/hooks/useCombat";
@@ -147,6 +148,14 @@ export default function VttPage() {
   const { campaign } = useCampaign(campaignId);
   const isDm = campaign?.dm_user_id === userId;
   const shouldLoadAssets = leftDock === "assets" && isDm;
+
+  // Pulse the Party tab when there's a live duel I'm a participant in.
+  const { duels: liveDuels } = useLootDuels(campaignId);
+  const hasLiveDuelForMe = liveDuels.some(
+    (d) =>
+      d.status !== "done" &&
+      (d.defender_user_id === userId || d.challenger_user_id === userId)
+  );
   const shouldLoadHandouts = leftDock === "assets" && !isDm;
   const shouldLoadChat = rightDock.chat || rightDock.inspector;
   const mapTypes = useMemo<Array<NonNullable<MediaItem["type"]>>>(() => ["map"], []);
@@ -230,6 +239,10 @@ export default function VttPage() {
       // the sidebar's DOM tree. Treat any click inside one of those as "inside"
       // so opening a popover from the inspector doesn't immediately collapse it.
       if (target.closest("[data-radix-popper-content-wrapper]")) return;
+      // Radix Select with position="item-aligned" doesn't get the popper
+      // wrapper but still portals to body — match the content node directly.
+      if (target.closest('[data-slot="select-content"]')) return;
+      if (target.closest('[data-radix-select-viewport]')) return;
       // Dialogs / AlertDialogs (also portaled).
       if (target.closest('[role="dialog"]')) return;
       if (target.closest('[role="alertdialog"]')) return;
@@ -604,10 +617,12 @@ export default function VttPage() {
                 <PartyPanel
                   campaignId={campaignId}
                   userId={userId}
+                  mapId={mapId}
                   isDm={!!isDm}
                 />
               }
               dicePanel={<DiceHistoryPanel campaignId={campaignId} />}
+              partyBadge={hasLiveDuelForMe}
             />
             <FloatingCardLayer campaignId={campaignId} userId={userId} />
             <HandoutsLayer campaignId={campaignId} userId={userId} isDm={!!isDm} />

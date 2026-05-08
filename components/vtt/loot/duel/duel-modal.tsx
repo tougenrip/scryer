@@ -1,14 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { useLootDuels, type LootDuel } from "@/hooks/useLootDuels";
 import { useCampaignCharacters } from "@/hooks/useDndContent";
 import { RpsHand } from "./rps-hands";
 import { CoinFlip } from "./coin-flip";
 import { cn } from "@/lib/utils";
-import { Loader2 } from "lucide-react";
+import { Loader2, Swords, X } from "lucide-react";
+import { toast } from "sonner";
+import { useDuelViewStore } from "@/lib/store/duel-view-store";
 
 interface Props {
   campaignId: string | null;
@@ -16,48 +18,100 @@ interface Props {
 }
 
 /**
- * DuelLayer: watches all active duels in the campaign and pops the modal
- * when the current user is involved (or for spectators on done duels for
- * the brief reveal window). Handles RPS + coin flip in one shared layout.
+ * DuelLayer: watches all active duels in the campaign. New duels surface
+ * as a toast (so the modal doesn't ambush you mid-VTT) — click "Open" on
+ * the toast to view; click "Ignore" or let it disappear to skip. The
+ * modal has a Close button so you can dismiss it locally any time
+ * without affecting the duel itself.
  */
 export function DuelLayer({ campaignId, userId }: Props) {
   const { duels, submitChoice } = useLootDuels(campaignId);
   const { characters } = useCampaignCharacters(campaignId ?? "");
 
-  // Find the most recent unresolved duel involving the current user OR a
-  // recently-resolved one that should still show the reveal animation.
-  const visible = useMemo<LootDuel | null>(() => {
-    if (!userId) return null;
-    const myActive = duels.find(
-      (d) =>
-        d.status !== "done" &&
-        (d.defender_user_id === userId || d.challenger_user_id === userId)
-    );
-    if (myActive) return myActive;
-    // Spectator view of a recent resolution (last 8s).
-    const recent = duels.find((d) => {
-      if (d.status !== "done" || !d.resolved_at) return false;
-      const age = Date.now() - new Date(d.resolved_at).getTime();
-      return age < 8_000;
-    });
-    return recent ?? null;
-  }, [duels, userId]);
+  /**
+   * Per-duel "I want to see this" state lives in a shared store so the
+   * Duels tab can re-open dismissed duels via a button.
+   */
+  const viewing = useDuelViewStore((s) => s.viewing);
+  const openView = useDuelViewStore((s) => s.open);
+  const closeView = useDuelViewStore((s) => s.close);
+  const announcedRef = useRef<Set<string>>(new Set());
 
   const charById = useMemo(() => {
-    const m = new Map<string, { name: string; image_url: string | null }>();
-    for (const c of characters) {
-      m.set(c.id, { name: c.name, image_url: c.image_url });
-    }
+    const m = new Map<string, { name: string }>();
+    for (const c of characters) m.set(c.id, { name: c.name });
     return m;
   }, [characters]);
 
-  if (!visible || !userId) return null;
+  // Toast announcer for new duels involving the current user.
+  useEffect(() => {
+    if (!userId) return;
+    for (const d of duels) {
+      if (announcedRef.current.has(d.id)) continue;
+      // Only announce active duels — done ones don't need a toast.
+      if (d.status === "done") {
+        announcedRef.current.add(d.id);
+        continue;
+      }
+      const isParticipant =
+        d.defender_user_id === userId || d.challenger_user_id === userId;
+      if (!isParticipant) {
+        announcedRef.current.add(d.id);
+        continue;
+      }
+      const opponentCharId =
+        d.defender_user_id === userId
+          ? d.challenger_character_id
+          : d.defender_character_id;
+      const opponentName = charById.get(opponentCharId)?.name ?? "Someone";
+      const game = d.game === "rps" ? "Rock-Paper-Scissors" : "Coin Flip";
+      const toastId = `duel:${d.id}`;
+      toast(`${opponentName} challenged you to ${game}`, {
+        id: toastId,
+        duration: 12_000,
+        icon: <Swords className="h-4 w-4 text-amber-400" />,
+        action: {
+          label: "Open",
+          onClick: () => {
+            openView(d.id);
+            toast.dismiss(toastId);
+          },
+        },
+        cancel: {
+          label: "Ignore",
+          onClick: () => toast.dismiss(toastId),
+        },
+      });
+      announcedRef.current.add(d.id);
+    }
+  }, [duels, userId, charById, openView]);
+
+  // Pick the duel to render. Priority: explicitly-opened active duel,
+  // then the most recent "done" duel for the reveal animation if I was a
+  // participant — spectators don't get auto-popped anymore.
+  const visible = useMemo<LootDuel | null>(() => {
+    if (!userId) return null;
+    const opened = duels.find(
+      (d) => d.status !== "done" && viewing.has(d.id)
+    );
+    if (opened) return opened;
+    const justResolved = duels.find((d) => {
+      if (d.status !== "done" || !d.resolved_at) return false;
+      const age = Date.now() - new Date(d.resolved_at).getTime();
+      return viewing.has(d.id) && age < 8_000;
+    });
+    return justResolved ?? null;
+  }, [duels, viewing, userId]);
+
+  if (!userId) return null;
+  if (!visible) return null;
 
   return (
     <DuelModal
       duel={visible}
       asUserId={userId}
       submitChoice={(choice) => submitChoice(visible.id, userId, choice)}
+      onClose={() => closeView(visible.id)}
       defenderName={
         charById.get(visible.defender_character_id)?.name ?? "Defender"
       }
@@ -72,12 +126,14 @@ function DuelModal({
   duel,
   asUserId,
   submitChoice,
+  onClose,
   defenderName,
   challengerName,
 }: {
   duel: LootDuel;
   asUserId: string;
   submitChoice: (choice: string) => void | Promise<void>;
+  onClose: () => void;
   defenderName: string;
   challengerName: string;
 }) {
@@ -147,15 +203,31 @@ function DuelModal({
   const oppDisplay = isDefender ? challengerName : defenderName;
 
   return (
-    <Dialog open onOpenChange={() => undefined}>
+    <Dialog
+      open
+      onOpenChange={(o) => {
+        // Esc / overlay click triggers onOpenChange(false). Treat any close
+        // attempt as "dismiss locally" — the duel itself keeps running.
+        if (!o) onClose();
+      }}
+    >
       <DialogContent
         className="max-w-xl border-amber-500/40 bg-popover text-popover-foreground p-0 overflow-hidden"
-        // Don't allow esc/click-out to close while a duel is happening.
-        onEscapeKeyDown={(e) => e.preventDefault()}
-        onPointerDownOutside={(e) => e.preventDefault()}
-        onInteractOutside={(e) => e.preventDefault()}
+        // We allow esc/outside to close; the modal can be reopened from the
+        // Duels tab. Closing only affects the local view.
       >
-        <div className="px-4 pt-4 pb-3 border-b border-amber-500/30 bg-amber-500/10">
+        <DialogTitle className="sr-only">
+          Duel: {defenderName} vs {challengerName}
+        </DialogTitle>
+        <div className="relative px-4 pt-4 pb-3 border-b border-amber-500/30 bg-amber-500/10">
+          <button
+            type="button"
+            onClick={onClose}
+            title="Close (the duel keeps running)"
+            className="absolute right-2 top-2 h-7 w-7 flex items-center justify-center rounded text-amber-300 hover:bg-amber-500/20"
+          >
+            <X className="h-4 w-4" />
+          </button>
           <p
             className="text-[10px] uppercase tracking-[0.2em] text-amber-400 font-bold text-center"
             style={{ fontVariant: "small-caps" }}
@@ -244,9 +316,17 @@ function DuelModal({
               <span className="text-muted-foreground">wins!</span>
             </p>
           ) : status === "tie_rematch" ? (
-            <p className="text-center text-sm italic text-amber-300">
-              Tie. Pick again.
-            </p>
+            <div className="text-center space-y-0.5 mb-1">
+              <p
+                className="text-base font-bold text-amber-300 animate-pulse"
+                style={{ fontVariant: "small-caps" }}
+              >
+                ⚔ Tie — Rematch! ⚔
+              </p>
+              <p className="text-[11px] italic text-muted-foreground">
+                Both players picked the same. Lock in a fresh choice.
+              </p>
+            </div>
           ) : null}
 
           {/* Choice picker (participant only, not yet locked) */}

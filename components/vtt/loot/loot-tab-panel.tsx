@@ -7,7 +7,6 @@ import { TreasuryStrip } from "./treasury-strip";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
-  Coins,
   Hand,
   Trash2,
   ChevronDown,
@@ -47,12 +46,6 @@ export function LootTabPanel({ campaignId, userId, isDm }: Props) {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-card">
-      <div className="shrink-0 border-b border-border p-3">
-        <div className="flex items-center gap-2">
-          <Coins className="h-4 w-4 text-amber-400" />
-          <h2 className="text-sm font-semibold flex-1">Loot</h2>
-        </div>
-      </div>
       <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-3">
         <TreasuryStrip campaignId={campaignId} isDm={isDm} />
 

@@ -448,6 +448,8 @@ export const GameCanvas = ({
       // Radix popovers/dropdowns/dialogs render in a portal outside our DOM
       // tree; clicks in them shouldn't deselect the token.
       if (target.closest('[data-radix-popper-content-wrapper]')) return;
+      if (target.closest('[data-slot="select-content"]')) return;
+      if (target.closest('[data-radix-select-viewport]')) return;
       if (target.closest('[role="dialog"]')) return;
       if (target.closest('[role="alertdialog"]')) return;
       setSelectedTokenId(null);

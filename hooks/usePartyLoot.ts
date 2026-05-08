@@ -295,7 +295,15 @@ export function usePartyLoot(campaignId: string | null) {
         toast.error("Couldn't challenge — try again.");
         return null;
       }
-      return (data as { id: string }).id;
+      const id = (data as { id: string }).id;
+      // Auto-open the modal for the challenger; defender gets a toast.
+      try {
+        const { useDuelViewStore } = await import("@/lib/store/duel-view-store");
+        useDuelViewStore.getState().open(id);
+      } catch {
+        /* store may not be available in all callers — ignore */
+      }
+      return id;
     },
     [loot]
   );
