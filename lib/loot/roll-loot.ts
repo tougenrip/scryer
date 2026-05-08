@@ -105,23 +105,57 @@ const uid = () =>
     ? crypto.randomUUID()
     : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
+const RARITY_LADDER = [
+  "Common",
+  "Uncommon",
+  "Rare",
+  "Very Rare",
+  "Legendary",
+] as const;
+
 /**
- * Pick a random magic item of the given rarity from `srd_magic_items`. Falls
- * back to the next rarity down if the requested rarity has no rows.
+ * Per-item rarity drift. Players want visual variety in a hoard, so each
+ * item rolled at a "headline" rarity has a chance of dropping a tier
+ * (smaller chance of dropping two). The DMG row's expected tier is still
+ * the most common outcome, but a Very Rare hoard might surface a couple
+ * of Rares or even an Uncommon — exactly the texture players expect.
+ *
+ *   intended         70%
+ *   one tier below   22%
+ *   two tiers below   8%
+ *
+ * Common can't drop further (it's the floor); Uncommon can drop only one.
  */
-export async function pickRandomMagicItem(rarity: string): Promise<{
+function driftRarity(intended: string): string {
+  const idx = RARITY_LADDER.indexOf(intended as (typeof RARITY_LADDER)[number]);
+  if (idx <= 0) return intended;
+  const r = Math.random();
+  let drift = 0;
+  if (r < 0.7) drift = 0;
+  else if (r < 0.92) drift = 1;
+  else drift = 2;
+  const target = Math.max(0, idx - drift);
+  return RARITY_LADDER[target];
+}
+
+/**
+ * Pick a random magic item of the given rarity from `srd_magic_items`. The
+ * `intended` arg is the table's headline rarity; we drift down a tier ~30%
+ * of the time for variety. Falls back to the next rarity down if the
+ * (drifted) rarity has no rows.
+ */
+export async function pickRandomMagicItem(intended: string): Promise<{
   index: string;
   name: string;
   rarity: string;
 } | null> {
   const supabase = createClient();
-  const tryRarities = [
-    rarity,
-    // Soft fallbacks if the requested rarity has nothing.
-    "Uncommon",
-    "Common",
-  ];
-  for (const r of tryRarities) {
+  const drifted = driftRarity(intended);
+  const idx = RARITY_LADDER.indexOf(drifted as (typeof RARITY_LADDER)[number]);
+  // Try the drifted rarity first, then progressively lower ones if that
+  // rarity is empty in the DB.
+  const candidates = idx >= 0 ? RARITY_LADDER.slice(0, idx + 1).reverse() : [];
+  for (const r of candidates) {
     const { data } = await supabase
       .from("srd_magic_items")
       .select("index,name,rarity")
@@ -206,11 +240,26 @@ export async function rollLootForEncounter(
     coins = addCoins(coins, rollCoins(pickIndividualRow(monsterTier, p).coins));
   }
 
-  // One hoard roll for the encounter.
-  const hoardP = rollDie(100);
-  const hoardRow = pickHoardRow(tier, hoardP);
-  coins = addCoins(coins, rollCoins(hoardRow.coins));
-  const items = await resolveMagicEntries(hoardRow.magic);
+  // Hoard rolls scale with encounter size. Count "boss-tier" monsters —
+  // any monster within 2 CR of the strongest. A lone dragon = 1 hoard. Six
+  // goblins + a hobgoblin chief = 1 hoard (only the chief qualifies). Four
+  // ogres = up to 3 hoards (all are boss-tier). Capped at 3 so a swarm of
+  // identical monsters can't print four magic items per fight.
+  const bossThreshold = Math.max(1, highestCr - 2);
+  const bossCount = monsters.filter(
+    (m) => (m.challenge_rating ?? 0) >= bossThreshold
+  ).length;
+  const hoardRolls = Math.min(3, Math.max(1, bossCount));
+
+  const hoardPercentiles: number[] = [];
+  let items: RolledItem[] = [];
+  for (let i = 0; i < hoardRolls; i++) {
+    const hoardP = rollDie(100);
+    hoardPercentiles.push(hoardP);
+    const hoardRow = pickHoardRow(tier, hoardP);
+    coins = addCoins(coins, rollCoins(hoardRow.coins));
+    items = items.concat(await resolveMagicEntries(hoardRow.magic));
+  }
 
   return {
     coins,
@@ -218,7 +267,7 @@ export async function rollLootForEncounter(
     trace: {
       tier,
       individualPercentiles,
-      hoardPercentile: hoardP,
+      hoardPercentile: hoardPercentiles[0] ?? 0,
     },
   };
 }

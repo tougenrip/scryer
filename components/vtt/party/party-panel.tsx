@@ -1,9 +1,13 @@
 "use client";
 
+import { useState } from "react";
 import { useCampaignCharacters } from "@/hooks/useDndContent";
-import { ExternalLink, User as UserIcon } from "lucide-react";
+import { ExternalLink, User as UserIcon, Coins, Swords } from "lucide-react";
 import Link from "next/link";
 import { useCharacterCardsStore } from "@/lib/store/character-cards-store";
+import { LootTabPanel } from "@/components/vtt/loot/loot-tab-panel";
+import { CasualDuelsTab } from "@/components/vtt/loot/duel/casual-duels-tab";
+import { cn } from "@/lib/utils";
 
 interface Props {
   campaignId: string | null;
@@ -18,24 +22,86 @@ interface Props {
  * UX. Use the inline external-link icon to open the full route in a new
  * tab instead.
  */
-export function PartyPanel({ campaignId, userId }: Props) {
+type SubTab = "roster" | "loot" | "duels";
+
+export function PartyPanel({ campaignId, userId, isDm }: Props) {
   const { characters, loading } = useCampaignCharacters(campaignId ?? "");
   const openSheet = useCharacterCardsStore((s) => s.open);
+  const [tab, setTab] = useState<SubTab>("roster");
 
   if (!campaignId) return null;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-card">
-      <div className="shrink-0 border-b border-border p-3">
-        <div className="flex items-center gap-2">
+      <div className="shrink-0 border-b border-border">
+        <div className="flex items-center gap-2 px-3 pt-3">
           <UserIcon className="h-4 w-4 text-amber-400" />
-          <h2 className="text-sm font-semibold">Party</h2>
+          <h2 className="text-sm font-semibold flex-1">Party</h2>
         </div>
-        <p className="mt-1 text-[10px] text-muted-foreground">
-          Open any character sheet — read-only for sheets you don&apos;t own.
-        </p>
+        <div className="flex gap-1 px-2 pt-2">
+          {(
+            [
+              { id: "roster", label: "Roster", icon: UserIcon },
+              { id: "loot", label: "Inventory", icon: Coins },
+              { id: "duels", label: "Duels", icon: Swords },
+            ] as const
+          ).map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setTab(id)}
+              className={cn(
+                "inline-flex items-center gap-1.5 px-3 py-1.5 -mb-px text-xs font-medium border-b-2",
+                tab === id
+                  ? "text-amber-400 border-amber-400"
+                  : "text-muted-foreground border-transparent hover:text-foreground"
+              )}
+            >
+              <Icon className="h-3.5 w-3.5" />
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
+      {tab === "loot" ? (
+        // Re-mount the existing Loot panel inside the Party tab. It already
+        // includes the treasury strip, claim/assign UI, and DM controls.
+        <LootTabPanel campaignId={campaignId} userId={userId} isDm={isDm} />
+      ) : tab === "duels" ? (
+        <CasualDuelsTab campaignId={campaignId} userId={userId} isDm={isDm} />
+      ) : (
+        <RosterContent
+          campaignId={campaignId}
+          userId={userId}
+          characters={characters}
+          loading={loading}
+          openSheet={openSheet}
+        />
+      )}
+    </div>
+  );
+}
+
+function RosterContent({
+  campaignId,
+  userId,
+  characters,
+  loading,
+  openSheet,
+}: {
+  campaignId: string;
+  userId: string | null;
+  characters: ReturnType<typeof useCampaignCharacters>["characters"];
+  loading: boolean;
+  openSheet: (id: string) => void;
+}) {
+  return (
+    <>
       <div className="flex-1 min-h-0 overflow-y-auto p-2 space-y-2">
+        <p className="px-1 pt-1 text-[10px] text-muted-foreground">
+          Click any character to open the sheet — read-only for sheets you
+          don&apos;t own.
+        </p>
         {loading && (
           <p className="px-2 py-3 text-[11px] text-muted-foreground text-center">
             Loading party…
@@ -109,6 +175,6 @@ export function PartyPanel({ campaignId, userId }: Props) {
           );
         })}
       </div>
-    </div>
+    </>
   );
 }

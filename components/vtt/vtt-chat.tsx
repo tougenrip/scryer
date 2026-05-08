@@ -147,6 +147,9 @@ function ChatRow({ message, isLast }: { message: VttMessage; isLast: boolean }) 
       />
     );
   }
+  if (isDuelResultPayload(message.payload)) {
+    return <ChatDuelResult message={message} time={time} />;
+  }
   return (
     <div className={cn("text-xs leading-snug", isLast && "text-sm")}>
       <div>
@@ -156,6 +159,48 @@ function ChatRow({ message, isLast }: { message: VttMessage; isLast: boolean }) 
         <span className="ml-2 text-[10px] text-muted-foreground">{time}</span>
       </div>
       <div className={cn("mt-0.5", isLast && "font-medium")}>{message.body}</div>
+    </div>
+  );
+}
+
+interface DuelResultPayload {
+  kind: "duel-result";
+  duel_id: string;
+  game: "rps" | "coin";
+  winner_character_id: string;
+  loser_character_id: string;
+  item_name: string | null;
+  defender_choice: string | null;
+  challenger_choice: string | null;
+}
+
+function isDuelResultPayload(p: unknown): p is DuelResultPayload {
+  return (
+    !!p &&
+    typeof p === "object" &&
+    (p as { kind?: string }).kind === "duel-result"
+  );
+}
+
+function ChatDuelResult({
+  message,
+  time,
+}: {
+  message: VttMessage;
+  time: string;
+}) {
+  const game = (message.payload as DuelResultPayload).game;
+  return (
+    <div className="rounded-md border border-amber-500/40 bg-amber-500/5 px-3 py-2">
+      <div className="flex items-center gap-1.5">
+        <Swords className="h-3 w-3 text-amber-400" />
+        <span className="text-[10px] font-semibold uppercase tracking-wide text-amber-400">
+          Duel · {game === "rps" ? "RPS" : "Coin"}
+        </span>
+        <span className="text-[10px] text-muted-foreground">·</span>
+        <span className="text-[10px] text-muted-foreground">{time}</span>
+      </div>
+      <p className="mt-0.5 text-sm font-serif">{message.body}</p>
     </div>
   );
 }

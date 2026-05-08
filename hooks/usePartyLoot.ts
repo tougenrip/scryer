@@ -113,11 +113,15 @@ export function usePartyLoot(campaignId: string | null) {
   );
 
   /**
-   * Phase 1: claim is direct + immediate. Phase 2 adds the 3-second
-   * challenge window via an RPC.
+   * Two-step claim:
+   *   1. Set pending_claim + a 3-second challenge_until window so other
+   *      players can fight for it.
+   *   2. After the window expires (no challenge created), client finalizes
+   *      the claim — moves the item into the character's inventory.
    *
-   * Also pushes the item into the character's own inventory JSONB so it
-   * shows up on their sheet.
+   * If a challenge appears mid-window, we leave the pending fields in
+   * place; the duel trigger eventually resolves and writes the final
+   * claim.
    */
   const claim = useCallback(
     async (lootId: string, characterId: string) => {
@@ -128,12 +132,19 @@ export function usePartyLoot(campaignId: string | null) {
         toast.error("Already claimed.");
         return;
       }
-      // Optimistic
-      const now = new Date().toISOString();
+      const now = new Date();
+      const challengeUntil = new Date(now.getTime() + 3000);
+
+      // Optimistic — set pending state.
       setLoot((prev) =>
         prev.map((r) =>
           r.id === lootId
-            ? { ...r, claimed_by_character_id: characterId, claimed_at: now }
+            ? {
+                ...r,
+                pending_claim_by_character_id: characterId,
+                pending_claim_at: now.toISOString(),
+                challenge_until: challengeUntil.toISOString(),
+              }
             : r
         )
       );
@@ -141,48 +152,150 @@ export function usePartyLoot(campaignId: string | null) {
       const { error } = await supabase
         .from("party_loot")
         .update({
-          claimed_by_character_id: characterId,
-          claimed_at: now,
+          pending_claim_by_character_id: characterId,
+          pending_claim_at: now.toISOString(),
+          challenge_until: challengeUntil.toISOString(),
         } as never)
         .eq("id", lootId)
-        .is("claimed_by_character_id", null);
+        .is("claimed_by_character_id", null)
+        .is("pending_claim_by_character_id", null);
       if (error) {
         console.error("Failed to claim loot:", error);
         toast.error("Couldn't claim — someone else may have got there first.");
-        // Revert
-        setLoot((prev) =>
-          prev.map((r) =>
-            r.id === lootId
-              ? { ...r, claimed_by_character_id: null, claimed_at: null }
-              : r
-          )
-        );
+        // Refresh from DB
+        const { data } = await supabase
+          .from("party_loot")
+          .select("*")
+          .eq("id", lootId)
+          .single();
+        if (data) {
+          setLoot((prev) =>
+            prev.map((r) => (r.id === lootId ? (data as PartyLootRow) : r))
+          );
+        }
         return;
       }
 
-      // Append to character.inventory JSONB (best-effort). Read-modify-write
-      // pattern — fine for single-claimant. Phase 2's RPC will atomicize.
-      const { data: character } = await supabase
+      // After the challenge window, if no duel was created, finalize.
+      setTimeout(async () => {
+        // Re-read state from DB to see if a duel exists / pending still set.
+        const { data: cur } = await supabase
+          .from("party_loot")
+          .select("*")
+          .eq("id", lootId)
+          .single();
+        const row = cur as PartyLootRow | null;
+        if (!row || row.claimed_by_character_id) return;
+        if (
+          row.pending_claim_by_character_id !== characterId ||
+          !row.challenge_until
+        )
+          return;
+
+        // Was a duel created in the window? Look it up.
+        const { data: duels } = await supabase
+          .from("loot_duels")
+          .select("id,status")
+          .eq("loot_id", lootId)
+          .neq("status", "done")
+          .limit(1);
+        if (duels && duels.length > 0) return; // duel pending — let trigger resolve
+
+        // Finalize.
+        await supabase
+          .from("party_loot")
+          .update({
+            claimed_by_character_id: characterId,
+            claimed_at: new Date().toISOString(),
+            pending_claim_by_character_id: null,
+            pending_claim_at: null,
+            challenge_until: null,
+          } as never)
+          .eq("id", lootId)
+          .is("claimed_by_character_id", null);
+
+        // Append to inventory.
+        const { data: character } = await supabase
+          .from("characters")
+          .select("inventory")
+          .eq("id", characterId)
+          .single();
+        const curInv =
+          (character?.inventory as Array<Record<string, unknown>>) ?? [];
+        await supabase
+          .from("characters")
+          .update({
+            inventory: [
+              ...curInv,
+              {
+                source: row.item_source,
+                index: row.item_index,
+                quantity: row.quantity,
+                equipped: false,
+                attuned: false,
+                notes: null,
+              },
+            ],
+          } as never)
+          .eq("id", characterId);
+      }, 3100);
+    },
+    [loot]
+  );
+
+  /**
+   * Open a duel on a pending-claimed loot row. Returns the new duel id, or
+   * null on failure (e.g. window expired).
+   */
+  const challenge = useCallback(
+    async (
+      lootId: string,
+      challengerCharacterId: string,
+      challengerUserId: string,
+      game: "rps" | "coin"
+    ): Promise<string | null> => {
+      const supabase = createClient();
+      const target = loot.find((r) => r.id === lootId);
+      if (!target) return null;
+      if (
+        !target.pending_claim_by_character_id ||
+        !target.challenge_until ||
+        new Date(target.challenge_until).getTime() < Date.now()
+      ) {
+        toast.error("Challenge window has closed.");
+        return null;
+      }
+
+      // Need the defender's user_id for the duel row.
+      const { data: defenderChar } = await supabase
         .from("characters")
-        .select("inventory")
-        .eq("id", characterId)
+        .select("user_id")
+        .eq("id", target.pending_claim_by_character_id)
         .single();
-      const cur = (character?.inventory as Array<Record<string, unknown>>) ?? [];
-      const next = [
-        ...cur,
-        {
-          source: target.item_source,
-          index: target.item_index,
-          quantity: target.quantity,
-          equipped: false,
-          attuned: false,
-          notes: null,
-        },
-      ];
-      await supabase
-        .from("characters")
-        .update({ inventory: next } as never)
-        .eq("id", characterId);
+      if (!defenderChar?.user_id) {
+        toast.error("Couldn't find defender.");
+        return null;
+      }
+
+      const { data, error } = await supabase
+        .from("loot_duels")
+        .insert({
+          campaign_id: target.campaign_id,
+          loot_id: lootId,
+          game,
+          defender_character_id: target.pending_claim_by_character_id,
+          defender_user_id: defenderChar.user_id,
+          challenger_character_id: challengerCharacterId,
+          challenger_user_id: challengerUserId,
+        } as never)
+        .select("id")
+        .single();
+      if (error) {
+        console.error("Failed to challenge:", error);
+        toast.error("Couldn't challenge — try again.");
+        return null;
+      }
+      return (data as { id: string }).id;
     },
     [loot]
   );
@@ -201,5 +314,5 @@ export function usePartyLoot(campaignId: string | null) {
     }
   }, []);
 
-  return { loot, loading, insertItems, claim, removeRow };
+  return { loot, loading, insertItems, claim, challenge, removeRow };
 }

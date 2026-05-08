@@ -18,7 +18,7 @@ create table if not exists public.party_loot (
   pending_claim_by_character_id uuid references public.characters(id) on delete set null,
   pending_claim_at timestamptz,
   challenge_until timestamptz,
-  source_encounter_id uuid references public.encounters(id) on delete set null,
+  source_encounter_id uuid references public.combat_encounters(id) on delete set null,
   created_at timestamptz not null default now()
 );
 
