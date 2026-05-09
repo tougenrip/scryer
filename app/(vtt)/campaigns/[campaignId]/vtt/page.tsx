@@ -11,12 +11,17 @@ import {
   MousePointer2,
   Ruler,
   CloudRain,
+  CloudSnow,
+  CloudLightning,
+  Cloud,
+  Sun,
   Crown,
   SkipForward,
   ScrollText,
   Crosshair,
 } from "lucide-react";
 import { VttAoePopover } from "@/components/vtt/vtt-aoe-popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { VttPrivateToggle } from "@/components/vtt/vtt-overlay-controls";
 import { VttDrawingsTool } from "@/components/vtt/vtt-drawings-tool";
 import { VttShortcutsHelp } from "@/components/vtt/vtt-shortcuts-help";
@@ -463,14 +468,85 @@ export default function VttPage() {
                 <VttPrivateToggle />
                 <VttGridControls mapId={mapId} isDm={!!isDm} mapLoading={loading} />
                 <VttFogControls mapId={mapId} isDm={!!isDm} mapLoading={loading} />
-                <ToolButton
-                  active={weatherType !== "none"}
-                  onClick={() =>
-                    setWeatherType(weatherType === "none" ? "rain" : "none")
-                  }
-                  icon={<CloudRain className="h-4 w-4" />}
-                  label="Rain"
-                />
+                <Popover>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant={weatherType !== "none" ? "default" : "ghost"}
+                          size="icon"
+                          className={cn(
+                            "h-8 w-8",
+                            weatherType !== "none"
+                              ? "bg-primary text-primary-foreground"
+                              : "text-muted-foreground"
+                          )}
+                        >
+                          {weatherType === "rain" ? (
+                            <CloudRain className="h-4 w-4" />
+                          ) : weatherType === "storm" ? (
+                            <CloudLightning className="h-4 w-4" />
+                          ) : weatherType === "snow" ? (
+                            <CloudSnow className="h-4 w-4" />
+                          ) : weatherType === "sunny" ? (
+                            <Sun className="h-4 w-4" />
+                          ) : (
+                            <Cloud className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </PopoverTrigger>
+                    </TooltipTrigger>
+                    <TooltipContent>Weather</TooltipContent>
+                  </Tooltip>
+                  <PopoverContent
+                    align="end"
+                    sideOffset={8}
+                    className="w-44 p-1"
+                  >
+                    <div className="flex flex-col gap-0.5">
+                      <Button
+                        variant={weatherType === "none" ? "default" : "ghost"}
+                        size="sm"
+                        className="justify-start h-8 text-xs"
+                        onClick={() => setWeatherType("none")}
+                      >
+                        <Cloud className="h-3.5 w-3.5 mr-2" /> Clear
+                      </Button>
+                      <Button
+                        variant={weatherType === "rain" ? "default" : "ghost"}
+                        size="sm"
+                        className="justify-start h-8 text-xs"
+                        onClick={() => setWeatherType("rain")}
+                      >
+                        <CloudRain className="h-3.5 w-3.5 mr-2" /> Rain
+                      </Button>
+                      <Button
+                        variant={weatherType === "storm" ? "default" : "ghost"}
+                        size="sm"
+                        className="justify-start h-8 text-xs"
+                        onClick={() => setWeatherType("storm")}
+                      >
+                        <CloudLightning className="h-3.5 w-3.5 mr-2" /> Storm
+                      </Button>
+                      <Button
+                        variant={weatherType === "snow" ? "default" : "ghost"}
+                        size="sm"
+                        className="justify-start h-8 text-xs"
+                        onClick={() => setWeatherType("snow")}
+                      >
+                        <CloudSnow className="h-3.5 w-3.5 mr-2" /> Snow
+                      </Button>
+                      <Button
+                        variant={weatherType === "sunny" ? "default" : "ghost"}
+                        size="sm"
+                        className="justify-start h-8 text-xs"
+                        onClick={() => setWeatherType("sunny")}
+                      >
+                        <Sun className="h-3.5 w-3.5 mr-2" /> Sunny
+                      </Button>
+                    </div>
+                  </PopoverContent>
+                </Popover>
                 <VttVisionTool
                   visionEnabled={!!loadedMapItem?.vision_enabled}
                   sceneDark={!!loadedMapItem?.scene_dark}
@@ -500,12 +576,30 @@ export default function VttPage() {
               </div>
             )}
 
-            {isDm && activeEncounter && sorted.length > 0 && (
-              <Button size="sm" className="h-8 text-xs" onClick={() => nextTurn()}>
-                End turn
-                <SkipForward className="h-3.5 w-3.5 ml-1" />
-              </Button>
-            )}
+            {(() => {
+              if (!activeEncounter || sorted.length === 0) return null;
+              const active = sorted[activeEncounter.current_turn_index ?? 0];
+              if (!active) return null;
+              const activeOwnerUserId =
+                active.token?.character?.user_id ?? null;
+              // Show End turn to whoever owns the current participant:
+              //   - PC turn: only that PC's owning user.
+              //   - Monster / unowned token: only the DM.
+              const canEnd = activeOwnerUserId
+                ? activeOwnerUserId === userId
+                : !!isDm;
+              if (!canEnd) return null;
+              return (
+                <Button
+                  size="sm"
+                  className="h-8 text-xs"
+                  onClick={() => nextTurn()}
+                >
+                  End turn
+                  <SkipForward className="h-3.5 w-3.5 ml-1" />
+                </Button>
+              );
+            })()}
           </div>
         </header>
 
@@ -632,7 +726,11 @@ export default function VttPage() {
             <HandoutsLayer campaignId={campaignId} userId={userId} isDm={!!isDm} />
             <CharacterCardsLayer campaignId={campaignId} userId={userId} />
             <DuelLayer campaignId={campaignId} userId={userId} />
-            <VttDayCycleEmblem campaignId={campaignId} isDm={!!isDm} />
+            <VttDayCycleEmblem
+              campaignId={campaignId}
+              isDm={!!isDm}
+              rightDrawerOpen={rightDock.inspector || rightDock.chat}
+            />
             <VttRightSidebar
               openState={rightDock}
               onToggleTab={(tab) => setRightDock(prev => ({ ...prev, [tab]: !prev[tab] }))}

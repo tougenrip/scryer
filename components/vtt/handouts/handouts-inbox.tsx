@@ -1,13 +1,16 @@
 "use client";
 
-import { useVttHandouts } from "@/hooks/useVttHandouts";
+import { useMemo, useState } from "react";
+import { useVttHandouts, type HandoutKind } from "@/hooks/useVttHandouts";
 import { useHandoutsStore } from "@/lib/store/handouts-store";
+import { Input } from "@/components/ui/input";
 import {
   Inbox,
   MapPinned,
   Image as ImageIcon,
   ScrollText,
   User as UserIcon,
+  Search,
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -31,15 +34,40 @@ function relativeTime(iso: string): string {
   return `${days}d ago`;
 }
 
+type KindFilter = "all" | HandoutKind;
+type ReadFilter = "all" | "unread";
+
+const KIND_TABS: Array<{ id: KindFilter; label: string }> = [
+  { id: "all", label: "All" },
+  { id: "scene", label: "Scenes" },
+  { id: "pin", label: "Pins" },
+  { id: "bounty", label: "Bounties" },
+  { id: "npc", label: "NPCs" },
+];
+
 export function HandoutsInbox({ campaignId, userId, isDm }: Props) {
   const { handouts, reads, readCount } = useVttHandouts(campaignId, userId);
   const open = useHandoutsStore((s) => s.open);
   const closeCard = useHandoutsStore((s) => s.closeCard);
-  // Subscribe to the cards array reference directly — deriving a new array
-  // (.map) inside the selector returns a fresh value every render and breaks
-  // useSyncExternalStore's snapshot caching ("infinite loop" warning).
   const cards = useHandoutsStore((s) => s.cards);
   const openSet = new Set(cards.map((c) => c.id));
+
+  const [kindFilter, setKindFilter] = useState<KindFilter>("all");
+  const [readFilter, setReadFilter] = useState<ReadFilter>("all");
+  const [query, setQuery] = useState("");
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return handouts.filter((h) => {
+      if (kindFilter !== "all" && h.snapshot.kind !== kindFilter) return false;
+      if (readFilter === "unread" && reads[h.id]?.read_at) return false;
+      if (q) {
+        const hay = `${h.snapshot.name ?? ""}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [handouts, kindFilter, readFilter, reads, query]);
 
   if (handouts.length === 0) {
     return (
@@ -50,9 +78,75 @@ export function HandoutsInbox({ campaignId, userId, isDm }: Props) {
     );
   }
 
+  // Counts for the kind-tab badges (computed against the read filter +
+  // search so they reflect what the user would actually see).
+  const tabCounts = (kind: KindFilter) =>
+    handouts.filter((h) => {
+      if (kind !== "all" && h.snapshot.kind !== kind) return false;
+      if (readFilter === "unread" && reads[h.id]?.read_at) return false;
+      const q = query.trim().toLowerCase();
+      if (q && !(h.snapshot.name ?? "").toLowerCase().includes(q)) return false;
+      return true;
+    }).length;
+
   return (
-    <ul className="divide-y divide-border rounded border border-border overflow-hidden">
-      {handouts.map((h) => {
+    <div className="space-y-2">
+      {/* Filters */}
+      <div className="space-y-1.5">
+        <div className="relative">
+          <Search className="h-3 w-3 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search handouts…"
+            className="h-7 pl-7 text-xs"
+          />
+        </div>
+        <div className="flex flex-wrap gap-1">
+          {KIND_TABS.map((t) => {
+            const count = tabCounts(t.id);
+            return (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setKindFilter(t.id)}
+                className={cn(
+                  "text-[10px] px-2 py-0.5 rounded font-medium transition-colors",
+                  kindFilter === t.id
+                    ? "bg-amber-500/20 text-amber-400"
+                    : "bg-muted text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {t.label}{" "}
+                <span className="opacity-60 tabular-nums">{count}</span>
+              </button>
+            );
+          })}
+          <button
+            type="button"
+            onClick={() =>
+              setReadFilter(readFilter === "unread" ? "all" : "unread")
+            }
+            className={cn(
+              "text-[10px] px-2 py-0.5 rounded font-medium transition-colors ml-auto",
+              readFilter === "unread"
+                ? "bg-amber-500/20 text-amber-400"
+                : "bg-muted text-muted-foreground hover:text-foreground"
+            )}
+            title="Show only unread"
+          >
+            Unread
+          </button>
+        </div>
+      </div>
+
+      {filtered.length === 0 ? (
+        <p className="px-2 py-3 text-[11px] italic text-muted-foreground text-center">
+          No handouts match these filters.
+        </p>
+      ) : (
+        <ul className="divide-y divide-border rounded border border-border overflow-hidden">
+          {filtered.map((h) => {
         const own = reads[h.id];
         const unread = !own?.read_at;
         const counts = isDm ? readCount(h.id) : null;
@@ -112,6 +206,8 @@ export function HandoutsInbox({ campaignId, userId, isDm }: Props) {
           </li>
         );
       })}
-    </ul>
+        </ul>
+      )}
+    </div>
   );
 }

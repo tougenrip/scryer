@@ -22,6 +22,7 @@ export function VttInitiativePanel({
 }: Props) {
   const setSelectedTokenId = useVttStore((s) => s.setSelectedTokenId);
   const selectedTokenId = useVttStore((s) => s.selectedTokenId);
+  const setHoveredTokenId = useVttStore((s) => s.setHoveredTokenId);
 
   const {
     activeEncounter,
@@ -92,6 +93,10 @@ export function VttInitiativePanel({
                 key={p.id}
                 type="button"
                 onClick={() => token && setSelectedTokenId(token.id)}
+                onMouseEnter={() => token && setHoveredTokenId(token.id)}
+                onMouseLeave={() => setHoveredTokenId(null)}
+                onFocus={() => token && setHoveredTokenId(token.id)}
+                onBlur={() => setHoveredTokenId(null)}
                 className={cn(
                   "relative w-full rounded-md border px-2 py-1.5 text-left transition-colors",
                   isTurn

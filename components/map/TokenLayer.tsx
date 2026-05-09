@@ -31,6 +31,7 @@ const TokenLayerComponent: React.FC<TokenLayerProps> = ({
   const gridSize = useVttStore((state) => state.gridSize);
   const activeTool = useVttStore((state) => state.activeTool);
   const selectedTokenIds = useVttStore((state) => state.selectedTokenIds);
+  const hoveredTokenId = useVttStore((state) => state.hoveredTokenId);
   const pendingTokenPlacement = useVttStore((state) => state.pendingTokenPlacement);
   const setSelectedTokenId = useVttStore((state) => state.setSelectedTokenId);
   const setSelectedTokenIds = useVttStore((state) => state.setSelectedTokenIds);
@@ -88,6 +89,7 @@ const TokenLayerComponent: React.FC<TokenLayerProps> = ({
             gridSize={gridSize}
             isDraggable={isDraggable}
             isSelected={selectedTokenIds.includes(token.id)}
+            isHovered={hoveredTokenId === token.id}
             pendingPlacement={!!pendingTokenPlacement}
             groupDragOffset={
               isInGroupDrag && groupDrag

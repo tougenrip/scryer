@@ -41,6 +41,7 @@ export interface TokenData {
   character?: {
     name: string;
     image_url: string | null;
+    user_id: string | null;
   };
   monster?: {
     index: string;
@@ -120,7 +121,8 @@ export function useCombat(campaignId: string, mapId?: string, enabled: boolean =
             hp_max,
             character:characters (
               name,
-              image_url
+              image_url,
+              user_id
             )
           )
         `)

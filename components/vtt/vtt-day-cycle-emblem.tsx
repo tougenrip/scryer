@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 import { useCampaignCalendarLive } from "@/hooks/useCampaignCalendarLive";
@@ -11,6 +11,9 @@ import { cn } from "@/lib/utils";
 interface Props {
   campaignId: string | null;
   isDm: boolean;
+  /** When true, the right-side drawer is open and the emblem should slide
+   *  underneath it. We achieve this with a dynamic z-index. */
+  rightDrawerOpen?: boolean;
 }
 
 const DEFAULT_MONTHS = [
@@ -43,12 +46,50 @@ const DEFAULT_MONTHS = [
  *   the sun moving overhead. The sweep is mounted as a fixed gradient
  *   overlay just above the canvas (below sidebars).
  */
-export function VttDayCycleEmblem({ campaignId, isDm }: Props) {
+export function VttDayCycleEmblem({ campaignId, isDm, rightDrawerOpen }: Props) {
   // Shared realtime subscription — co-tenant with VttTimeHud so both
   // widgets stay in lockstep without doubling up on channels.
   const { calendar, setCalendar } = useCampaignCalendarLive(campaignId);
   const [spinning, setSpinning] = useState(false);
   const advancingRef = useRef(false);
+  // Track the last-seen date so we can detect when ANYONE (including
+  // another client — i.e. the DM, when we're a player) advances the
+  // day. When that happens we trigger the same spin + shadow sweep
+  // animation locally so every party member sees the in-world day pass.
+  const lastDateRef = useRef<{
+    day: number;
+    month: number;
+    year: number;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!calendar) return;
+    const cur = {
+      day: calendar.current_day,
+      month: calendar.current_month,
+      year: calendar.current_year,
+    };
+    const prev = lastDateRef.current;
+    lastDateRef.current = cur;
+    if (!prev) return; // first load — nothing to compare to
+    if (
+      cur.day === prev.day &&
+      cur.month === prev.month &&
+      cur.year === prev.year
+    ) {
+      return; // unrelated update (hour, weather, etc.)
+    }
+    // Day changed. If we're already animating (the local DM who clicked)
+    // skip — they already kicked off the spin. Otherwise play it.
+    if (spinning || advancingRef.current) return;
+    setSpinning(true);
+    window.setTimeout(() => setSpinning(false), 2400);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    calendar?.current_day,
+    calendar?.current_month,
+    calendar?.current_year,
+  ]);
 
   const monthName = useMemo(() => {
     if (!calendar) return "";
@@ -85,36 +126,60 @@ export function VttDayCycleEmblem({ campaignId, isDm }: Props) {
 
   return (
     <>
-      {/* Shadow sweep — only mounted during the spin so it never stays
-          as a full-viewport composited layer when idle. */}
+      {/* Shadow sweep + full-screen night-tint, only mounted during spin. */}
       {spinning && (
-        <div
-          aria-hidden
-          className="pointer-events-none fixed inset-0 z-15"
-          style={{ zIndex: 15 }}
-        >
+        <>
+          {/* Full-viewport subtle blue tint that fades in then out — gives
+              the whole HUD a moonlight wash for the duration of the
+              meditation, then returns to normal. */}
           <div
-            className="absolute inset-0 day-cycle-shadow-sweep"
+            aria-hidden
+            className="pointer-events-none fixed inset-0 day-cycle-night-tint"
             style={{
-              background:
-                "linear-gradient(115deg, rgba(0,0,0,0) 30%, rgba(0,0,0,0.55) 50%, rgba(0,0,0,0) 70%)",
-              transform: "translateX(-100%)",
-              willChange: "transform",
+              zIndex: 14,
+              // Deep midnight indigo — darker base hue, dialed back via
+              // animation opacity so the wash reads as night without
+              // burying the canvas.
+              backgroundColor: "rgb(6, 10, 30)",
+              willChange: "opacity",
             }}
           />
-        </div>
+          {/* Moving shadow sweep on top of the tint. */}
+          <div
+            aria-hidden
+            className="pointer-events-none fixed inset-0"
+            style={{ zIndex: 15 }}
+          >
+            <div
+              className="absolute inset-0 day-cycle-shadow-sweep"
+              style={{
+                // Darker base hue, but middle is more transparent so the
+                // canvas underneath still reads through cleanly during
+                // the sweep.
+                background:
+                  "linear-gradient(115deg, rgba(4,8,24,0) 15%, rgba(4,8,24,0.6) 38%, rgba(6,10,30,0.45) 50%, rgba(4,8,24,0.6) 62%, rgba(4,8,24,0) 85%)",
+                transform: "translateX(-100%)",
+                willChange: "transform",
+              }}
+            />
+          </div>
+        </>
       )}
 
       {/* The emblem. Anchored bottom-right but pushed off-screen so only
-          the top-left ~60% (rays + central medallion) is visible. The
-          medallion is what carries the date text — it has to stay on-
-          screen. */}
+          the top-left ~60% (rays + central medallion) is visible.
+          z-index 31 (above the right sidebar wrapper at z-30) when the
+          drawer is closed so the sun visibly sits in front of the nav
+          column. When the drawer is open we drop to z-25 so the panel
+          slides over the emblem. */}
       <div
-        className="pointer-events-none fixed bottom-0 right-0 z-20"
+        className="pointer-events-none fixed bottom-0 right-0"
         style={{
           width: 420,
           height: 420,
-          transform: "translate(25%, 40%)",
+          transform: "translate(38%, 40%)",
+          zIndex: rightDrawerOpen ? 25 : 31,
+          transition: "z-index 0s",
         }}
       >
         <button
@@ -136,7 +201,14 @@ export function VttDayCycleEmblem({ campaignId, isDm }: Props) {
               "relative w-full h-full",
               spinning ? "day-cycle-spin" : "day-cycle-wobble"
             )}
-            style={{ transformOrigin: "50% 50%" }}
+            style={{
+              transformOrigin: "50% 50%",
+              // drop-shadow on the alpha-channel art gives the emblem
+              // depth — the rays cast a soft halo + the disc sits on
+              // an offset shadow so it looks raised off the canvas.
+              filter:
+                "drop-shadow(0 10px 18px rgba(0,0,0,0.6)) drop-shadow(0 0 14px rgba(0,0,0,0.45))",
+            }}
           >
             {/* Sun art (default). */}
             <Image
@@ -170,14 +242,15 @@ export function VttDayCycleEmblem({ campaignId, isDm }: Props) {
               left: "50%",
               top: "50%",
               transform: "translate(-50%, -50%)",
-              width: "34%",
+              width: "44%",
             }}
           >
             {isDm && !spinning && (
               <span
                 className="uppercase tracking-[0.2em] font-bold text-white/95 drop-shadow"
                 style={{
-                  fontSize: 13,
+                  fontSize: 16,
+                  lineHeight: 1,
                   fontVariant: "small-caps",
                   textShadow: "0 1px 4px rgba(0,0,0,0.7)",
                 }}
@@ -186,10 +259,11 @@ export function VttDayCycleEmblem({ campaignId, isDm }: Props) {
               </span>
             )}
             <span
-              className="font-serif font-bold leading-tight drop-shadow text-white"
+              className="font-serif font-bold drop-shadow text-white"
               style={{
-                fontSize: 22,
-                textShadow: "0 1px 4px rgba(0,0,0,0.7)",
+                fontSize: 36,
+                lineHeight: 0.95,
+                textShadow: "0 2px 6px rgba(0,0,0,0.75)",
               }}
             >
               {dayText}
@@ -197,7 +271,8 @@ export function VttDayCycleEmblem({ campaignId, isDm }: Props) {
             <span
               className="text-white/90 drop-shadow"
               style={{
-                fontSize: 13,
+                fontSize: 16,
+                lineHeight: 1,
                 textShadow: "0 1px 4px rgba(0,0,0,0.7)",
               }}
             >
@@ -238,6 +313,16 @@ export function VttDayCycleEmblem({ campaignId, isDm }: Props) {
           0%   { transform: translateX(-100%); }
           50%  { transform: translateX(0%); }
           100% { transform: translateX(100%); }
+        }
+        @keyframes day-cycle-night-tint-kf {
+          0%, 100% { opacity: 0; }
+          35%      { opacity: 0.26; }
+          50%      { opacity: 0.34; }
+          65%      { opacity: 0.26; }
+        }
+        .day-cycle-night-tint {
+          opacity: 0;
+          animation: day-cycle-night-tint-kf 2.2s ease-in-out 1 forwards;
         }
         .day-cycle-spin {
           animation: day-cycle-spin-kf 2.2s cubic-bezier(0.45, 0, 0.55, 1) 1 forwards;

@@ -25,6 +25,7 @@ type MenuState = {
 export function VttCombatRail({ campaignId, mapId, isDm, onOpenEditor }: Props) {
   const setSelectedTokenId = useVttStore((s) => s.setSelectedTokenId);
   const selectedTokenId = useVttStore((s) => s.selectedTokenId);
+  const setHoveredTokenId = useVttStore((s) => s.setHoveredTokenId);
   const { deleteToken } = useVttTokens(mapId, campaignId);
   const {
     activeEncounter,
@@ -144,6 +145,16 @@ export function VttCombatRail({ campaignId, mapId, isDm, onOpenEditor }: Props) 
               type="button"
               title={`${name} | HP ${hp}/${maxHp || "-"}${conditions.length ? ` | ${conditions.join(", ")}` : ""}`}
               onClick={() => setSelectedTokenId(participant.token_id)}
+              onMouseEnter={() =>
+                participant.token_id &&
+                setHoveredTokenId(participant.token_id)
+              }
+              onMouseLeave={() => setHoveredTokenId(null)}
+              onFocus={() =>
+                participant.token_id &&
+                setHoveredTokenId(participant.token_id)
+              }
+              onBlur={() => setHoveredTokenId(null)}
               onContextMenu={(event) => openMenu(event, participant)}
               className={cn(
                 "group relative flex h-[43px] w-[86px] items-center overflow-hidden rounded-[3px] border bg-black/30 text-left shadow-[inset_0_0_0_1px_rgba(255,255,255,0.04),0_2px_8px_rgba(0,0,0,0.35)] backdrop-blur-[2px] transition-all hover:bg-black/45",

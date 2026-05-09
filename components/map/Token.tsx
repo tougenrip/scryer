@@ -13,6 +13,8 @@ interface TokenProps {
   gridSize: number;
   isDraggable: boolean;
   isSelected: boolean;
+  /** Soft hover from non-canvas UI (initiative tracker, etc.). */
+  isHovered?: boolean;
   pendingPlacement: boolean;
   groupDragOffset?: { x: number; y: number } | null;
   onSelect: (id: string, additive?: boolean) => void;
@@ -115,6 +117,7 @@ function TokenComponent({
   gridSize,
   isDraggable,
   isSelected,
+  isHovered,
   pendingPlacement,
   groupDragOffset,
   onSelect,
@@ -245,12 +248,16 @@ function TokenComponent({
         y={radius}
         radius={radius}
         fill={token.color || '#cccccc'}
-        stroke={isSelected ? "#4ade80" : "white"}
-        strokeWidth={isSelected ? 4 : 2}
+        stroke={
+          isSelected ? "#4ade80" : isHovered ? "#fbbf24" : "white"
+        }
+        strokeWidth={isSelected ? 4 : isHovered ? 4 : 2}
         opacity={0.8}
-        shadowColor={isSelected ? "#4ade80" : "black"}
-        shadowBlur={isSelected ? 10 : 0}
-        shadowOpacity={0.5}
+        shadowColor={
+          isSelected ? "#4ade80" : isHovered ? "#fbbf24" : "black"
+        }
+        shadowBlur={isSelected ? 10 : isHovered ? 12 : 0}
+        shadowOpacity={isSelected || isHovered ? 0.65 : 0.5}
         perfectDrawEnabled={false}
       />
 
@@ -399,6 +406,7 @@ export const Token = memo(TokenComponent, (prev, next) => (
   prev.gridSize === next.gridSize &&
   prev.isDraggable === next.isDraggable &&
   prev.isSelected === next.isSelected &&
+  prev.isHovered === next.isHovered &&
   prev.pendingPlacement === next.pendingPlacement &&
   prev.onSelect === next.onSelect &&
   prev.onContextMenu === next.onContextMenu &&

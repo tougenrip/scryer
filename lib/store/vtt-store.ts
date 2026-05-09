@@ -33,13 +33,16 @@ interface VttState {
   tokens: Token[];
   selectedTokenId: string | null;
   selectedTokenIds: string[];
+  /** Soft hover from non-canvas UI (initiative panel, etc.) — drives an
+   * amber outline on the matching token without touching selection. */
+  hoveredTokenId: string | null;
   pendingTokenPlacement: PendingTokenPlacement | null;
 
   // Fog State
   fogData: FogData;
 
   // Weather State
-  weatherType: 'none' | 'rain' | 'snow' | 'fog';
+  weatherType: 'none' | 'rain' | 'snow' | 'fog' | 'sunny' | 'storm';
   weatherIntensity: number; // 0 to 1
 
   // Tools
@@ -86,6 +89,7 @@ interface VttState {
   removeToken: (id: string) => void;
   setSelectedTokenId: (id: string | null) => void;
   setSelectedTokenIds: (ids: string[]) => void;
+  setHoveredTokenId: (id: string | null) => void;
   setPendingTokenPlacement: (placement: PendingTokenPlacement | null) => void;
   
   setFogData: (data: FogData) => void;
@@ -96,7 +100,7 @@ interface VttState {
   setFogBrushSmoothness: (smoothness: number) => void;
   setDmHideFog: (hide: boolean) => void;
 
-  setWeatherType: (type: 'none' | 'rain' | 'snow' | 'fog') => void;
+  setWeatherType: (type: 'none' | 'rain' | 'snow' | 'fog' | 'sunny' | 'storm') => void;
   setWeatherIntensity: (intensity: number) => void;
 
   setActiveTool: (
@@ -138,6 +142,7 @@ export const useVttStore = create<VttState>((set) => ({
   tokens: [],
   selectedTokenId: null,
   selectedTokenIds: [],
+  hoveredTokenId: null,
   pendingTokenPlacement: null,
 
   fogData: { shapes: [], revealed: false },
@@ -183,6 +188,7 @@ export const useVttStore = create<VttState>((set) => ({
     set({ selectedTokenId: id, selectedTokenIds: id ? [id] : [] }),
   setSelectedTokenIds: (ids) =>
     set({ selectedTokenIds: ids, selectedTokenId: ids[0] ?? null }),
+  setHoveredTokenId: (id) => set({ hoveredTokenId: id }),
   setPendingTokenPlacement: (placement) => set({ pendingTokenPlacement: placement }),
 
   setFogData: (data) => set({ fogData: data }),
