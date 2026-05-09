@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Dice6, Plus, Trash2, Send } from "lucide-react";
+import { Loader2, Dice6, Plus, Trash2, Send, Coins } from "lucide-react";
 import {
   rollLootForEncounter,
   rerollMagicItem,
@@ -22,6 +22,10 @@ import {
 } from "@/lib/loot/roll-loot";
 import { usePartyTreasury } from "@/hooks/usePartyTreasury";
 import { usePartyLoot } from "@/hooks/usePartyLoot";
+import {
+  useCustomLootTables,
+  rollCustomTable,
+} from "@/hooks/useCustomLootTables";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
@@ -71,6 +75,7 @@ export function EndWithLootDialog({
 
   const { addCoins } = usePartyTreasury(campaignId);
   const { insertItems } = usePartyLoot(campaignId);
+  const { tables: customTables } = useCustomLootTables(campaignId);
 
   const doRoll = async () => {
     setRolling(true);
@@ -152,6 +157,30 @@ export function EndWithLootDialog({
     };
     setRolled({ ...rolled, items: [...rolled.items, newItem] });
     setKeep((prev) => ({ ...prev, [newItem.uid]: true }));
+  };
+
+  const handleRollCustomTable = async (tableId: string) => {
+    if (!rolled) return;
+    const table = customTables.find((t) => t.id === tableId);
+    if (!table) return;
+    const result = await rollCustomTable(table);
+    // Merge: append items, sum coins onto current overrides.
+    setRolled({
+      ...rolled,
+      items: [...rolled.items, ...result.items],
+    });
+    setKeep((prev) => {
+      const next = { ...prev };
+      for (const it of result.items) next[it.uid] = true;
+      return next;
+    });
+    setCoinOverrides((prev) => ({
+      cp: prev.cp + result.coins.cp,
+      sp: prev.sp + result.coins.sp,
+      ep: prev.ep + result.coins.ep,
+      gp: prev.gp + result.coins.gp,
+      pp: prev.pp + result.coins.pp,
+    }));
   };
 
   const handleCommit = async () => {
@@ -249,6 +278,32 @@ export function EndWithLootDialog({
                   <Plus className="h-3.5 w-3.5 mr-1" /> Add item
                 </Button>
               </div>
+
+              {customTables.length > 0 && (
+                <div className="rounded border border-amber-500/30 bg-amber-500/5 p-2 mb-2">
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <Coins className="h-3 w-3 text-amber-400" />
+                    <p className="text-[10px] uppercase tracking-wider font-bold text-amber-400">
+                      Roll a custom table
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {customTables.map((t) => (
+                      <Button
+                        key={t.id}
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-[11px]"
+                        onClick={() => void handleRollCustomTable(t.id)}
+                      >
+                        <Dice6 className="h-3 w-3 mr-1" />
+                        {t.name}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              )}
               {items.length === 0 ? (
                 <p className="text-sm italic text-muted-foreground py-4 text-center">
                   No magic items rolled. Coin only this time.

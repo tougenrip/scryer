@@ -44,6 +44,7 @@ import { useActiveVttScene } from "@/hooks/useActiveVttScene";
 import { useVttPresence } from "@/hooks/useVttPresence";
 import { VttPresenceStrip } from "@/components/vtt/vtt-presence-strip";
 import { VttGridControls } from "@/components/vtt/vtt-grid-controls";
+import { VttTimeHud } from "@/components/vtt/vtt-time-hud";
 import { QuickSearchPanel } from "@/components/vtt/quick-search/quick-search-panel";
 import { FloatingCardLayer } from "@/components/vtt/quick-search/floating-card-layer";
 import { useQuickSearchStore } from "@/lib/store/quick-search-store";
@@ -452,6 +453,8 @@ export default function VttPage() {
                 }
               />
             </div>
+
+            <VttTimeHud campaignId={campaignId} isDm={!!isDm} />
 
             {/* Group: DM-only scene controls */}
             {isDm && mapId && (

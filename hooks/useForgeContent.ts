@@ -172,6 +172,8 @@ export interface CampaignCalendar {
   current_year: number;
   current_month: number;
   current_day: number;
+  current_hour: number;
+  current_minute: number;
   day_of_week: number;
   season: 'spring' | 'summer' | 'autumn' | 'winter' | null;
   moon_phase: 'new' | 'waxing_crescent' | 'first_quarter' | 'waxing_gibbous' | 'full' | 'waning_gibbous' | 'last_quarter' | 'waning_crescent' | null;

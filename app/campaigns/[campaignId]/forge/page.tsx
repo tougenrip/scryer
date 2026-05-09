@@ -20,6 +20,7 @@ import {
   Target,
   Dices,
   Clapperboard,
+  Coins,
   LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -36,6 +37,7 @@ import { QuestBoardTab } from "@/components/forge/quests/quests-tab";
 import { RelationshipWebTab } from "@/components/forge/relationships/relationship-web-tab";
 import { BountiesTab } from "@/components/forge/bounties/bounties-tab";
 import { RandomTablesTab } from "@/components/forge/random-tables/random-tables-tab";
+import { LootTablesTab } from "@/components/forge/loot-tables/loot-tables-tab";
 
 type TabDef = {
   id: string;
@@ -57,6 +59,7 @@ const TABS: TabDef[] = [
   { id: "bounties", label: "Bounties", icon: Target },
   { id: "relationships", label: "Relationships", icon: Network, badge: "new" },
   { id: "random-tables", label: "Random tables", icon: Dices },
+  { id: "loot-tables", label: "Loot tables", icon: Coins },
 ];
 
 export default function ForgePage() {
@@ -243,6 +246,9 @@ export default function ForgePage() {
         )}
         {activeTab === "random-tables" && (
           <RandomTablesTab campaignId={campaignId} isDm={isDm} />
+        )}
+        {activeTab === "loot-tables" && (
+          <LootTablesTab campaignId={campaignId} isDm={isDm} />
         )}
       </div>
     </div>
