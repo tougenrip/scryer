@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { uniqueChannelTopic } from "@/lib/supabase/realtime-topic";
+import { useCampaignCalendarLive } from "@/hooks/useCampaignCalendarLive";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -10,7 +10,6 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Calendar, Sun, Moon, Sunrise, Sunset, Plus } from "lucide-react";
-import type { CampaignCalendar } from "@/hooks/useForgeContent";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -63,49 +62,7 @@ function pad2(n: number) {
  * clients see the same time.
  */
 export function VttTimeHud({ campaignId, isDm }: Props) {
-  const [calendar, setCalendar] = useState<CampaignCalendar | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (!campaignId) return;
-    const supabase = createClient();
-    let cancelled = false;
-
-    const fetchOne = async () => {
-      const { data } = await supabase
-        .from("campaign_calendar")
-        .select("*")
-        .eq("campaign_id", campaignId)
-        .maybeSingle();
-      if (cancelled) return;
-      setCalendar(data as CampaignCalendar | null);
-      setLoading(false);
-    };
-    void fetchOne();
-
-    const channel = supabase
-      .channel(uniqueChannelTopic(`campaign_calendar:${campaignId}`))
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "campaign_calendar",
-          filter: `campaign_id=eq.${campaignId}`,
-        },
-        (payload) => {
-          if (cancelled) return;
-          if (payload.eventType === "DELETE") setCalendar(null);
-          else setCalendar(payload.new as CampaignCalendar);
-        }
-      )
-      .subscribe();
-
-    return () => {
-      cancelled = true;
-      supabase.removeChannel(channel);
-    };
-  }, [campaignId]);
+  const { calendar, setCalendar } = useCampaignCalendarLive(campaignId);
 
   const monthName = useMemo(() => {
     if (!calendar) return "";
@@ -124,7 +81,7 @@ export function VttTimeHud({ campaignId, isDm }: Props) {
     return names[(calendar.day_of_week - 1 + names.length) % names.length];
   }, [calendar]);
 
-  if (!campaignId || loading) return null;
+  if (!campaignId) return null;
   if (!calendar) {
     if (!isDm) return null;
     return (
@@ -183,6 +140,18 @@ export function VttTimeHud({ campaignId, isDm }: Props) {
         day = 30;
       }
     }
+    // Optimistic update so other consumers (day-cycle emblem, etc.) flip
+    // immediately without waiting for the realtime round-trip.
+    setCalendar({
+      ...calendar,
+      current_hour: h,
+      current_minute: minutesNow,
+      current_day: day,
+      current_month: month,
+      current_year: year,
+      day_of_week: weekday,
+    });
+
     const { error } = await supabase
       .from("campaign_calendar")
       .update({
@@ -197,6 +166,7 @@ export function VttTimeHud({ campaignId, isDm }: Props) {
     if (error) {
       console.error("Failed to advance time:", error);
       toast.error("Couldn't advance time");
+      setCalendar(calendar);
     }
   };
 

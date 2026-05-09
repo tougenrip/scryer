@@ -150,11 +150,22 @@ function LootRowView({
 }) {
   const [pickingChar, setPickingChar] = useState(false);
   const [challengeMode, setChallengeMode] = useState(false);
-  // Re-render every 250ms so the countdown ticks down smoothly.
+  // Re-render every 250ms while the challenge window is OPEN so the
+  // countdown ticks down smoothly. Stops the timer the moment the
+  // window has elapsed — previously this kept firing indefinitely on
+  // any row that had ever been in pending state, which racked up CPU.
   const [, force] = useState(0);
   useEffect(() => {
     if (!row.challenge_until) return;
-    const t = window.setInterval(() => force((n) => n + 1), 250);
+    const endMs = new Date(row.challenge_until).getTime();
+    if (endMs <= Date.now()) return;
+    const t = window.setInterval(() => {
+      if (Date.now() >= endMs) {
+        window.clearInterval(t);
+        return;
+      }
+      force((n) => n + 1);
+    }, 250);
     return () => window.clearInterval(t);
   }, [row.challenge_until]);
 

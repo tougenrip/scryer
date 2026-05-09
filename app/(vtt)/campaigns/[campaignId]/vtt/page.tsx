@@ -45,6 +45,7 @@ import { useVttPresence } from "@/hooks/useVttPresence";
 import { VttPresenceStrip } from "@/components/vtt/vtt-presence-strip";
 import { VttGridControls } from "@/components/vtt/vtt-grid-controls";
 import { VttTimeHud } from "@/components/vtt/vtt-time-hud";
+import { VttDayCycleEmblem } from "@/components/vtt/vtt-day-cycle-emblem";
 import { QuickSearchPanel } from "@/components/vtt/quick-search/quick-search-panel";
 import { FloatingCardLayer } from "@/components/vtt/quick-search/floating-card-layer";
 import { useQuickSearchStore } from "@/lib/store/quick-search-store";
@@ -631,6 +632,7 @@ export default function VttPage() {
             <HandoutsLayer campaignId={campaignId} userId={userId} isDm={!!isDm} />
             <CharacterCardsLayer campaignId={campaignId} userId={userId} />
             <DuelLayer campaignId={campaignId} userId={userId} />
+            <VttDayCycleEmblem campaignId={campaignId} isDm={!!isDm} />
             <VttRightSidebar
               openState={rightDock}
               onToggleTab={(tab) => setRightDock(prev => ({ ...prev, [tab]: !prev[tab] }))}
