@@ -45,6 +45,9 @@ interface VttState {
   weatherType: 'none' | 'rain' | 'snow' | 'fog' | 'sunny' | 'storm';
   weatherIntensity: number; // 0 to 1
 
+  // Time-of-day tint (per-user view preference)
+  timeTintEnabled: boolean;
+
   // Tools
   activeTool:
     | 'select'
@@ -102,6 +105,8 @@ interface VttState {
 
   setWeatherType: (type: 'none' | 'rain' | 'snow' | 'fog' | 'sunny' | 'storm') => void;
   setWeatherIntensity: (intensity: number) => void;
+
+  setTimeTintEnabled: (enabled: boolean) => void;
 
   setActiveTool: (
     tool:
@@ -161,6 +166,8 @@ export const useVttStore = create<VttState>((set) => ({
   weatherType: 'none',
   weatherIntensity: 0.5,
 
+  timeTintEnabled: true,
+
   setStageScale: (scale) => set({ stageScale: scale }),
   setStagePos: (pos) => set({ stagePos: pos }),
   setGridSize: (size) => set({ gridSize: size }),
@@ -206,6 +213,7 @@ export const useVttStore = create<VttState>((set) => ({
 
   setWeatherType: (type) => set({ weatherType: type }),
   setWeatherIntensity: (intensity) => set({ weatherIntensity: intensity }),
+  setTimeTintEnabled: (enabled) => set({ timeTintEnabled: enabled }),
 
   setActiveTool: (tool) => set({ activeTool: tool }),
   setAoeShape: (shape) => set({ aoeShape: shape }),

@@ -15,6 +15,7 @@ import {
   CloudLightning,
   Cloud,
   Sun,
+  SunMoon,
   Crown,
   SkipForward,
   ScrollText,
@@ -128,6 +129,8 @@ export default function VttPage() {
     mapUrl,
     weatherType,
     setWeatherType,
+    timeTintEnabled,
+    setTimeTintEnabled,
     setShowGrid,
     pendingTokenPlacement,
   } = useVttStore();
@@ -461,6 +464,28 @@ export default function VttPage() {
             </div>
 
             <VttTimeHud campaignId={campaignId} isDm={!!isDm} />
+
+            {/* Per-user toggle: time-of-day tint over the canvas. */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant={timeTintEnabled ? "default" : "ghost"}
+                  size="icon"
+                  className={cn(
+                    "h-8 w-8",
+                    timeTintEnabled
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground"
+                  )}
+                  onClick={() => setTimeTintEnabled(!timeTintEnabled)}
+                >
+                  <SunMoon className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                {timeTintEnabled ? "Disable time tint" : "Enable time tint"}
+              </TooltipContent>
+            </Tooltip>
 
             {/* Group: DM-only scene controls */}
             {isDm && mapId && (

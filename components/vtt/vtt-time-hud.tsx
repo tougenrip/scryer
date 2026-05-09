@@ -9,9 +9,10 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Calendar, Sun, Moon, Sunrise, Sunset, Plus } from "lucide-react";
+import { Calendar, Sun, Moon, Sunrise, Sunset, Plus, Bed, Coffee } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { broadcastRest } from "@/lib/realtime/vtt-rest-channel";
 
 interface Props {
   campaignId: string | null;
@@ -266,6 +267,42 @@ export function VttTimeHud({ campaignId, isDm }: Props) {
                 Date math approximates 30 days/month. Use the Forge calendar
                 tab for fine-grained edits.
               </p>
+
+              {/* DM-only rest triggers — fire animations on every
+                  client without touching the calendar. Long Rest plays
+                  the day-cycle spin; Short Rest is a placeholder until
+                  its own animation lands. */}
+              <div className="space-y-1 border-t border-border pt-2">
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                  Rests
+                </p>
+                <div className="grid grid-cols-2 gap-1">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      if (!campaignId) return;
+                      void broadcastRest(campaignId, "long_rest");
+                    }}
+                  >
+                    <Bed className="h-3 w-3 mr-1" />
+                    Long Rest
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      if (!campaignId) return;
+                      void broadcastRest(campaignId, "short_rest");
+                    }}
+                  >
+                    <Coffee className="h-3 w-3 mr-1" />
+                    Short Rest
+                  </Button>
+                </div>
+              </div>
             </div>
           ) : (
             <p className="text-[10px] italic text-muted-foreground text-center">

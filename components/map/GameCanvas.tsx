@@ -10,6 +10,8 @@ import { GridLayer } from './GridLayer';
 import { TokenLayer } from './TokenLayer';
 import { FogLayer } from './FogLayer';
 import { WeatherOverlay } from './WeatherOverlay';
+import { TimeOfDayTint } from './TimeOfDayTint';
+import { ShortRestOverlay } from './ShortRestOverlay';
 import { RulerLayer } from './RulerLayer';
 import { useVttTokens } from '@/hooks/useVttTokens';
 import { useVttFog } from '@/hooks/useVttFog';
@@ -1179,6 +1181,8 @@ export const GameCanvas = ({
         <PingLayer pings={activePings} gridSize={gridSize} />
         <WeatherOverlay />
       </Stage>
+      <TimeOfDayTint campaignId={campaignId} />
+      <ShortRestOverlay campaignId={campaignId} />
       {isDm && tokenMenu && contextToken && (
         <div
           className="fixed z-[80] w-48 overflow-hidden rounded-md border border-border bg-popover text-popover-foreground shadow-2xl"

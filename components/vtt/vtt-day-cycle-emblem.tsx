@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 import { useCampaignCalendarLive } from "@/hooks/useCampaignCalendarLive";
+import { subscribeRest } from "@/lib/realtime/vtt-rest-channel";
 import { toast } from "sonner";
 import type { CampaignCalendar } from "@/hooks/useForgeContent";
 import { cn } from "@/lib/utils";
@@ -90,6 +91,20 @@ export function VttDayCycleEmblem({ campaignId, isDm, rightDrawerOpen }: Props) 
     calendar?.current_month,
     calendar?.current_year,
   ]);
+
+  // Subscribe to the rest broadcast channel — when the DM triggers a
+  // Long Rest from the time HUD, every client (including the sender)
+  // runs the same spin + shadow-sweep animation locally WITHOUT
+  // changing the calendar date. Short rest is wired for future use.
+  useEffect(() => {
+    if (!campaignId) return;
+    return subscribeRest(campaignId, (event) => {
+      if (event !== "long_rest") return;
+      if (advancingRef.current) return; // already mid-animation
+      setSpinning(true);
+      window.setTimeout(() => setSpinning(false), 2400);
+    });
+  }, [campaignId]);
 
   const monthName = useMemo(() => {
     if (!calendar) return "";
