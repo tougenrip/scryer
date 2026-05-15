@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Stage, Layer, Group, Circle, Image as KonvaImage, Text } from 'react-konva';
 import { KonvaEventObject } from 'konva/lib/Node';
 import { Vector2d } from 'konva/lib/types';
@@ -20,6 +20,10 @@ import { useVttAoeAreas } from '@/hooks/useVttAoeAreas';
 import { useVttDrawings } from '@/hooks/useVttDrawings';
 import { useCombat } from '@/hooks/useCombat';
 import { useVttWalls } from '@/hooks/useVttWalls';
+import { useVttLightSources } from '@/hooks/useVttLightSources';
+import { LightLayer } from './LightLayer';
+import { LightMarkersLayer } from './LightMarkersLayer';
+import { LightEditorPopover } from './LightEditorPopover';
 import { useVttPlayerVisibility } from '@/hooks/useVttPlayerVisibility';
 import { WallLayer, wallEditorSnap } from './WallLayer';
 import { LosMaskLayer } from './LosMaskLayer';
@@ -73,29 +77,46 @@ export const GameCanvas = ({
   const [tokenMenu, setTokenMenu] = useState<{ tokenId: string; x: number; y: number } | null>(null);
   
   const [isPanning, setIsPanning] = useState(false);
-  const [panStartPos, setPanStartPos] = useState<Vector2d | null>(null);
+  // Pan-start anchor lives in a ref — pan deltas update it on every
+  // mousemove. Putting it in React state means every native mousemove
+  // event triggers a GameCanvas re-render (60-200Hz on trackpads),
+  // which then re-runs the expensive visibility / light polygon
+  // computations below. A ref keeps the math out of the render loop.
+  // The Konva stage's x/y are mutated imperatively during pan; we
+  // commit back to the store once on mouseup.
+  const panStartPosRef = useRef<Vector2d | null>(null);
 
-  const {
-    stageScale,
-    stagePos,
-    setStageScale,
-    setStagePos,
-    mapUrl,
-    mapId,
-    mapDimensions,
-    activeTool,
-    gridSize,
-    showGrid,
-    feetPerSquare,
-    tokens,
-    selectedTokenId,
-    selectedTokenIds,
-    setSelectedTokenId,
-    setSelectedTokenIds,
-    addToken,
-    pendingTokenPlacement,
-    setPendingTokenPlacement
-  } = useVttStore();
+  // Individual selectors — `useVttStore()` with no selector subscribes
+  // to the entire store, so an unrelated mutation (hover token,
+  // weather intensity, selection, etc.) re-renders GameCanvas every
+  // time. With per-field selectors only writes to that exact field
+  // trigger a re-render.
+  const stageScale = useVttStore((s) => s.stageScale);
+  const stagePos = useVttStore((s) => s.stagePos);
+  const setStageScale = useVttStore((s) => s.setStageScale);
+  const setStagePos = useVttStore((s) => s.setStagePos);
+  const mapUrl = useVttStore((s) => s.mapUrl);
+  const mapId = useVttStore((s) => s.mapId);
+  const mapDimensions = useVttStore((s) => s.mapDimensions);
+  const activeTool = useVttStore((s) => s.activeTool);
+  const gridSize = useVttStore((s) => s.gridSize);
+  const showGrid = useVttStore((s) => s.showGrid);
+  const feetPerSquare = useVttStore((s) => s.feetPerSquare);
+  const tokens = useVttStore((s) => s.tokens);
+  const selectedTokenId = useVttStore((s) => s.selectedTokenId);
+  const selectedTokenIds = useVttStore((s) => s.selectedTokenIds);
+  const setSelectedTokenId = useVttStore((s) => s.setSelectedTokenId);
+  const setSelectedTokenIds = useVttStore((s) => s.setSelectedTokenIds);
+  const addToken = useVttStore((s) => s.addToken);
+  const pendingTokenPlacement = useVttStore((s) => s.pendingTokenPlacement);
+  const setPendingTokenPlacement = useVttStore((s) => s.setPendingTokenPlacement);
+  // Stable `{ x, y }` for the Stage's scale prop so react-konva
+  // doesn't see a fresh object each render and re-apply the same
+  // value to the Konva node.
+  const scaleVec = useMemo(
+    () => ({ x: stageScale, y: stageScale }),
+    [stageScale]
+  );
 
   const { updateTokenPosition, deleteToken } = useVttTokens(mapId ?? null, campaignId);
   const { updateFogShapes } = useVttFog(mapId ?? null);
@@ -133,6 +154,10 @@ export const GameCanvas = ({
     clearDrawings,
   } = useVttDrawings(campaignId, mapId ?? null);
 
+  const { lights, createLight, updateLight, deleteLight } = useVttLightSources(
+    campaignId,
+    mapId ?? null
+  );
   const { walls, createWall, deleteWall, toggleDoor } = useVttWalls(
     campaignId,
     mapId ?? null
@@ -168,28 +193,59 @@ export const GameCanvas = ({
   const isDmForVision = isDm && !previewMode;
 
   // Owned tokens for whoever's POV we're rendering. DM (no preview) bypasses.
-  const ownedTokens =
-    !visionEnabled || isDmForVision
-      ? []
-      : tokens.filter((t) => {
-          const characterUserId = (t as unknown as { character?: { user_id?: string | null } })
-            .character?.user_id;
-          return !!characterUserId && !!effectiveUserId && characterUserId === effectiveUserId;
-        });
+  // Memoized so pan ticks (which only change stagePos) don't rebuild the
+  // filter result and invalidate the visibility-polygon memo below.
+  const ownedTokens = useMemo(
+    () =>
+      !visionEnabled || isDmForVision
+        ? []
+        : tokens.filter((t) => {
+            const characterUserId = (
+              t as unknown as { character?: { user_id?: string | null } }
+            ).character?.user_id;
+            return (
+              !!characterUserId &&
+              !!effectiveUserId &&
+              characterUserId === effectiveUserId
+            );
+          }),
+    [visionEnabled, isDmForVision, tokens, effectiveUserId]
+  );
 
-  const sightSegs = sightBlockingSegments(walls);
+  // Memoized so pan/zoom ticks (which only mutate stagePos/stageScale)
+  // don't re-run the ray-sweep over every wall segment.
+  const sightSegs = useMemo(() => sightBlockingSegments(walls), [walls]);
 
-  // Light coverage circles in stage coords. Every token (any owner) with a
-  // positive light_radius_ft contributes a circle. Used only when sceneDark.
-  const lightCircles: Array<{ cx: number; cy: number; r: number }> = sceneDark
-    ? tokens
-        .filter((t) => (t.light_radius_ft ?? 0) > 0)
-        .map((t) => ({
-          cx: t.x + gridSize / 2,
-          cy: t.y + gridSize / 2,
-          r: ((t.light_radius_ft ?? 0) / feetPerSquare) * gridSize,
-        }))
-    : [];
+  // Light coverage circles in stage coords. Every token with a
+  // positive light_radius_ft contributes a circle, AND every standalone
+  // light source on this map. Used only when sceneDark — a torch on
+  // the floor lets nearby players see, even if their own token has no
+  // light. Wall-blocking is handled implicitly: each viewer's LOS
+  // polygon is wall-aware, and we intersect with the light union, so
+  // a torch behind a wall illuminates only the parts the player can
+  // actually see line-of-sight from their own position.
+  const lightCircles = useMemo<
+    Array<{ cx: number; cy: number; r: number }>
+  >(
+    () =>
+      sceneDark
+        ? [
+            ...tokens
+              .filter((t) => (t.light_radius_ft ?? 0) > 0)
+              .map((t) => ({
+                cx: t.x + gridSize / 2,
+                cy: t.y + gridSize / 2,
+                r: ((t.light_radius_ft ?? 0) / feetPerSquare) * gridSize,
+              })),
+            ...lights.map((l) => ({
+              cx: l.x,
+              cy: l.y,
+              r: (l.radius_ft / feetPerSquare) * gridSize,
+            })),
+          ]
+        : [],
+    [sceneDark, tokens, lights, gridSize, feetPerSquare]
+  );
 
   function clipPolygonToLights(
     poly: Point[],
@@ -220,17 +276,32 @@ export const GameCanvas = ({
       .map((mp) => (mp[0] ?? []).map(([x, y]) => ({ x, y })));
   }
 
-  const visiblePolygons: number[][] = ownedTokens.flatMap((t) => {
-    const center: Point = { x: t.x + gridSize / 2, y: t.y + gridSize / 2 };
-    const losPoly = computeVisibilityPolygon(center, sightSegs);
-    const visionFt = t.vision_range_ft ?? 0;
-    const ownVisionCircle =
-      visionFt > 0
-        ? { cx: center.x, cy: center.y, r: (visionFt / feetPerSquare) * gridSize }
-        : null;
-    const clipped = clipPolygonToLights(losPoly, ownVisionCircle);
-    return clipped.map((c) => polygonToFlatPoints(c));
-  });
+  // Heavy ray-sweep + polygon-clipping union/intersection per owned
+  // token. Memoized aggressively — only re-runs when something that
+  // *actually* changes the result changes (token positions / vision
+  // ranges, walls, light coverage, scene-dark toggle). Pan/zoom does
+  // not touch any of those, so this stays warm during navigation.
+  const visiblePolygons = useMemo<number[][]>(() => {
+    return ownedTokens.flatMap((t) => {
+      const center: Point = { x: t.x + gridSize / 2, y: t.y + gridSize / 2 };
+      const losPoly = computeVisibilityPolygon(center, sightSegs);
+      const visionFt = t.vision_range_ft ?? 0;
+      const ownVisionCircle =
+        visionFt > 0
+          ? {
+              cx: center.x,
+              cy: center.y,
+              r: (visionFt / feetPerSquare) * gridSize,
+            }
+          : null;
+      const clipped = clipPolygonToLights(losPoly, ownVisionCircle);
+      return clipped.map((c) => polygonToFlatPoints(c));
+    });
+    // clipPolygonToLights is a closure over sceneDark + lightCircles;
+    // we list those in the deps so the inline fn reference change
+    // doesn't sabotage the memo.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ownedTokens, sightSegs, lightCircles, sceneDark, gridSize, feetPerSquare]);
 
   // Accumulate memory whenever any owned token's position changes.
   // The DM never accumulates — even in preview mode, we don't want to write
@@ -258,31 +329,46 @@ export const GameCanvas = ({
     accumulateVisibility,
     sightSegs.length,
     lightCircles.length,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    lights.map((l) => `${l.id}:${l.x}:${l.y}:${l.radius_ft}`).join('|'),
   ]);
 
   // Visible token ids for player view: any token whose center falls inside ANY visible polygon.
   // DM (no preview) or vision off: null = render all.
-  const visibleTokenIds: Set<string> | null =
-    isDmForVision || !visionEnabled
-      ? null
-      : (() => {
-          const ids = new Set<string>();
-          for (const t of tokens) {
-            const center: Point = { x: t.x + gridSize / 2, y: t.y + gridSize / 2 };
-            for (const flat of visiblePolygons) {
-              const poly: Point[] = [];
-              for (let i = 0; i < flat.length; i += 2) {
-                poly.push({ x: flat[i], y: flat[i + 1] });
-              }
-              if (pointInPolygon(center, poly)) {
-                ids.add(t.id);
-                break;
-              }
-            }
-          }
-          for (const t of ownedTokens) ids.add(t.id);
-          return ids;
-        })();
+  // Tokens that are inside any visible polygon. Memoized alongside
+  // visiblePolygons — the inner `pointInPolygon` × tokens scan is
+  // O(tokens × polygons × polyPoints), worth keeping out of the pan
+  // path entirely.
+  const visibleTokenIds = useMemo<Set<string> | null>(() => {
+    if (isDmForVision || !visionEnabled) return null;
+    const ids = new Set<string>();
+    // Decode each flat polygon ONCE per memo, not once per token.
+    const decoded = visiblePolygons.map((flat) => {
+      const poly: Point[] = [];
+      for (let i = 0; i < flat.length; i += 2) {
+        poly.push({ x: flat[i], y: flat[i + 1] });
+      }
+      return poly;
+    });
+    for (const t of tokens) {
+      const center: Point = { x: t.x + gridSize / 2, y: t.y + gridSize / 2 };
+      for (const poly of decoded) {
+        if (pointInPolygon(center, poly)) {
+          ids.add(t.id);
+          break;
+        }
+      }
+    }
+    for (const t of ownedTokens) ids.add(t.id);
+    return ids;
+  }, [
+    isDmForVision,
+    visionEnabled,
+    tokens,
+    ownedTokens,
+    visiblePolygons,
+    gridSize,
+  ]);
 
   // Listen for "clear marks" events dispatched from the toolbar.
   useEffect(() => {
@@ -315,41 +401,51 @@ export const GameCanvas = ({
     dy: number;
   } | null>(null);
 
-  const handleTokenDragMove = (id: string, x: number, y: number) => {
-    if (selectedTokenIds.length > 1 && selectedTokenIds.includes(id)) {
-      const dragged = tokens.find((t) => t.id === id);
-      if (dragged) {
-        setGroupDrag({ leadId: id, dx: x - dragged.x, dy: y - dragged.y });
-      }
-    }
-  };
-
-  const handleTokenDragEnd = () => {
-    setGroupDrag(null);
-  };
-
-  const handleTokenUpdate = (id: string, updates: Partial<VttToken>) => {
-    if (
-      selectedTokenIds.length > 1 &&
-      selectedTokenIds.includes(id) &&
-      (updates.x !== undefined || updates.y !== undefined)
-    ) {
-      const dragged = tokens.find((t) => t.id === id);
-      if (dragged) {
-        const dx = (updates.x ?? dragged.x) - dragged.x;
-        const dy = (updates.y ?? dragged.y) - dragged.y;
-        if (dx !== 0 || dy !== 0) {
-          for (const tid of selectedTokenIds) {
-            const t = tokens.find((tt) => tt.id === tid);
-            if (!t) continue;
-            void updateTokenPosition(tid, { x: t.x + dx, y: t.y + dy });
-          }
-          return;
+  // Wrapped in useCallback so pan/zoom re-renders of GameCanvas don't
+  // create new handler references and invalidate Token's memo for
+  // every token on every mouse-move event. Deps only fire on actual
+  // selection / token list changes.
+  const handleTokenDragMove = useCallback(
+    (id: string, x: number, y: number) => {
+      if (selectedTokenIds.length > 1 && selectedTokenIds.includes(id)) {
+        const dragged = tokens.find((t) => t.id === id);
+        if (dragged) {
+          setGroupDrag({ leadId: id, dx: x - dragged.x, dy: y - dragged.y });
         }
       }
-    }
-    void updateTokenPosition(id, updates);
-  };
+    },
+    [selectedTokenIds, tokens]
+  );
+
+  const handleTokenDragEnd = useCallback(() => {
+    setGroupDrag(null);
+  }, []);
+
+  const handleTokenUpdate = useCallback(
+    (id: string, updates: Partial<VttToken>) => {
+      if (
+        selectedTokenIds.length > 1 &&
+        selectedTokenIds.includes(id) &&
+        (updates.x !== undefined || updates.y !== undefined)
+      ) {
+        const dragged = tokens.find((t) => t.id === id);
+        if (dragged) {
+          const dx = (updates.x ?? dragged.x) - dragged.x;
+          const dy = (updates.y ?? dragged.y) - dragged.y;
+          if (dx !== 0 || dy !== 0) {
+            for (const tid of selectedTokenIds) {
+              const t = tokens.find((tt) => tt.id === tid);
+              if (!t) continue;
+              void updateTokenPosition(tid, { x: t.x + dx, y: t.y + dy });
+            }
+            return;
+          }
+        }
+      }
+      void updateTokenPosition(id, updates);
+    },
+    [selectedTokenIds, tokens, updateTokenPosition]
+  );
 
   // ---- Undo stack (per-session) ----
   type UndoOp =
@@ -480,6 +576,7 @@ export const GameCanvas = ({
     endY: number;
   } | null>(null);
   const [selectedAoeId, setSelectedAoeId] = useState<string | null>(null);
+  const [selectedLightId, setSelectedLightId] = useState<string | null>(null);
   const aoeBroadcastRef = useRef<number>(0);
 
   const aoeShapeFromTool = (tool: typeof activeTool): AoeShape | null => {
@@ -612,6 +709,11 @@ export const GameCanvas = ({
     return () => window.removeEventListener('keydown', onKey);
   }, [activeTool, wallEditorPoints, createWall]);
 
+  // Pending zoom write — coalesces a burst of wheel events into one
+  // store mutation per animation frame, same trick as pan.
+  const pendingZoomRef = useRef<{ scale: number; pos: Vector2d } | null>(null);
+  const zoomRafRef = useRef<number | null>(null);
+
   // Handle Zoom
   const handleWheel = (e: KonvaEventObject<WheelEvent>) => {
     e.evt.preventDefault();
@@ -620,29 +722,42 @@ export const GameCanvas = ({
     if (!stage) return;
 
     const scaleBy = 1.1;
-    const oldScale = stage.scaleX();
+    // Build off the most-recent target so successive wheel ticks
+    // compound correctly while we're still coalescing.
+    const pending = pendingZoomRef.current;
+    const oldScale = pending?.scale ?? stage.scaleX();
+    const oldPos = pending?.pos ?? { x: stage.x(), y: stage.y() };
     const pointer = stage.getPointerPosition();
 
     if (!pointer) return;
 
     const mousePointTo = {
-      x: (pointer.x - stage.x()) / oldScale,
-      y: (pointer.y - stage.y()) / oldScale,
+      x: (pointer.x - oldPos.x) / oldScale,
+      y: (pointer.y - oldPos.y) / oldScale,
     };
 
-    const newScale = e.evt.deltaY > 0 ? oldScale / scaleBy : oldScale * scaleBy;
-    
+    const newScale =
+      e.evt.deltaY > 0 ? oldScale / scaleBy : oldScale * scaleBy;
+
     // Limit zoom
     if (newScale < 0.1 || newScale > 10) return;
-
-    setStageScale(newScale);
 
     const newPos = {
       x: pointer.x - mousePointTo.x * newScale,
       y: pointer.y - mousePointTo.y * newScale,
     };
 
-    setStagePos(newPos);
+    pendingZoomRef.current = { scale: newScale, pos: newPos };
+    if (zoomRafRef.current === null) {
+      zoomRafRef.current = requestAnimationFrame(() => {
+        zoomRafRef.current = null;
+        const next = pendingZoomRef.current;
+        if (!next) return;
+        pendingZoomRef.current = null;
+        setStageScale(next.scale);
+        setStagePos(next.pos);
+      });
+    }
   };
 
   const handleMouseDown = (e: KonvaEventObject<MouseEvent>) => {
@@ -751,6 +866,23 @@ export const GameCanvas = ({
       return;
     }
 
+    // Light source — single click to place. DM-only by RLS; for UX we
+    // also gate the tool button on isDm so non-DMs don't see it.
+    if (activeTool === 'light' && e.evt.button === 0) {
+      const stage = e.target.getStage();
+      if (!stage) return;
+      const pointer = stage.getRelativePointerPosition();
+      if (!pointer) return;
+      void createLight({
+        x: pointer.x,
+        y: pointer.y,
+        radius_ft: 20,
+        color: '#FFC080',
+        intensity: 1,
+      });
+      return;
+    }
+
     // AOE drag start
     const aoeShape = aoeShapeFromTool(activeTool);
     if (aoeShape && e.evt.button === 0) {
@@ -774,7 +906,7 @@ export const GameCanvas = ({
       const stage = e.target.getStage();
       if (!stage) return;
       setIsPanning(true);
-      setPanStartPos({ x: e.evt.clientX, y: e.evt.clientY });
+      panStartPosRef.current = { x: e.evt.clientX, y: e.evt.clientY };
       return;
     }
 
@@ -789,6 +921,7 @@ export const GameCanvas = ({
       setSelectedAoeId(null);
       setSelectedDrawingId(null);
       setSelectedWallId(null);
+      setSelectedLightId(null);
     }
 
     if (!isMeasuring) return;
@@ -803,14 +936,17 @@ export const GameCanvas = ({
     setRulerEnd(pointer);
   };
 
-  const handleTokenContextMenu = (tokenId: string, position: { x: number; y: number }) => {
-    if (!isDm) return;
-    setTokenMenu({
-      tokenId,
-      x: Math.max(8, Math.min(position.x, window.innerWidth - 210)),
-      y: Math.max(8, Math.min(position.y, window.innerHeight - 190)),
-    });
-  };
+  const handleTokenContextMenu = useCallback(
+    (tokenId: string, position: { x: number; y: number }) => {
+      if (!isDm) return;
+      setTokenMenu({
+        tokenId,
+        x: Math.max(8, Math.min(position.x, window.innerWidth - 210)),
+        y: Math.max(8, Math.min(position.y, window.innerHeight - 190)),
+      });
+    },
+    [isDm]
+  );
 
   const handleDeleteContextToken = async () => {
     if (!contextToken) return;
@@ -916,13 +1052,20 @@ export const GameCanvas = ({
       return;
     }
 
-    if (isPanning && panStartPos) {
+    if (isPanning && panStartPosRef.current) {
       const stage = e.target.getStage();
       if (!stage) return;
-      const dx = e.evt.clientX - panStartPos.x;
-      const dy = e.evt.clientY - panStartPos.y;
-      setStagePos({ x: stagePos.x + dx, y: stagePos.y + dy });
-      setPanStartPos({ x: e.evt.clientX, y: e.evt.clientY });
+      const dx = e.evt.clientX - panStartPosRef.current.x;
+      const dy = e.evt.clientY - panStartPosRef.current.y;
+      panStartPosRef.current = { x: e.evt.clientX, y: e.evt.clientY };
+      // Fully imperative — bypass React. Set position directly on
+      // the Konva stage and batchDraw. This is a zero-cost path
+      // (no React render, no zustand subscribers wake up) so pan
+      // can run at native event rate without stuttering. We commit
+      // the final position to the store once, in handleMouseUp.
+      stage.x(stage.x() + dx);
+      stage.y(stage.y() + dy);
+      stage.batchDraw();
       return;
     }
 
@@ -1000,7 +1143,19 @@ export const GameCanvas = ({
 
     if (e.evt.button === 2) {
       setIsPanning(false);
-      setPanStartPos(null);
+      panStartPosRef.current = null;
+      // The pan was applied imperatively to the Konva stage during
+      // mousemove. Commit the final position to the store now so
+      // React-aware consumers (HUD positions, persistence) catch
+      // up — exactly one render per pan gesture, at the end.
+      const stage = e.target.getStage();
+      if (stage) {
+        const finalX = stage.x();
+        const finalY = stage.y();
+        if (finalX !== stagePos.x || finalY !== stagePos.y) {
+          setStagePos({ x: finalX, y: finalY });
+        }
+      }
     }
 
     if (rulerStart) {
@@ -1059,7 +1214,7 @@ export const GameCanvas = ({
           }
           setWallEditorPoints([]);
         }}
-        scale={{ x: stageScale, y: stageScale }}
+        scale={scaleVec}
         x={stagePos.x}
         y={stagePos.y}
         draggable={false}
@@ -1076,7 +1231,7 @@ export const GameCanvas = ({
           onTokenDragEnd={handleTokenDragEnd}
           groupDrag={groupDrag}
           visibleTokenIds={visibleTokenIds}
-          blockingSegments={[]}
+          blockingSegments={sightSegs}
         />
         <FogLayer onFogUpdate={updateFogShapes} isDm={isDm} />
         {!isDmForVision && visionEnabled && mapDimensions && (
@@ -1089,6 +1244,21 @@ export const GameCanvas = ({
             // exactly what the player sees right now.
             memoryPolygons={previewMode ? [] : memoryPolys}
             hidden={false}
+          />
+        )}
+        {/* Warm light bloom from standalone + token-attached lights.
+            Sits above the LOS mask so it brightens the dark scene
+            (additive blend), and respects walls via the same ray-sweep
+            visibility polygon used by LOS. */}
+        <LightLayer lights={lights} walls={walls} sceneDark={sceneDark} />
+        {/* DM-only markers + drag handles for placed lights. Players
+            never see these — only the warm bloom they emit. */}
+        {isDm && (
+          <LightMarkersLayer
+            lights={lights}
+            selectedLightId={selectedLightId}
+            onSelect={setSelectedLightId}
+            onDragEnd={(id, x, y) => void updateLight(id, { x, y })}
           />
         )}
         <WallLayer
@@ -1233,12 +1403,36 @@ export const GameCanvas = ({
             token={t}
             screenX={screenX}
             screenY={screenY}
+            campaignId={campaignId}
+            mapId={mapId}
             onApplyDelta={(delta) => {
               const cur = t.hp_current ?? 0;
               const max = t.hp_max ?? Number.POSITIVE_INFINITY;
               const next = Math.max(0, Math.min(max, cur + delta));
               void updateTokenPosition(t.id, { hp_current: next });
             }}
+          />
+        );
+      })()}
+      {/* DM light editor — DOM popover anchored to the selected light's
+          screen position. Stage state may move the light underneath
+          while editing; we recompute coords each render. */}
+      {isDm && selectedLightId && (() => {
+        const light = lights.find((l) => l.id === selectedLightId);
+        if (!light) return null;
+        const screenX = light.x * stageScale + stagePos.x;
+        const screenY = light.y * stageScale + stagePos.y;
+        return (
+          <LightEditorPopover
+            light={light}
+            screenX={screenX}
+            screenY={screenY}
+            onUpdate={(id, updates) => void updateLight(id, updates)}
+            onDelete={(id) => {
+              void deleteLight(id);
+              setSelectedLightId(null);
+            }}
+            onClose={() => setSelectedLightId(null)}
           />
         );
       })()}

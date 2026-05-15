@@ -55,6 +55,7 @@ const KIND_OPTIONS: { value: VttSampleKind; label: string }[] = [
   { value: "prop", label: "Prop" },
   { value: "token", label: "Token" },
   { value: "sound", label: "Sound" },
+  { value: "soundboard", label: "Soundboard" },
 ];
 
 function kindLabel(k: VttSampleKind) {
@@ -472,7 +473,7 @@ export function VttSamplesAdminClient({ initialCategories, initialAssets }: Prop
             onValueChange={(v) => setFilterKind(v as KindFilter)}
             className="mb-4 w-full"
           >
-            <TabsList className="grid h-auto w-full grid-cols-2 gap-1 p-1 sm:grid-cols-5">
+            <TabsList className="grid h-auto w-full grid-cols-3 gap-1 p-1 sm:grid-cols-6">
               <TabsTrigger value="all" className="text-xs sm:text-sm">
                 All kinds
               </TabsTrigger>
@@ -488,6 +489,9 @@ export function VttSamplesAdminClient({ initialCategories, initialAssets }: Prop
               <TabsTrigger value="sound" className="text-xs sm:text-sm">
                 Sound
               </TabsTrigger>
+              <TabsTrigger value="soundboard" className="text-xs sm:text-sm">
+                Soundboard
+              </TabsTrigger>
             </TabsList>
           </Tabs>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -500,8 +504,13 @@ export function VttSamplesAdminClient({ initialCategories, initialAssets }: Prop
                 className="overflow-hidden rounded-lg border border-border bg-card text-sm"
               >
                 <div className="relative h-32 bg-muted">
-                  {a.kind === "sound" ? (
-                    <div className="flex h-full items-center p-2">
+                  {a.kind === "sound" || a.kind === "soundboard" ? (
+                    <div className="flex h-full flex-col justify-center gap-1 p-2">
+                      {a.kind === "soundboard" && (
+                        <span className="text-[10px] uppercase tracking-wider text-amber-400">
+                          Soundboard
+                        </span>
+                      )}
                       <audio controls className="h-10 w-full" src={a.public_url} preload="metadata">
                         <track kind="captions" />
                       </audio>

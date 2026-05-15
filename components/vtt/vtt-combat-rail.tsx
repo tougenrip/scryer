@@ -26,6 +26,12 @@ export function VttCombatRail({ campaignId, mapId, isDm, onOpenEditor }: Props) 
   const setSelectedTokenId = useVttStore((s) => s.setSelectedTokenId);
   const selectedTokenId = useVttStore((s) => s.selectedTokenId);
   const setHoveredTokenId = useVttStore((s) => s.setHoveredTokenId);
+  // Live token list — kept up to date by useVttTokens realtime sub
+  // *and* optimistic store updates from updateTokenPosition. The
+  // rail reads token state (HP, conditions) from here so it
+  // refreshes the moment a token mutates, instead of waiting for
+  // useCombat's separate /api/vtt/tokens fetch to re-run.
+  const liveTokens = useVttStore((s) => s.tokens);
   const { deleteToken } = useVttTokens(mapId, campaignId);
   const {
     activeEncounter,
@@ -128,7 +134,15 @@ export function VttCombatRail({ campaignId, mapId, isDm, onOpenEditor }: Props) 
 
       <div className="max-h-[520px] space-y-[3px] overflow-y-auto pr-1 custom-scrollbar">
         {sorted.map((participant, index) => {
-          const token = participant.token;
+          // Always prefer the live store token over the snapshot
+          // joined into the participant row. The store reflects
+          // optimistic updates AND realtime token-table changes, so
+          // HP / conditions / name refresh immediately on damage,
+          // heal, knockout, and revival.
+          const liveToken = participant.token_id
+            ? liveTokens.find((t) => t.id === participant.token_id)
+            : null;
+          const token = liveToken ?? participant.token;
           const name = cleanVttDisplayName(token?.name || token?.character?.name || token?.monster?.name);
           const imageUrl = token?.image_url || token?.character?.image_url;
           const hp = token?.hp_current ?? 0;

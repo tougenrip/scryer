@@ -23,7 +23,7 @@ export async function DELETE(_request: Request, ctx: Ctx) {
 
     if (isVttSampleKind(cat.slug)) {
       return NextResponse.json(
-        { error: "Cannot delete canonical folder kinds (battlemap, token, prop, sound)" },
+        { error: "Cannot delete canonical folder kinds (battlemap, token, prop, sound, soundboard)" },
         { status: 400 }
       );
     }

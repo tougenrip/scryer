@@ -29,7 +29,9 @@ export function LosMaskLayer({
     <Layer listening={false}>
       {/* Layer 1: solid black covering everything ("never seen") */}
       <Rect x={0} y={0} width={mapWidth} height={mapHeight} fill={NEVER_SEEN_COLOR} />
-      {/* Layer 2: punch memory polygons to 50% — destination-out at 0.5 alpha */}
+      {/* Layer 2: punch memory polygons to 50% — destination-out at 0.5 alpha.
+          shadowBlur feathers the punch so the edge of the memory area
+          fades into "never seen" instead of cutting hard. */}
       {memoryPolygons.map((flat, i) => (
         <Line
           key={`mem-${i}`}
@@ -38,9 +40,15 @@ export function LosMaskLayer({
           fill="rgba(0,0,0,1)"
           opacity={0.5}
           globalCompositeOperation="destination-out"
+          shadowColor="rgba(0,0,0,1)"
+          shadowBlur={28}
+          shadowOpacity={1}
         />
       ))}
-      {/* Layer 3: punch currently-visible to 100% transparent */}
+      {/* Layer 3: punch currently-visible to 100% transparent. Same
+          shadow trick — the blurred edge feathers torch circles + LOS
+          polygon boundaries so they bleed into the surrounding dark
+          rather than ending in a hard line. */}
       {visiblePolygons.map((flat, i) => (
         <Line
           key={`vis-${i}`}
@@ -48,6 +56,9 @@ export function LosMaskLayer({
           closed
           fill="rgba(0,0,0,1)"
           globalCompositeOperation="destination-out"
+          shadowColor="rgba(0,0,0,1)"
+          shadowBlur={32}
+          shadowOpacity={1}
         />
       ))}
     </Layer>

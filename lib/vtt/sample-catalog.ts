@@ -1,4 +1,4 @@
-export type VttSampleKind = "battlemap" | "token" | "prop" | "sound";
+export type VttSampleKind = "battlemap" | "token" | "prop" | "sound" | "soundboard";
 
 export type VttSampleCategoryRow = {
   id: string;

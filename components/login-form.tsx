@@ -13,8 +13,16 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
+
+/** Restrict redirect targets to same-origin paths so a malicious link
+ *  can't bounce a freshly-authenticated user off-site. */
+function safeNextPath(raw: string | null): string {
+  if (!raw) return "/campaigns";
+  if (!raw.startsWith("/") || raw.startsWith("//")) return "/campaigns";
+  return raw;
+}
 
 export function LoginForm({
   className,
@@ -26,6 +34,8 @@ export function LoginForm({
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const nextPath = safeNextPath(searchParams.get("next"));
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,7 +49,7 @@ export function LoginForm({
         password,
       });
       if (error) throw error;
-      router.push("/campaigns");
+      router.push(nextPath);
     } catch (error: unknown) {
       setError(error instanceof Error ? error.message : "An error occurred");
     } finally {
@@ -56,7 +66,7 @@ export function LoginForm({
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: `${window.location.origin}/auth/confirm?next=/campaigns`,
+          redirectTo: `${window.location.origin}/auth/confirm?next=${encodeURIComponent(nextPath)}`,
         },
       });
       if (error) throw error;

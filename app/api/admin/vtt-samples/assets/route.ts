@@ -30,7 +30,13 @@ export async function POST(request: Request) {
 
     const sampleKindRaw = String(form.get("sampleKind") ?? "").trim();
     if (!isVttSampleKind(sampleKindRaw)) {
-      return NextResponse.json({ error: "sampleKind must be battlemap, token, prop, or sound" }, { status: 400 });
+      return NextResponse.json(
+        {
+          error:
+            "sampleKind must be battlemap, token, prop, sound, or soundboard",
+        },
+        { status: 400 }
+      );
     }
     const sampleKind = sampleKindRaw as VttSampleKind;
     

@@ -62,7 +62,8 @@ interface VttState {
     | 'aoe-line'
     | 'aoe-square'
     | 'aoe-ring'
-    | 'wall';
+    | 'wall'
+    | 'light';
   aoeShape: 'circle' | 'cone' | 'line' | 'square' | 'ring';
   wallEditorMode: 'pen' | 'segment' | 'door';
   /** DM-only: preview the scene as if you were this user (their LOS). null = DM view. */

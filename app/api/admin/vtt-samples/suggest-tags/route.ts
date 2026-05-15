@@ -112,7 +112,7 @@ export async function POST(request: Request) {
     }
     if (!isVttSampleKind(kindRaw)) {
       return NextResponse.json(
-        { error: "sampleKind must be battlemap, token, prop, or sound" },
+        { error: "sampleKind must be battlemap, token, prop, sound, or soundboard" },
         { status: 400 }
       );
     }

@@ -83,7 +83,7 @@ export async function PATCH(request: Request, ctx: Ctx) {
     const sampleKindRaw = String(form.get("sampleKind") ?? "").trim();
     if (!isVttSampleKind(sampleKindRaw)) {
       return NextResponse.json(
-        { error: "sampleKind must be battlemap, token, prop, or sound" },
+        { error: "sampleKind must be battlemap, token, prop, sound, or soundboard" },
         { status: 400 }
       );
     }

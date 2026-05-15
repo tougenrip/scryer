@@ -39,9 +39,17 @@ export interface TokenData {
   hp_current: number;
   hp_max: number;
   character?: {
+    id?: string;
     name: string;
     image_url: string | null;
     user_id: string | null;
+    hp_current?: number;
+    hp_max?: number;
+    death_save_successes?: number;
+    death_save_failures?: number;
+    is_stable?: boolean;
+    is_concentrating?: boolean;
+    concentrating_on?: string | null;
   };
   monster?: {
     index: string;
@@ -120,9 +128,17 @@ export function useCombat(campaignId: string, mapId?: string, enabled: boolean =
             hp_current,
             hp_max,
             character:characters (
+              id,
               name,
               image_url,
-              user_id
+              user_id,
+              hp_current,
+              hp_max,
+              death_save_successes,
+              death_save_failures,
+              is_stable,
+              is_concentrating,
+              concentrating_on
             )
           )
         `)

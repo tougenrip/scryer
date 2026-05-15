@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 import { Library, Music, CheckCircle2, Swords, HelpCircle, BookOpen, Inbox, NotebookPen, Users, Dices } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
-export type VttLeftTab = "assets" | "music" | "objectives" | "combat" | "library" | "handouts" | "notes" | "party" | "dice" | null;
+export type VttLeftTab = "assets" | "music" | "objectives" | "combat" | "library" | "handouts" | "notes" | "party" | "tables" | null;
 
 type NavButtonProps = {
   title: string;
@@ -69,7 +69,9 @@ type VttLeftSidebarProps = {
   /** When true, the Party nav button shows a pulsing dot to draw attention
    * (e.g. there's a live duel waiting). */
   partyBadge?: boolean;
-  dicePanel?: React.ReactNode;
+  /** Random tables panel — re-uses the dice slot (the dedicated dice
+   *  history sidebar was removed in favour of in-session table rolls). */
+  tablesPanel?: React.ReactNode;
 };
 
 export function VttLeftSidebar({
@@ -88,7 +90,7 @@ export function VttLeftSidebar({
   notesPanel,
   partyPanel,
   partyBadge,
-  dicePanel,
+  tablesPanel,
 }: VttLeftSidebarProps) {
   const open = activeTab !== null;
   const panelWidthClass = activeTab === "assets" ? ASSETS_PANEL_W_CLASS : PANEL_W_CLASS;
@@ -152,12 +154,12 @@ export function VttLeftSidebar({
               badge={partyBadge}
             />
           )}
-          {dicePanel && (
+          {tablesPanel && (
             <NavButton
-              title="Dice history"
-              isActive={activeTab === "dice"}
+              title="Random tables"
+              isActive={activeTab === "tables"}
               icon={Dices}
-              onClick={() => onActiveTabChange(activeTab === "dice" ? null : "dice")}
+              onClick={() => onActiveTabChange(activeTab === "tables" ? null : "tables")}
             />
           )}
           <div className="flex-1" />
@@ -201,7 +203,7 @@ export function VttLeftSidebar({
             {activeTab === "handouts" && handoutsPanel}
             {activeTab === "notes" && notesPanel}
             {activeTab === "party" && partyPanel}
-            {activeTab === "dice" && dicePanel}
+            {activeTab === "tables" && tablesPanel}
           </div>
         </div>
       </div>

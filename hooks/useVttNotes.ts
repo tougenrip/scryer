@@ -14,6 +14,11 @@ export interface Note {
   visibility: NoteVisibility;
   title: string;
   body: string;
+  /** Optional in-world date. When all three are set the note reads
+   *  like a journal entry; when null it's an undated reference note. */
+  in_world_year: number | null;
+  in_world_month: number | null;
+  in_world_day: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -91,6 +96,11 @@ export function useVttNotes(campaignId: string | null) {
       title?: string;
       body?: string;
       authorUserId: string;
+      /** When set, marks this note as a dated journal entry. All three
+       *  must be provided together. */
+      inWorldYear?: number | null;
+      inWorldMonth?: number | null;
+      inWorldDay?: number | null;
     }): Promise<Note | null> => {
       if (!campaignId) return null;
       const supabase = createClient();
@@ -102,6 +112,9 @@ export function useVttNotes(campaignId: string | null) {
           visibility: input.visibility,
           title: input.title ?? "",
           body: input.body ?? "",
+          in_world_year: input.inWorldYear ?? null,
+          in_world_month: input.inWorldMonth ?? null,
+          in_world_day: input.inWorldDay ?? null,
         } as never)
         .select("*")
         .single();
@@ -118,7 +131,17 @@ export function useVttNotes(campaignId: string | null) {
   const updateNote = useCallback(
     async (
       id: string,
-      patch: Partial<Pick<Note, "title" | "body" | "visibility">>
+      patch: Partial<
+        Pick<
+          Note,
+          | "title"
+          | "body"
+          | "visibility"
+          | "in_world_year"
+          | "in_world_month"
+          | "in_world_day"
+        >
+      >
     ): Promise<boolean> => {
       const supabase = createClient();
       // Optimistic

@@ -297,6 +297,15 @@ export interface Character {
   hp_max: number;
   hp_current: number;
   hp_temp: number;
+  /** 5e death saves — 3 successes stabilize, 3 failures = dead. Only
+   *  used while hp_current = 0. Auto-reset by a Postgres trigger on
+   *  heal (when hp_current rises above 0). */
+  death_save_successes?: number;
+  death_save_failures?: number;
+  is_stable?: boolean;
+  /** Concentration tracking: true while focused on a spell. */
+  is_concentrating?: boolean;
+  concentrating_on?: string | null;
   hit_dice_total: string;
   hit_dice_current: string;
   proficiency_bonus: number;
@@ -723,6 +732,39 @@ export function useClassFeatures(classIndex: string | null) {
   return { features, loading, error };
 }
 
+/**
+ * Build a list of candidate `subclass_index` values to query against
+ * `srd_features`. Different 5e SRD imports use different slug styles
+ * for the same subclass:
+ *   • 2014 5e-bits → "fiend", "celestial", "great-old-one"
+ *   • 2024 PHB exports → "the-fiend", "the-celestial", "the-great-old-one"
+ *   • Some hand-authored homebrew → "fiend-patron", "celestial-patron"
+ * The subclass row's `index` belongs to ONE convention but the
+ * `srd_features` table may have been seeded under another (or both).
+ * Returning every plausible variant + letting `.in()` match any
+ * makes the lookup tolerant without requiring data normalisation.
+ */
+function buildSubclassIndexCandidates(raw: string): string[] {
+  const seen = new Set<string>();
+  const push = (s: string) => {
+    const trimmed = s.trim().toLowerCase();
+    if (trimmed) seen.add(trimmed);
+  };
+  push(raw);
+  // Strip leading "the-" (most common 2024 prefix).
+  if (raw.toLowerCase().startsWith("the-")) push(raw.slice(4));
+  else push("the-" + raw);
+  // Strip trailing "-patron", "-domain", "-circle", "-archetype", "-tradition", "-oath".
+  const suffixStripped = raw.replace(
+    /-(patron|domain|circle|archetype|tradition|oath|college|path|school|origin|bloodline|conclave|way)$/i,
+    ""
+  );
+  if (suffixStripped !== raw) push(suffixStripped);
+  // Also try with the "the-" prefix removed from the stripped form.
+  if (suffixStripped.toLowerCase().startsWith("the-")) push(suffixStripped.slice(4));
+  return Array.from(seen);
+}
+
 export function useSubclassFeatures(classIndex: string | null, subclassIndex: string | null) {
   const [features, setFeatures] = useState<SrdFeature[]>([]);
   const [loading, setLoading] = useState(true);
@@ -739,19 +781,41 @@ export function useSubclassFeatures(classIndex: string | null, subclassIndex: st
       try {
         setLoading(true);
         const supabase = createClient();
-        
-        // Fetch subclass-specific features
+
+        // Tolerate slug variants between subclass row and feature
+        // row (see buildSubclassIndexCandidates docstring).
+        const candidates = buildSubclassIndexCandidates(subclassIndex);
+
         const { data, error: fetchError } = await supabase
           .from('srd_features')
           .select('*')
           .eq('class_index', classIndex)
-          .eq('subclass_index', subclassIndex)
+          .in('subclass_index', candidates)
           .order('level', { ascending: true })
           .order('name', { ascending: true });
 
         if (fetchError) throw fetchError;
 
-        setFeatures(data || []);
+        // Dedupe: imports often store the same feature twice under
+        // both slug conventions (e.g. "dark-ones-blessing" AND
+        // "fiend-dark-ones-blessing"). Keep one row per
+        // (level, name) tuple, preferring entries WITH descriptions.
+        const byKey = new Map<string, SrdFeature>();
+        for (const row of (data || []) as SrdFeature[]) {
+          const key = `${row.level ?? "?"}::${(row.name || "").toLowerCase()}`;
+          const existing = byKey.get(key);
+          if (!existing || (!existing.description && row.description)) {
+            byKey.set(key, row);
+          }
+        }
+        const deduped = Array.from(byKey.values()).sort((a, b) => {
+          const la = a.level ?? 0;
+          const lb = b.level ?? 0;
+          if (la !== lb) return la - lb;
+          return (a.name || "").localeCompare(b.name || "");
+        });
+
+        setFeatures(deduped);
         setError(null);
       } catch (err) {
         setError(err as Error);
@@ -884,6 +948,7 @@ export interface Background {
   id: string;
   index: string;
   name: string;
+  // 2014 SRD fields (text)
   description: string | null;
   skill_proficiencies: string | null;
   tool_proficiencies: string | null;
@@ -891,6 +956,11 @@ export interface Background {
   equipment: string | null;
   feature: string | null;
   ability_score_increase: string | null;
+  // 2024 PHB fields (jsonb) — Origin background shape
+  ability_scores?: string[] | null; // ["str","dex","con"]
+  feat?: { index?: string; name?: string; description?: string } | null;
+  proficiencies?: Array<{ type: string; name: string }> | null;
+  equipment_options?: Array<{ label: string; items: string }> | null;
   created_at: string;
 }
 

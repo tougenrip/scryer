@@ -4,7 +4,13 @@ import type { VttSampleKind } from "@/lib/vtt/sample-catalog";
 export const VTT_SAMPLES_BUCKET = "vtt-samples";
 export const MAX_VTT_SAMPLE_FILE_BYTES = 50 * 1024 * 1024;
 
-export const VTT_SAMPLE_KINDS: VttSampleKind[] = ["battlemap", "token", "prop", "sound"];
+export const VTT_SAMPLE_KINDS: VttSampleKind[] = [
+  "battlemap",
+  "token",
+  "prop",
+  "sound",
+  "soundboard",
+];
 
 export function isVttSampleKind(value: string): value is VttSampleKind {
   return (VTT_SAMPLE_KINDS as readonly string[]).includes(value);

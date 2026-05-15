@@ -29,7 +29,16 @@ import {
   Crown,
   ChevronDown,
   ChevronUp,
+  Plus,
+  ListPlus,
 } from "lucide-react";
+import { useDmRandomTables } from "@/hooks/useDmRandomTables";
+import { CustomTableEditor } from "./custom-table-editor";
+import { BuiltInTableViewer } from "./built-in-table-viewer";
+import {
+  BUILT_IN_TABLES,
+  type BuiltInTable as BuiltInTableType,
+} from "@/lib/dm-tables/built-in-tables";
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -619,15 +628,93 @@ interface RandomTablesTabProps {
 }
 
 export function RandomTablesTab({ campaignId, isDm }: RandomTablesTabProps) {
-  const [selectedGeneratorId, setSelectedGeneratorId] = useState<string>(GENERATORS[0].id);
+  // Selection state. Exactly one of generator / built-in table /
+  // custom table is selected at a time. The setter helpers below keep
+  // them mutually exclusive.
+  const [selectedGeneratorId, setSelectedGeneratorId] = useState<string | null>(
+    GENERATORS[0].id
+  );
+  const [selectedBuiltInId, setSelectedBuiltInId] = useState<string | null>(null);
+  const [selectedCustomTableId, setSelectedCustomTableId] = useState<string | null>(null);
+  const [cloning, setCloning] = useState(false);
   const [tier, setTier] = useState<TierLevel>(3);
   const [result, setResult] = useState<GeneratedResult | null>(null);
   const [isRolling, setIsRolling] = useState(false);
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
 
-  const generator = useMemo(() => GENERATORS.find(g => g.id === selectedGeneratorId)!, [selectedGeneratorId]);
+  // Custom DM tables — authored by the DM, weighted-list random rolls.
+  const {
+    tables: customTables,
+    entriesByTable,
+    createTable,
+    updateTable,
+    deleteTable,
+    addEntry,
+    updateEntry,
+    deleteEntry,
+    cloneAsTemplate,
+    roll: rollCustom,
+  } = useDmRandomTables(campaignId);
+
+  const pickGenerator = (id: string) => {
+    setSelectedGeneratorId(id);
+    setSelectedBuiltInId(null);
+    setSelectedCustomTableId(null);
+    setResult(null);
+  };
+  const pickBuiltIn = (id: string) => {
+    setSelectedGeneratorId(null);
+    setSelectedBuiltInId(id);
+    setSelectedCustomTableId(null);
+    setResult(null);
+  };
+  const pickCustom = (id: string) => {
+    setSelectedCustomTableId(id);
+    setSelectedGeneratorId(null);
+    setSelectedBuiltInId(null);
+  };
+
+  const cloneTable = async (
+    input: {
+      name: string;
+      description?: string | null;
+      category?: string | null;
+      rolls_per_use?: number;
+      entries: ReadonlyArray<{
+        value: string;
+        weight: number;
+        metadata?: Record<string, unknown>;
+      }>;
+    }
+  ) => {
+    setCloning(true);
+    const t = await cloneAsTemplate(input);
+    setCloning(false);
+    if (t) {
+      pickCustom(t.id);
+    }
+    return t;
+  };
+
+  const handleNewCustomTable = async () => {
+    const name = window.prompt("Name for the new table?", "New table");
+    if (!name) return;
+    const t = await createTable({ name, category: "other", rolls_per_use: 1 });
+    if (t) pickCustom(t.id);
+  };
+
+  const generator = selectedGeneratorId
+    ? GENERATORS.find((g) => g.id === selectedGeneratorId) ?? null
+    : null;
+  const selectedBuiltIn: BuiltInTableType | null = selectedBuiltInId
+    ? BUILT_IN_TABLES.find((t) => t.id === selectedBuiltInId) ?? null
+    : null;
+  const selectedCustom = selectedCustomTableId
+    ? customTables.find((t) => t.id === selectedCustomTableId) ?? null
+    : null;
 
   const handleGenerate = useCallback(() => {
+    if (!selectedGeneratorId) return;
     setIsRolling(true);
     setTimeout(() => {
       const gen = GENERATORS.find(g => g.id === selectedGeneratorId)!;
@@ -707,32 +794,169 @@ export function RandomTablesTab({ campaignId, isDm }: RandomTablesTabProps) {
         }}
         className="max-lg:grid-cols-1"
       >
-        <div className="sc-card p-2 lg:sticky lg:top-2 self-start">
-          {GENERATORS.map((gen) => {
-            const Icon = gen.icon;
-            const isSelected = gen.id === selectedGeneratorId;
-            return (
-              <button
-                key={gen.id}
-                type="button"
-                onClick={() => {
-                  setSelectedGeneratorId(gen.id);
-                  setResult(null);
-                }}
-                className={cn(
-                  "sidebar-link flex w-full items-center gap-2 rounded-md border-0 px-2.5 py-2 text-left",
-                  isSelected && "active",
-                )}
-              >
-                <span className="w-7 shrink-0 text-[10px] text-muted-foreground font-mono">•</span>
-                <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
-                <span className="text-xs font-medium">{gen.name}</span>
-              </button>
-            );
-          })}
+        <div className="sc-card p-2 lg:sticky lg:top-2 self-start space-y-2">
+          {/* Built-ins */}
+          <div>
+            <p className="px-2 py-1 text-[9px] uppercase tracking-wider text-muted-foreground">
+              Built-in
+            </p>
+            {GENERATORS.map((gen) => {
+              const Icon = gen.icon;
+              const isSelected = gen.id === selectedGeneratorId;
+              return (
+                <button
+                  key={gen.id}
+                  type="button"
+                  onClick={() => pickGenerator(gen.id)}
+                  className={cn(
+                    "sidebar-link flex w-full items-center gap-2 rounded-md border-0 px-2.5 py-2 text-left",
+                    isSelected && "active",
+                  )}
+                >
+                  <span className="w-7 shrink-0 text-[10px] text-muted-foreground font-mono">•</span>
+                  <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <span className="text-xs font-medium">{gen.name}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Built-in shop / theme tables */}
+          <div className="border-t border-border/50 pt-2">
+            <p className="px-2 py-1 text-[9px] uppercase tracking-wider text-muted-foreground">
+              Shop & theme tables
+            </p>
+            {BUILT_IN_TABLES.map((t) => {
+              const isSelected = t.id === selectedBuiltInId;
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => pickBuiltIn(t.id)}
+                  className={cn(
+                    "sidebar-link flex w-full items-center gap-2 rounded-md border-0 px-2.5 py-2 text-left",
+                    isSelected && "active",
+                  )}
+                >
+                  <span className="w-7 shrink-0 text-[10px] text-muted-foreground font-mono uppercase">
+                    {t.category.slice(0, 3)}
+                  </span>
+                  <Sparkles className="h-4 w-4 shrink-0 text-amber-400/70" />
+                  <span className="text-xs font-medium truncate">{t.name}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Custom DM tables */}
+          {isDm && (
+            <div className="border-t border-border/50 pt-2">
+              <div className="flex items-center justify-between px-2 py-1">
+                <p className="text-[9px] uppercase tracking-wider text-muted-foreground">
+                  Your tables
+                </p>
+                <button
+                  type="button"
+                  onClick={handleNewCustomTable}
+                  className="text-[10px] text-primary hover:underline inline-flex items-center gap-0.5"
+                  title="Create a new custom table"
+                >
+                  <Plus className="h-3 w-3" />
+                  New
+                </button>
+              </div>
+              {customTables.length === 0 ? (
+                <p className="px-2 py-2 text-[10px] italic text-muted-foreground">
+                  No custom tables yet.
+                </p>
+              ) : (
+                customTables.map((t) => {
+                  const isSelected = t.id === selectedCustomTableId;
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => pickCustom(t.id)}
+                      className={cn(
+                        "sidebar-link flex w-full items-center gap-2 rounded-md border-0 px-2.5 py-2 text-left",
+                        isSelected && "active",
+                      )}
+                    >
+                      <span className="w-7 shrink-0 text-[10px] text-muted-foreground font-mono uppercase">
+                        {t.category?.slice(0, 3) || "—"}
+                      </span>
+                      <ListPlus className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      <span className="text-xs font-medium truncate">
+                        {t.name}
+                      </span>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          )}
         </div>
 
         <div className="flex min-w-0 flex-col gap-4">
+      {/* Custom DM table view — replaces the built-in generator UI
+          when a user-authored table is selected. */}
+      {selectedCustom && (
+        <CustomTableEditor
+          campaignId={campaignId}
+          table={selectedCustom}
+          entries={entriesByTable[selectedCustom.id] ?? []}
+          onUpdateTable={updateTable}
+          onAddEntry={addEntry}
+          onUpdateEntry={updateEntry}
+          onDeleteEntry={deleteEntry}
+          onDeleteTable={(id) => {
+            deleteTable(id);
+            setSelectedCustomTableId(null);
+            setSelectedGeneratorId(GENERATORS[0].id);
+          }}
+          onRoll={rollCustom}
+          onClone={async () => {
+            const src = selectedCustom;
+            if (!src) return;
+            await cloneTable({
+              name: src.name,
+              description: src.description,
+              category: src.category,
+              rolls_per_use: src.rolls_per_use,
+              entries: (entriesByTable[src.id] ?? []).map((e) => ({
+                value: e.value,
+                weight: e.weight,
+                metadata: e.metadata,
+              })),
+            });
+          }}
+        />
+      )}
+
+      {/* Built-in shop / theme table view — read-only, clonable. */}
+      {selectedBuiltIn && !selectedCustom && (
+        <BuiltInTableViewer
+          campaignId={campaignId}
+          table={selectedBuiltIn}
+          cloning={cloning}
+          onClone={async () => {
+            await cloneTable({
+              name: selectedBuiltIn.name,
+              description: selectedBuiltIn.description,
+              category: selectedBuiltIn.category,
+              rolls_per_use: selectedBuiltIn.rolls_per_use,
+              entries: selectedBuiltIn.entries.map((e) => ({
+                value: e.value,
+                weight: e.weight,
+                metadata: e.metadata ?? {},
+              })),
+            });
+          }}
+        />
+      )}
+
+      {/* Built-in generator UI — only shown when a generator is picked. */}
+      {generator && !selectedCustom && !selectedBuiltIn && (<>
       {/* Tier Selection + Generate */}
       <div className="sc-card" style={{ padding: 18 }}>
         <div className="p-0">
@@ -865,6 +1089,7 @@ export function RandomTablesTab({ campaignId, isDm }: RandomTablesTabProps) {
           </div>
         </div>
       )}
+      </>)}
         </div>
       </div>
     </div>

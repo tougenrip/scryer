@@ -62,6 +62,14 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useInfoSheet } from "@/hooks/useInfoSheet";
+import { cn } from "@/lib/utils";
+import { RaceDetailPanel } from "@/components/character-creator/detail-panels/race-detail-panel";
+import { ClassDetailPanel } from "@/components/character-creator/detail-panels/class-detail-panel";
+import { BackgroundDetailPanel } from "@/components/character-creator/detail-panels/background-detail-panel";
+import { SpellPickerStep } from "@/components/character-creator/spell-picker-step";
+import { FeatPicker } from "@/components/character-creator/feat-picker";
+import { VariantHumanPanel } from "@/components/character-creator/variant-human-panel";
+import { PortraitPicker } from "@/components/character-creator/portrait-picker";
 import { InfoSheetDialog } from "@/components/shared/info-sheet-dialog";
 import { toast } from "sonner";
 import { NameGeneratorButton } from "@/components/shared/name-generator-button";
@@ -140,6 +148,53 @@ interface CharacterFormData {
   backgroundChoices: {
     languages: string[]; // Selected language names
     tools: string[]; // Selected tool proficiencies
+  };
+  // User-picked spells from the Spells step. `cantrips` and
+  // `leveled` are arrays of spell `index` strings (SRD source).
+  // Empty arrays mean "no picks yet"; the save flow falls back to
+  // the legacy auto-attach for classes that don't surface a picker.
+  selectedSpells: {
+    cantrips: string[];
+    leveled: string[];
+  };
+  // 2024 PHB Origin feats grant follow-up player choices:
+  //   • Magic Initiate (Cleric/Druid/Wizard) → 2 cantrips + 1 spell
+  //   • Skilled                              → 3 skill proficiencies
+  //   • Crafter                              → 3 tool proficiencies
+  // Static feats (Tough, Lucky, Alert, etc.) leave these empty.
+  featChoices: {
+    cantrips: string[]; // spell indexes for Magic Initiate
+    spells: string[];   // spell indexes for Magic Initiate
+    skills: string[];   // skill keys for Skilled
+    tools: string[];    // tool names for Crafter
+  };
+  // 2014 Variant Human alternative racial package. Replaces the
+  // standard Human +1-to-all bonus with: +1 to two abilities of
+  // choice, one skill proficiency of choice, and one feat (with the
+  // feat's own sub-choices when applicable, e.g. Magic Initiate's
+  // cantrip/spell picks).
+  variantHuman: {
+    enabled: boolean;
+    /** Ability keys (e.g. ["strength", "dexterity"]) — must be two
+     *  distinct abilities; each gets +1. */
+    abilityBonuses: string[];
+    /** A single skill proficiency name. */
+    skill: string | null;
+    /** Selected feat row's index from srd2024_feats; null until
+     *  picked. */
+    featIndex: string | null;
+    /** Selected feat name (cached for display). */
+    featName: string | null;
+    /** Selected feat description (cached for display). */
+    featDescription: string | null;
+    /** Sub-choices for the picked feat — uses the same shape as
+     *  origin feat choices so FeatPicker is reusable. */
+    featSubChoices: {
+      cantrips: string[];
+      spells: string[];
+      skills: string[];
+      tools: string[];
+    };
   };
   description: {
     personalityTraits: string;
@@ -489,6 +544,25 @@ function CharacterCreatorContent() {
       languages: [],
       tools: [],
     },
+    selectedSpells: {
+      cantrips: [],
+      leveled: [],
+    },
+    featChoices: {
+      cantrips: [],
+      spells: [],
+      skills: [],
+      tools: [],
+    },
+    variantHuman: {
+      enabled: false,
+      abilityBonuses: [],
+      skill: null,
+      featIndex: null,
+      featName: null,
+      featDescription: null,
+      featSubChoices: { cantrips: [], spells: [], skills: [], tools: [] },
+    },
     description: {
       personalityTraits: "",
       ideals: "",
@@ -731,6 +805,28 @@ function CharacterCreatorContent() {
             languages: backgroundLanguages,
             tools: backgroundTools,
           },
+          // Edit mode: start the picker empty so the save flow's
+          // auto-attach path leaves the existing spell list intact.
+          // Players who want to repick can re-visit this step.
+          selectedSpells: {
+            cantrips: [],
+            leveled: [],
+          },
+          featChoices: {
+            cantrips: [],
+            spells: [],
+            skills: [],
+            tools: [],
+          },
+          variantHuman: {
+            enabled: false,
+            abilityBonuses: [],
+            skill: null,
+            featIndex: null,
+            featName: null,
+            featDescription: null,
+            featSubChoices: { cantrips: [], spells: [], skills: [], tools: [] },
+          },
           description: loadedDescription,
         });
         setIsLoadingCharacter(false);
@@ -753,12 +849,28 @@ function CharacterCreatorContent() {
     ? subclasses.find(s => s.source === formData.subclassSource && s.index === formData.subclassIndex)
     : null;
 
+  // Variant Human only activates for human + 2014 source. The toggle
+  // overrides the standard +1-to-all-six bonus with two +1s of the
+  // player's choice — see getFinalAbilityScore below.
+  const isHuman = selectedRace?.index === "human" || selectedRace?.name === "Human";
+  const variantHumanActive =
+    formData.sourceVersion === "2014" &&
+    isHuman &&
+    formData.variantHuman.enabled;
+
   // Calculate ability modifiers with racial bonuses and ASI improvements
   const getFinalAbilityScore = (ability: keyof typeof formData.abilityScores): number => {
     let base = formData.abilityScores[ability];
-    
-    // Add racial bonuses
-    if (selectedRace?.ability_bonuses) {
+
+    if (variantHumanActive) {
+      // Variant Human: skip standard race bonus, apply +1 per
+      // ability listed in variantHuman.abilityBonuses instead.
+      const count = formData.variantHuman.abilityBonuses.filter(
+        (a) => a === ability
+      ).length;
+      base += count;
+    } else if (selectedRace?.ability_bonuses) {
+      // Standard race bonus path.
       const bonuses = selectedRace.ability_bonuses as Array<any>;
       const abilityAbbrev = ability.toUpperCase().slice(0, 3);
       const raceBonus = bonuses.find(b => {
@@ -769,13 +881,13 @@ function CharacterCreatorContent() {
         base += raceBonus.bonus;
       }
     }
-    
+
     // Add ASI improvements
     const asiBonus = formData.featureChoices.asiImprovements
       .filter(asi => asi.ability === ability)
       .reduce((sum, asi) => sum + asi.bonus, 0);
     base += asiBonus;
-    
+
     return base;
   };
 
@@ -800,8 +912,21 @@ function CharacterCreatorContent() {
       return;
     }
     if (step === 3 && (!formData.raceSource || !formData.raceIndex)) {
-      toast.error("Please select a species");
+      toast.error("Please select a race");
       return;
+    }
+    // Subrace gate: if the picked race has any subraces, force the
+    // user to descend into one of them (otherwise they'd skip its
+    // bonuses + traits).
+    if (step === 3 && formData.raceSource && formData.raceIndex) {
+      const picked = races.find(
+        (r) =>
+          r.source === formData.raceSource && r.index === formData.raceIndex
+      );
+      if (picked && Array.isArray(picked.subraces) && picked.subraces.length > 0) {
+        toast.error(`Pick a subrace of ${picked.name} before continuing`);
+        return;
+      }
     }
     
     const maxStep = isEditMode ? 11 : 11; // All steps available in edit mode (including race and class)
@@ -1058,9 +1183,16 @@ function CharacterCreatorContent() {
         console.log('No inventory items to add');
       }
 
-      // Add skill proficiencies from feature choices
-      if (formData.featureChoices.skillProficiencies.length > 0) {
-        const skillProficiencies = formData.featureChoices.skillProficiencies.map(skillName => ({
+      // Add skill proficiencies from feature choices PLUS Skilled
+      // origin feat picks (3 extra skills granted by the 2024 feat).
+      const allSkillNames = [
+        ...formData.featureChoices.skillProficiencies,
+        ...formData.featChoices.skills,
+      ];
+      // De-dupe in case a Skilled pick overlaps a class pick.
+      const uniqueSkillNames = Array.from(new Set(allSkillNames));
+      if (uniqueSkillNames.length > 0) {
+        const skillProficiencies = uniqueSkillNames.map(skillName => ({
           character_id: characterId,
           skill_name: skillName,
           proficient: true,
@@ -1128,14 +1260,21 @@ function CharacterCreatorContent() {
               slots_used: number;
             }> = [];
 
-            // Get cantrips (level 0)
+            // Get cantrips (level 0). If the user picked cantrips on
+            // the Spells step, honour those; otherwise fall back to
+            // "first N" auto-selection so non-caster legacy paths +
+            // edit-mode saves don't lose their spells.
             const cantrips = filteredSpells.filter(s => s.level === 0);
-            const cantripsKnown = spellcasting.cantrips_known?.[formData.level - 1] || 
-                                 spellcasting.cantrips_known?.[0] || 
+            const cantripsKnown = spellcasting.cantrips_known?.[formData.level - 1] ||
+                                 spellcasting.cantrips_known?.[0] ||
                                  3;
-            const cantripsToAdd = cantrips.slice(0, cantripsKnown);
-            console.log(`Adding ${cantripsToAdd.length} cantrips (out of ${cantrips.length} available, ${cantripsKnown} known at level ${formData.level})`);
-            
+            const pickedCantripIdx = new Set(formData.selectedSpells.cantrips);
+            const cantripsToAdd =
+              pickedCantripIdx.size > 0
+                ? cantrips.filter((c) => pickedCantripIdx.has(c.index))
+                : cantrips.slice(0, cantripsKnown);
+            console.log(`Adding ${cantripsToAdd.length} cantrips (out of ${cantrips.length} available, ${cantripsKnown} known at level ${formData.level}; ${pickedCantripIdx.size} user-picked)`);
+
             cantripsToAdd.forEach(cantrip => {
               spellsToAdd.push({
                 character_id: characterId,
@@ -1152,9 +1291,17 @@ function CharacterCreatorContent() {
             
             // For prepared casters (wizard, cleric, druid, paladin), add spells to spellbook
             // For known casters (sorcerer, bard, ranger, warlock), add known spells
+            // User picks (if any) come from the Spells step. When
+            // present they REPLACE the auto-attach default for this
+            // class branch; otherwise we fall back to slicing the
+            // class spell list.
+            const pickedLeveledIdx = new Set(formData.selectedSpells.leveled);
             if (['wizard'].includes(classIndex)) {
-              // Wizard: Add 6 first-level spells to spellbook at level 1
-              const spellsForSpellbook = firstLevelSpells.slice(0, 6);
+              // Wizard: 6 first-level spells in the spellbook.
+              const spellsForSpellbook =
+                pickedLeveledIdx.size > 0
+                  ? firstLevelSpells.filter((s) => pickedLeveledIdx.has(s.index))
+                  : firstLevelSpells.slice(0, 6);
               spellsForSpellbook.forEach(spell => {
                 spellsToAdd.push({
                   character_id: characterId,
@@ -1191,8 +1338,16 @@ function CharacterCreatorContent() {
                 slots_used: 0,
               });
             } else if (['sorcerer', 'bard', 'ranger', 'warlock'].includes(classIndex)) {
-              // Known casters: Add limited number of known spells
-              const knownSpells = firstLevelSpells.slice(0, spellcasting.spells_known?.[formData.level - 1] || 2);
+              // Known casters: honour user picks when present, else
+              // slice the first N from the class spell list.
+              const known =
+                pickedLeveledIdx.size > 0
+                  ? firstLevelSpells.filter((s) => pickedLeveledIdx.has(s.index))
+                  : firstLevelSpells.slice(
+                      0,
+                      spellcasting.spells_known?.[formData.level - 1] || 2
+                    );
+              const knownSpells = known;
               knownSpells.forEach(spell => {
                 spellsToAdd.push({
                   character_id: characterId,
@@ -1217,6 +1372,33 @@ function CharacterCreatorContent() {
                   spell_level: 1,
                   slots_total: 1,
                   slots_used: 0,
+                });
+              }
+            }
+
+            // Origin-feat granted spells (Magic Initiate). Cantrips +
+            // 1st-level spell from the relevant class spell list,
+            // marked always_prepared so they're available without
+            // counting toward daily preparation limits.
+            for (const cIdx of formData.featChoices.cantrips) {
+              if (!spellsToAdd.some((s) => s.spell_index === cIdx)) {
+                spellsToAdd.push({
+                  character_id: characterId,
+                  spell_source: 'srd',
+                  spell_index: cIdx,
+                  prepared: true,
+                  always_prepared: true,
+                });
+              }
+            }
+            for (const sIdx of formData.featChoices.spells) {
+              if (!spellsToAdd.some((s) => s.spell_index === sIdx)) {
+                spellsToAdd.push({
+                  character_id: characterId,
+                  spell_source: 'srd',
+                  spell_index: sIdx,
+                  prepared: true,
+                  always_prepared: true,
                 });
               }
             }
@@ -1520,7 +1702,7 @@ function CharacterCreatorContent() {
     { label: "Source", Icon: Book },
     { label: "Home", Icon: Campaign },
     { label: "Class", Icon: Fighter },
-    { label: "Species", Icon: CharacterIcon },
+    { label: "Race", Icon: CharacterIcon },
     { label: "Background", Icon: Book },
     { label: "Abilities", Icon: Strength },
     { label: "Description", Icon: Star },
@@ -1535,7 +1717,7 @@ function CharacterCreatorContent() {
     0: "Source Version",
     1: "Home",
     2: "Choose Class",
-    3: "Choose Species",
+    3: "Choose Race",
     4: "Choose Background",
     5: "Assign Ability Scores",
     6: "Describe Your Character",
@@ -1720,7 +1902,7 @@ function CharacterCreatorContent() {
               {step === 0 && "Choose between 2014 or 2024 SRD+PHB content"}
               {step === 1 && "Set up the basics: campaign, name, and starting level"}
               {step === 2 && "Choose a class, its features, and (if applicable) a subclass"}
-              {step === 3 && "Select your character's species"}
+              {step === 3 && "Select your character's race"}
               {step === 4 && "Choose a background to shape your character's origin"}
               {step === 5 && "Assign your ability scores using your preferred method"}
               {step === 6 && "Alignment, personality, appearance, and backstory"}
@@ -1895,6 +2077,44 @@ function CharacterCreatorContent() {
                         existingPickOfThisClass?.subclassIndex ?? null,
                     });
                   }}
+                  // Spell picks live on the Class step now (D&D Beyond
+                  // model) — spells are class+level driven so keeping
+                  // them next to the class card is the right home.
+                  level={formData.level}
+                  selectedSpells={formData.selectedSpells}
+                  onSelectedSpellsChange={(next) =>
+                    setFormData({ ...formData, selectedSpells: next })
+                  }
+                  // Skill conflict detection: surface which skills the
+                  // chosen background already grants so the class skill
+                  // picker can warn on overlap (RAW: pick a different
+                  // skill when there's a conflict).
+                  backgroundSkills={(() => {
+                    const bg = backgrounds.find(
+                      (b) =>
+                        b.name === formData.background ||
+                        b.index ===
+                          formData.background.toLowerCase().replace(/\s+/g, "-")
+                    );
+                    if (!bg) return [];
+                    const out: string[] = [];
+                    if (bg.skill_proficiencies) {
+                      for (const s of bg.skill_proficiencies.split(/[,;]\s*/))
+                        out.push(s.trim().toLowerCase().replace(/\s+/g, "-"));
+                    }
+                    const profs = (bg as unknown as {
+                      proficiencies?: Array<{ type: string; name: string }>;
+                    }).proficiencies;
+                    if (Array.isArray(profs)) {
+                      for (const p of profs) {
+                        if (p.type === "skill")
+                          out.push(
+                            p.name.trim().toLowerCase().replace(/\s+/g, "-")
+                          );
+                      }
+                    }
+                    return out;
+                  })()}
                 />
                 {formData.classes.length > 0 && (
                   <div
@@ -1911,13 +2131,39 @@ function CharacterCreatorContent() {
                       campaignId={formData.campaignId}
                       sourceVersion={formData.sourceVersion}
                       infoSheet={infoSheet}
+                      backgroundSkills={(() => {
+                        const bg = backgrounds.find(
+                          (b) =>
+                            b.name === formData.background ||
+                            b.index ===
+                              formData.background.toLowerCase().replace(/\s+/g, "-")
+                        );
+                        if (!bg) return [];
+                        const out: string[] = [];
+                        if (bg.skill_proficiencies) {
+                          for (const s of bg.skill_proficiencies.split(/[,;]\s*/))
+                            out.push(s.trim().toLowerCase().replace(/\s+/g, "-"));
+                        }
+                        const profs = (bg as unknown as {
+                          proficiencies?: Array<{ type: string; name: string }>;
+                        }).proficiencies;
+                        if (Array.isArray(profs)) {
+                          for (const p of profs) {
+                            if (p.type === "skill")
+                              out.push(
+                                p.name.trim().toLowerCase().replace(/\s+/g, "-")
+                              );
+                          }
+                        }
+                        return out;
+                      })()}
                     />
                   </div>
                 )}
               </div>
             )}
 
-            {/* Step 3: Species (Race) */}
+            {/* Step 3: Race */}
             {step === 3 && (
               <RaceSelectionStep
                 races={races}
@@ -2080,7 +2326,7 @@ function RaceSelectionStep({
   if (error) {
     return (
       <div className="p-4 border border-destructive rounded-md bg-destructive/10">
-        <p className="text-destructive font-medium">Error loading species</p>
+        <p className="text-destructive font-medium">Error loading races</p>
         <p className="text-sm text-muted-foreground mt-1">{error.message}</p>
       </div>
     );
@@ -2089,7 +2335,7 @@ function RaceSelectionStep({
   if (races.length === 0) {
     return (
       <div className="p-4 border border-muted rounded-md">
-        <p className="text-muted-foreground">No species available. Please check your database connection.</p>
+        <p className="text-muted-foreground">No races available. Please check your database connection.</p>
       </div>
     );
   }
@@ -2098,14 +2344,51 @@ function RaceSelectionStep({
     <div
       style={{
         display: "grid",
+        // Picker grid on the left, detail panel on the right. Stretch
+        // alignment makes the panel cell match the cards cell's
+        // height — panel content scrolls internally beyond that.
+        gridTemplateColumns: "minmax(0, 1fr) 320px",
+        gap: 16,
+        alignItems: "stretch",
+      }}
+      className="max-lg:grid-cols-1"
+    >
+    <div
+      style={{
+        display: "grid",
         gridTemplateColumns: "repeat(auto-fill, minmax(170px, 1fr))",
         gap: 8,
       }}
     >
-      {races.map((race) => {
+      {(() => {
+        // Filter out subraces — they're sibling rows in the same
+        // table that get referenced by their parent's `subraces`
+        // array. The grid only shows parent races; subrace
+        // selection happens inside the detail panel.
+        const subraceIndexes = new Set<string>();
+        for (const r of races) {
+          if (Array.isArray(r.subraces)) {
+            for (const sub of r.subraces) subraceIndexes.add(`${r.source}:${sub}`);
+          }
+        }
+        // If the user has picked a subrace, also identify its parent
+        // so the grid card stays highlighted while the panel shows
+        // the chosen subrace.
+        return races.filter(
+          (r) => !subraceIndexes.has(`${r.source}:${r.index}`)
+        );
+      })().map((race) => {
         const bonuses = race.ability_bonuses as Array<any> | null;
-        const isSelected =
+        // Card is "selected" when it's the picked race directly OR
+        // when the user has descended into one of its subraces.
+        const isDirectlySelected =
           selectedRace?.source === race.source && selectedRace?.index === race.index;
+        const isParentOfPick =
+          selectedRace?.source === race.source &&
+          Array.isArray(race.subraces) &&
+          !!selectedRace?.index &&
+          race.subraces.includes(selectedRace.index);
+        const isSelected = isDirectlySelected || isParentOfPick;
         const { Icon: RaceIcon, hue, saturation } = getRaceVisual(race);
         return (
           <div
@@ -2246,6 +2529,20 @@ function RaceSelectionStep({
         );
       })}
     </div>
+    {/* Persistent detail panel — absolute child inside a stretched
+        cell. The absolute element doesn't contribute to row height,
+        so the row sizes to the CARDS column only; the panel then
+        fills whatever cell height that produces. Scroll is internal. */}
+    <div style={{ position: "relative", minHeight: 0 }}>
+      <div style={{ position: "absolute", inset: 0, display: "flex" }}>
+        <RaceDetailPanel
+          race={selectedRace ?? null}
+          allRaces={races}
+          onSelectRace={onSelect}
+        />
+      </div>
+    </div>
+    </div>
   );
 }
 
@@ -2259,6 +2556,10 @@ function ClassSelectionStep({
   onAddClass,
   onRemoveClass,
   onSetPrimaryClass,
+  level,
+  selectedSpells,
+  onSelectedSpellsChange,
+  backgroundSkills,
 }: {
   classes: DndClass[];
   loading: boolean;
@@ -2269,6 +2570,10 @@ function ClassSelectionStep({
   onAddClass: (cls: DndClass) => void;
   onRemoveClass: (classSource: 'srd' | 'homebrew', classIndex: string) => void;
   onSetPrimaryClass: (cls: DndClass) => void;
+  level: number;
+  selectedSpells: CharacterFormData["selectedSpells"];
+  onSelectedSpellsChange: (next: CharacterFormData["selectedSpells"]) => void;
+  backgroundSkills: string[];
 }) {
   const [multiclassMode, setMulticlassMode] = useState(false);
 
@@ -2329,6 +2634,17 @@ function ClassSelectionStep({
         </div>
       )}
       
+      <div
+        style={{
+          display: "grid",
+          // Cards on the left, detail panel on the right. Stretch
+          // alignment ties the panel's height to the cards column.
+          gridTemplateColumns: "minmax(0, 1fr) 320px",
+          gap: 16,
+          alignItems: "stretch",
+        }}
+        className="max-lg:grid-cols-1"
+      >
       <div
         style={{
           display: "grid",
@@ -2556,13 +2872,37 @@ function ClassSelectionStep({
                     color: "var(--destructive)",
                     lineHeight: 1.3,
                   }}
+                  title={`Multiclass prereq: ${prereq.ability.toUpperCase()} ${prereq.min}+`}
                 >
-                  Can&apos;t add as multiclass — prerequisite not met
+                  Requires {prereq.ability.toUpperCase()} {prereq.min}+ to multiclass
                 </div>
               )}
             </div>
           );
         })}
+      </div>
+      {/* Persistent detail panel — absolute child inside a stretched
+          cell. The absolute element doesn't contribute to row height,
+          so the cards column drives the row; the panel just fills it. */}
+      <div style={{ position: "relative", minHeight: 0 }}>
+        <div style={{ position: "absolute", inset: 0, display: "flex" }}>
+        {(() => {
+          const focused =
+            selectedClasses.find((c) => c.isPrimary) ?? selectedClasses[0] ?? null;
+          const focusedCls = focused
+            ? classes.find(
+                (c) => c.source === focused.classSource && c.index === focused.classIndex
+              ) ?? null
+            : null;
+          return (
+            <ClassDetailPanel
+              cls={focusedCls}
+              level={focused?.level ?? 1}
+            />
+          );
+        })()}
+        </div>
+      </div>
       </div>
       
       {selectedClasses.length === 0 && (
@@ -3060,6 +3400,208 @@ function getSubclassUnlockLevel(classIndex?: string): number {
   return SUBCLASS_UNLOCK_LEVEL[classIndex.toLowerCase()] ?? 3;
 }
 
+/**
+ * Inline preview of subclass features unlocked at or before the
+ * character's current level. Rendered inside the SELECTED subclass
+ * card so players see the concrete trade-off before committing —
+ * full feature text is still available via the Info sheet.
+ *
+ * Reads from `srd_features` (the same table the class-features pane
+ * uses). Filters by `class_index + subclass_index` so we don't leak
+ * generic class features into the subclass section.
+ */
+function SubclassFeaturePreview({
+  classIndex,
+  subclassIndex,
+  characterLevel,
+}: {
+  classIndex: string;
+  subclassIndex: string;
+  characterLevel: number;
+}) {
+  const [features, setFeatures] = useState<
+    Array<{ index: string; name: string; level: number; description: string | null }>
+  >([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+    void (async () => {
+      setLoading(true);
+      const supabase = createClient();
+      // Build slug variants so we match features stored under either
+      // the bare slug ("fiend") or the prefixed slug ("the-fiend").
+      // Some 2024 imports use the prefix; the 2014 5e-bits import
+      // uses the bare form. See useSubclassFeatures for full notes.
+      const variants = new Set<string>();
+      const push = (s: string) => {
+        const trimmed = s.trim().toLowerCase();
+        if (trimmed) variants.add(trimmed);
+      };
+      push(subclassIndex);
+      if (subclassIndex.toLowerCase().startsWith("the-"))
+        push(subclassIndex.slice(4));
+      else push("the-" + subclassIndex);
+      const stripped = subclassIndex.replace(
+        /-(patron|domain|circle|archetype|tradition|oath|college|path|school|origin|bloodline|conclave|way)$/i,
+        ""
+      );
+      if (stripped !== subclassIndex) push(stripped);
+
+      const { data, error } = await supabase
+        .from("srd_features")
+        .select("index, name, level, description")
+        .eq("class_index", classIndex)
+        .in("subclass_index", Array.from(variants))
+        .order("level", { ascending: true })
+        .order("name", { ascending: true });
+      if (!mounted) return;
+      if (error || !data) {
+        setFeatures([]);
+      } else {
+        // Dedupe: some imports store the same feature under both
+        // bare and prefixed slugs (e.g. "dark-ones-blessing" AND
+        // "fiend-dark-ones-blessing"). Keep one entry per
+        // (level, name), preferring rows that carry a description.
+        const byKey = new Map<string, (typeof features)[number]>();
+        for (const row of data as typeof features) {
+          const key = `${row.level ?? "?"}::${(row.name || "").toLowerCase()}`;
+          const existing = byKey.get(key);
+          if (!existing || (!existing.description && row.description)) {
+            byKey.set(key, row);
+          }
+        }
+        setFeatures(Array.from(byKey.values()));
+      }
+      setLoading(false);
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [classIndex, subclassIndex]);
+
+  if (loading) {
+    return (
+      <div
+        style={{
+          marginTop: 8,
+          paddingTop: 8,
+          borderTop: "1px solid var(--border)",
+          fontSize: 11,
+          color: "var(--muted-foreground)",
+          fontStyle: "italic",
+        }}
+      >
+        Loading subclass features…
+      </div>
+    );
+  }
+
+  if (features.length === 0) {
+    return (
+      <div
+        style={{
+          marginTop: 8,
+          paddingTop: 8,
+          borderTop: "1px solid var(--border)",
+          fontSize: 11,
+          color: "var(--muted-foreground)",
+          fontStyle: "italic",
+        }}
+      >
+        No subclass features available in the database yet.
+      </div>
+    );
+  }
+
+  const unlocked = features.filter((f) => f.level <= characterLevel);
+  const future = features.filter((f) => f.level > characterLevel);
+
+  return (
+    <div
+      style={{
+        marginTop: 8,
+        paddingTop: 8,
+        borderTop: "1px solid var(--border)",
+        display: "flex",
+        flexDirection: "column",
+        gap: 6,
+      }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div
+        style={{
+          fontSize: 10,
+          fontWeight: 600,
+          textTransform: "uppercase",
+          letterSpacing: "0.05em",
+          color: "var(--muted-foreground)",
+        }}
+      >
+        Features {unlocked.length > 0 ? `· unlocked at L${characterLevel}` : "· locked"}
+      </div>
+      {unlocked.length === 0 && (
+        <div
+          style={{
+            fontSize: 11,
+            color: "var(--muted-foreground)",
+            fontStyle: "italic",
+          }}
+        >
+          Your current level is too low — first feature unlocks at level{" "}
+          {features[0]?.level ?? "?"}.
+        </div>
+      )}
+      {unlocked.map((f) => (
+        <div
+          key={f.index}
+          style={{
+            background: "var(--muted)",
+            borderRadius: 4,
+            padding: "6px 8px",
+          }}
+        >
+          <div style={{ fontSize: 12, fontWeight: 600 }}>
+            <span style={{ color: "var(--primary)", marginRight: 6 }}>L{f.level}</span>
+            {f.name}
+          </div>
+          {f.description && (
+            <div
+              style={{
+                fontSize: 11,
+                color: "var(--muted-foreground)",
+                marginTop: 3,
+                lineHeight: 1.5,
+                whiteSpace: "pre-line",
+                // Cap each blurb so the card stays readable.
+                display: "-webkit-box",
+                WebkitLineClamp: 3,
+                WebkitBoxOrient: "vertical",
+                overflow: "hidden",
+              }}
+            >
+              {f.description}
+            </div>
+          )}
+        </div>
+      ))}
+      {future.length > 0 && (
+        <div
+          style={{
+            fontSize: 10,
+            color: "var(--muted-foreground)",
+            opacity: 0.7,
+            marginTop: 2,
+          }}
+        >
+          + {future.length} more at higher levels (L
+          {future.map((f) => f.level).join(", L")})
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ClassFeaturesList({
   charClass,
   classData,
@@ -3070,6 +3612,7 @@ function ClassFeaturesList({
   sourceVersion,
   infoSheet,
   onSubclassChange,
+  backgroundSkills,
 }: {
   charClass: CharacterClassForm;
   classData: DndClass | undefined;
@@ -3084,9 +3627,15 @@ function ClassFeaturesList({
     subclassSource: "srd" | "homebrew" | null,
     subclassIndex: string | null
   ) => void;
+  backgroundSkills: string[];
 }) {
   const [features, setFeatures] = useState<ClassFeatureRow[]>([]);
   const [loading, setLoading] = useState(false);
+  // Sub-tab inside the {className} Features card. Defaults to the
+  // features list; flipping to "spells" swaps in the spell picker.
+  const [activeSubtab, setActiveSubtab] = useState<"features" | "spells">(
+    "features"
+  );
 
   useEffect(() => {
     if (!classData?.index) {
@@ -3107,14 +3656,36 @@ function ClassFeaturesList({
         .order("name", { ascending: true });
       if (mounted) {
         if (!error && data) {
+          // Build slug variants of the picked subclass so features
+          // stored under "the-fiend" still match when the subclass
+          // row's index is "fiend" (and vice versa).
+          const variants = new Set<string>();
+          if (charClass.subclassIndex) {
+            const raw = charClass.subclassIndex;
+            variants.add(raw.toLowerCase());
+            if (raw.toLowerCase().startsWith("the-"))
+              variants.add(raw.slice(4).toLowerCase());
+            else variants.add(("the-" + raw).toLowerCase());
+            const stripped = raw.replace(
+              /-(patron|domain|circle|archetype|tradition|oath|college|path|school|origin|bloodline|conclave|way)$/i,
+              ""
+            );
+            if (stripped !== raw) variants.add(stripped.toLowerCase());
+          }
           const filtered = (data as ClassFeatureRow[]).filter((f) => {
             if (!f.subclass_index) return true;
-            return (
-              !!charClass.subclassIndex &&
-              f.subclass_index === charClass.subclassIndex
-            );
+            return variants.has(f.subclass_index.toLowerCase());
           });
-          setFeatures(filtered);
+          // Dedupe rows that exist under multiple slug variants.
+          const byKey = new Map<string, ClassFeatureRow>();
+          for (const row of filtered) {
+            const key = `${row.level}::${(row.name || "").toLowerCase()}`;
+            const existing = byKey.get(key);
+            if (!existing || (!existing.description && row.description)) {
+              byKey.set(key, row);
+            }
+          }
+          setFeatures(Array.from(byKey.values()));
         } else {
           setFeatures([]);
         }
@@ -3281,8 +3852,8 @@ function ClassFeaturesList({
         <div style={{ padding: "0 12px 12px" }}>
           <div
             style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+              display: "flex",
+              flexDirection: "column",
               gap: 8,
             }}
           >
@@ -3307,7 +3878,7 @@ function ClassFeaturesList({
                   marginTop: 2,
                 }}
               >
-                Skip subclass selection
+                Skip subclass selection (you can pick one later).
               </div>
             </div>
             {availableSubclasses.map((sub) => {
@@ -3355,12 +3926,53 @@ function ClassFeaturesList({
                     <div
                       style={{
                         fontSize: 11,
+                        fontStyle: "italic",
                         color: "var(--muted-foreground)",
                         marginTop: 2,
                       }}
                     >
                       {sub.subclass_flavor}
                     </div>
+                  )}
+                  {sub.description ? (
+                    <div
+                      style={{
+                        fontSize: 12,
+                        color: "var(--muted-foreground)",
+                        marginTop: 6,
+                        lineHeight: 1.5,
+                        whiteSpace: "pre-line",
+                        // Clamp the description to 4 lines so the
+                        // grid stays compact; the Info button still
+                        // opens the full sheet for power-users who
+                        // want the complete write-up.
+                        display: "-webkit-box",
+                        WebkitLineClamp: 4,
+                        WebkitBoxOrient: "vertical",
+                        overflow: "hidden",
+                      }}
+                    >
+                      {sub.description}
+                    </div>
+                  ) : (
+                    <div
+                      style={{
+                        fontSize: 11,
+                        fontStyle: "italic",
+                        color: "var(--muted-foreground)",
+                        opacity: 0.7,
+                        marginTop: 6,
+                      }}
+                    >
+                      Click the info icon for full subclass features.
+                    </div>
+                  )}
+                  {active && (
+                    <SubclassFeaturePreview
+                      classIndex={classData.index}
+                      subclassIndex={sub.index}
+                      characterLevel={charClass.level}
+                    />
                   )}
                 </div>
               );
@@ -3435,6 +4047,33 @@ function ClassFeaturesList({
             />
           </summary>
           <div style={{ padding: "0 12px 12px" }}>
+            {/* Skill-conflict warning — class options that the chosen
+                background already grants don't double up (RAW: pick
+                something else). Only shown when at least one option
+                overlaps. */}
+            {(() => {
+              const bgSet = new Set(backgroundSkills);
+              const conflicts = availableSkills.filter((s) =>
+                bgSet.has(s.toLowerCase().replace(/\s+/g, "-"))
+              );
+              if (conflicts.length === 0) return null;
+              return (
+                <div
+                  className="mb-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 text-[11px] text-amber-200"
+                >
+                  Your background already grants{" "}
+                  {conflicts
+                    .map((s) =>
+                      s
+                        .split("-")
+                        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+                        .join(" ")
+                    )
+                    .join(", ")}
+                  . Pick different class skills to avoid overlap.
+                </div>
+              );
+            })()}
             <div
               style={{
                 display: "grid",
@@ -3454,6 +4093,11 @@ function ClassFeaturesList({
                 const isSelected =
                   formData.featureChoices.skillProficiencies.includes(skillName);
                 const maxReached = selectedCount >= maxCount;
+                // Conflict: this skill is already granted by the chosen
+                // background.
+                const isBackgroundConflict = new Set(backgroundSkills).has(
+                  skillName
+                );
                 const displayName = skill?.name
                   ? skill.name
                       .split("-")
@@ -3467,6 +4111,11 @@ function ClassFeaturesList({
                     className="sc-btn sc-btn-sm"
                     onClick={() => handleSkillToggle(skillName)}
                     disabled={!isSelected && maxReached}
+                    title={
+                      isBackgroundConflict
+                        ? "Already granted by your background — picking this skill wastes the choice"
+                        : undefined
+                    }
                     style={{
                       justifyContent: "flex-start",
                       background: isSelected
@@ -3477,10 +4126,18 @@ function ClassFeaturesList({
                         : "var(--secondary-foreground)",
                       fontWeight: isSelected ? 600 : 500,
                       opacity: !isSelected && maxReached ? 0.45 : 1,
+                      border: isBackgroundConflict
+                        ? "1px solid rgb(245 158 11 / 0.6)"
+                        : undefined,
                     }}
                   >
                     {isSelected && <Check size={12} />}
                     {displayName}
+                    {isBackgroundConflict && (
+                      <span className="text-amber-400 text-[10px] ml-auto">
+                        ⚠
+                      </span>
+                    )}
                   </button>
                 );
               })}
@@ -3502,17 +4159,35 @@ function ClassFeaturesList({
           borderBottom: "1px solid var(--border)",
         }}
       >
-        <span
-          style={{
-            fontSize: 11,
-            letterSpacing: "0.1em",
-            textTransform: "uppercase",
-            fontWeight: 600,
-            color: "var(--muted-foreground)",
-          }}
+        {/* Sub-tab: Features (default) vs Spells. Spells tab is the
+            home for the level-aware spell picker — picks live on
+            formData.selectedSpells. */}
+        <button
+          type="button"
+          onClick={() => setActiveSubtab("features")}
+          className={cn(
+            "px-2 py-1 text-[11px] font-semibold uppercase tracking-wider transition-colors rounded",
+            activeSubtab === "features"
+              ? "bg-primary/15 text-primary"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+          style={{ letterSpacing: "0.1em" }}
         >
           {classData.name} Features
-        </span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveSubtab("spells")}
+          className={cn(
+            "px-2 py-1 text-[11px] font-semibold uppercase tracking-wider transition-colors rounded",
+            activeSubtab === "spells"
+              ? "bg-primary/15 text-primary"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+          style={{ letterSpacing: "0.1em" }}
+        >
+          Spells
+        </button>
         <span
           style={{
             fontSize: 11,
@@ -3520,11 +4195,38 @@ function ClassFeaturesList({
             opacity: 0.7,
           }}
         >
-          {loading
-            ? "Loading…"
-            : `${features.length} feature${features.length === 1 ? "" : "s"}`}
+          {activeSubtab === "features"
+            ? loading
+              ? "Loading…"
+              : `${features.length} feature${features.length === 1 ? "" : "s"}`
+            : `Level ${charClass.level}`}
         </span>
       </div>
+
+      {/* Spells sub-tab content. The picker's own empty-state handles
+          classes without spellcasting (Fighter, Barbarian, etc.) and
+          half-casters at low level. */}
+      {activeSubtab === "spells" && (
+        <SpellPickerStep
+          classIndex={classData.index}
+          spellcasting={
+            (classData.spellcasting as Parameters<
+              typeof SpellPickerStep
+            >[0]["spellcasting"]) ?? null
+          }
+          level={charClass.level}
+          // Drives the 1/3-caster unlock (Eldritch Knight, Arcane
+          // Trickster) so the picker swaps in the wizard spell list
+          // + school whitelist when the corresponding subclass is
+          // picked.
+          subclassIndex={charClass.subclassIndex ?? null}
+          value={formData.selectedSpells}
+          onChange={(next) =>
+            setFormData({ ...formData, selectedSpells: next })
+          }
+        />
+      )}
+      {activeSubtab === "features" && (
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
         {(() => {
           type Row =
@@ -3837,6 +4539,7 @@ function ClassFeaturesList({
           });
         })()}
       </div>
+      )}
     </div>
   );
 }
@@ -3849,6 +4552,7 @@ function FeatureChoicesStep({
   campaignId,
   sourceVersion,
   infoSheet,
+  backgroundSkills,
 }: {
   formData: CharacterFormData;
   setFormData: (data: CharacterFormData) => void;
@@ -3857,6 +4561,7 @@ function FeatureChoicesStep({
   campaignId: string | null;
   sourceVersion: "2014" | "2024" | null;
   infoSheet: ReturnType<typeof useInfoSheet>;
+  backgroundSkills: string[];
 }) {
   if (!selectedClass) {
     return (
@@ -4261,6 +4966,7 @@ function FeatureChoicesStep({
                 sourceVersion={sourceVersion}
                 infoSheet={infoSheet}
                 onSubclassChange={handleSubclassChange}
+                backgroundSkills={backgroundSkills}
               />
               </div>
             );
@@ -4459,8 +5165,36 @@ function AbilityScoresStep({
     charisma: Charisma,
   };
 
+  // Variant Human is gated to the 2014 path + Human race. Show the
+  // panel right at the top of this step so the player decides about
+  // it before they finalize ability assignments (since the variant
+  // changes the racial bonus math).
+  const showVariantHuman =
+    formData.sourceVersion === "2014" &&
+    (selectedRace?.index === "human" || selectedRace?.name === "Human");
+
+  // Skills already known via class + background — passed to the
+  // Variant Human skill picker so the player can't pick something
+  // they'll get for free elsewhere.
+  const knownSkillsForVariant = (() => {
+    const out = new Set<string>();
+    for (const s of formData.featureChoices.skillProficiencies) out.add(s);
+    for (const s of formData.featChoices.skills) out.add(s);
+    return Array.from(out);
+  })();
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      {showVariantHuman && (
+        <VariantHumanPanel
+          value={formData.variantHuman}
+          onChange={(next) =>
+            setFormData({ ...formData, variantHuman: next })
+          }
+          excludeSkills={knownSkillsForVariant}
+        />
+      )}
+
       {/* Method picker - three compact pill buttons */}
       <div>
         <div
@@ -4722,6 +5456,47 @@ function HomeStep({
 }) {
   return (
     <div className="space-y-5">
+      {/* Rules version — 2014 SRD vs 2024 PHB. Drives which tables
+          races/classes/backgrounds are loaded from. */}
+      <div>
+        <Label className="flex items-center gap-2">
+          <Book size={18} />
+          Rules Version
+        </Label>
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          {(["2014", "2024"] as const).map((v) => {
+            const active = formData.sourceVersion === v;
+            return (
+              <button
+                key={v}
+                type="button"
+                onClick={() => setFormData({ ...formData, sourceVersion: v })}
+                className={`sc-card sc-card-hover text-left transition-colors ${
+                  active ? "ring-2 ring-primary/60 bg-primary/5" : ""
+                }`}
+                style={{ padding: 12 }}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-serif font-semibold">
+                    {v === "2014" ? "2014 SRD" : "2024 PHB"}
+                  </span>
+                  {active && (
+                    <span className="text-[10px] uppercase tracking-wider text-primary">
+                      Selected
+                    </span>
+                  )}
+                </div>
+                <p className="mt-1 text-[11px] text-muted-foreground leading-relaxed">
+                  {v === "2014"
+                    ? "Original 5e ruleset. Stable race/class/background data."
+                    : "Updated 2024 ruleset. Origin backgrounds with feats, new species options."}
+                </p>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       {/* Character Name */}
       <div>
         <Label htmlFor="home-name" className="flex items-center gap-2">
@@ -4961,20 +5736,53 @@ function BackgroundStep({
           </SelectContent>
         </Select>
         {selectedBackground && (
-          <div className="mt-2 p-3 bg-muted/50 rounded-md text-xs space-y-1">
-            {selectedBackground.skill_proficiencies && (
-              <div><strong>Skills:</strong> {selectedBackground.skill_proficiencies}</div>
-            )}
-            {selectedBackground.tool_proficiencies && (
-              <div><strong>Tools:</strong> {selectedBackground.tool_proficiencies}</div>
-            )}
-            {selectedBackground.languages && (
-              <div><strong>Languages:</strong> {selectedBackground.languages}</div>
-            )}
-            {selectedBackground.feature && (
-              <div className="mt-2 pt-2 border-t border-border/50">
-                <strong>Feature:</strong> {selectedBackground.feature}
-              </div>
+          <div className="mt-2 space-y-3">
+            {/* Persistent detail panel — surfaces the prose fields
+                (skills, tools, languages, feature, equipment) as a
+                proper card instead of a buried text blob. */}
+            <BackgroundDetailPanel background={selectedBackground} />
+
+            {/* Feat sub-picker — 2024 PHB Origin feats grant follow-up
+                player choices (cantrips/spells for Magic Initiate,
+                skills for Skilled, tools for Crafter). Static feats
+                render as label-only. */}
+            {(selectedBackground as unknown as {
+              feat?: { index?: string; name?: string; description?: string };
+            }).feat && (
+              <FeatPicker
+                feat={(selectedBackground as unknown as {
+                  feat: { index?: string; name?: string; description?: string };
+                }).feat}
+                value={formData.featChoices}
+                onChange={(next) =>
+                  setFormData({ ...formData, featChoices: next })
+                }
+                excludeSkills={(() => {
+                  // Pre-populate the "already known" skill set so the
+                  // Skilled feat picker can grey them out.
+                  const out: string[] = [];
+                  for (const s of formData.featureChoices.skillProficiencies)
+                    out.push(s.toLowerCase().replace(/\s+/g, "-"));
+                  if (selectedBackground.skill_proficiencies) {
+                    for (const s of selectedBackground.skill_proficiencies.split(
+                      /[,;]\s*/
+                    ))
+                      out.push(s.trim().toLowerCase().replace(/\s+/g, "-"));
+                  }
+                  const bgProfs = (selectedBackground as unknown as {
+                    proficiencies?: Array<{ type: string; name: string }>;
+                  }).proficiencies;
+                  if (Array.isArray(bgProfs)) {
+                    for (const p of bgProfs) {
+                      if (p.type === "skill")
+                        out.push(
+                          p.name.trim().toLowerCase().replace(/\s+/g, "-")
+                        );
+                    }
+                  }
+                  return out;
+                })()}
+              />
             )}
           </div>
         )}
@@ -5114,6 +5922,17 @@ function BackgroundStep({
 
       {section === "description" && (
       <>
+      {/* Portrait — preset gallery + custom upload. The picked URL
+          flows straight into formData.imageUrl so the save flow
+          stores it on the new character row. */}
+      <PortraitPicker
+        characterName={formData.name}
+        value={formData.imageUrl}
+        onChange={(next) =>
+          setFormData({ ...formData, imageUrl: next })
+        }
+      />
+
       {/* Alignment — 3x3 grid picker */}
       <div>
         <Label className="flex items-center gap-2">
@@ -5863,77 +6682,180 @@ function EquipmentStep({
             return null;
           })()}
 
-          {/* Equipment Choices */}
+          {/* Equipment Choices — "Choose A or B" style. The SRD's
+              starting_equipment_options jsonb stores a `choose: N`
+              + a `from` pool. When N=1 we render the options as
+              mutually-exclusive radio cards (picking A clears B);
+              when N>1, the player can mix-pick up to N. */}
           {equipmentChoices.length > 0 && equipmentChoices.map((choice: any, choiceIdx: number) => {
             const choose = choice.choose || 1;
             // Handle different choice structures
-            const from = choice.from?.equipment_category?.equipment 
+            const from = choice.from?.equipment_category?.equipment
               || choice.from?.equipment
-              || choice.from 
+              || choice.from?.options
+              || choice.from
               || [];
-            
+
             if (!Array.isArray(from) || from.length === 0) return null;
-            
+
+            // Build a stable list of option indexes for this choice
+            // block so radio behaviour can clear siblings.
+            const optionIndexes = from
+              .map((o: any) =>
+                o.index ||
+                o.equipment?.index ||
+                o.of?.index ||
+                o.name?.toLowerCase().replace(/\s+/g, "-")
+              )
+              .filter((x: string | undefined): x is string => !!x);
+
+            // For choose=1 groups, picking one option clears the
+            // siblings in the same group. We compute siblings here
+            // so the click handler doesn't have to re-derive them.
+            const pickSingleFromGroup = (idx: string) => {
+              const newSelected = new Map(selectedItems);
+              for (const sib of optionIndexes) {
+                if (sib !== idx) newSelected.delete(`srd-${sib}`);
+              }
+              const myKey = `srd-${idx}`;
+              if (newSelected.has(myKey)) {
+                newSelected.delete(myKey);
+              } else {
+                newSelected.set(myKey, 1);
+              }
+              setSelectedItems(newSelected);
+              setFormData({
+                ...formData,
+                selectedEquipment: Array.from(newSelected.entries()).map(([k, qty]) => {
+                  const [src, ...idxParts] = k.split("-");
+                  const id = idxParts.join("-");
+                  return { itemIndex: id, itemSource: src as "srd" | "homebrew", quantity: qty };
+                }),
+              });
+            };
+
+            // How many of the group's options are picked — drives
+            // the at-cap state when choose > 1.
+            const pickedInGroup = optionIndexes.filter((i: string) =>
+              selectedItems.has(`srd-${i}`)
+            ).length;
+
             return (
               <div key={choiceIdx} className="border-t pt-4">
-                <h4 className="font-medium mb-2">
-                  Choose {choose} {choiceIdx > 0 ? `(Option ${choiceIdx + 1})` : ''}
-                </h4>
-                <div className="space-y-2">
-                  {from.map((option: any) => {
-                    const itemIndex = option.index || option.equipment?.index || option.name?.toLowerCase().replace(/\s+/g, '-');
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="font-medium">
+                    {choose === 1 ? "Choose one" : `Choose ${choose}`}
+                  </h4>
+                  <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    {pickedInGroup} / {choose} picked
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {from.map((option: any, optIdx: number) => {
+                    const itemIndex =
+                      option.index ||
+                      option.equipment?.index ||
+                      option.of?.index ||
+                      option.name?.toLowerCase().replace(/\s+/g, "-");
                     if (!itemIndex) return null;
-                    
+
                     const key = `srd-${itemIndex}`;
                     const isSelected = selectedItems.has(key);
-                    const quantity = selectedItems.get(key) || 1;
+                    const quantity = selectedItems.get(key) || option.quantity || option.count || 1;
                     const eqData = getEquipmentByIndex(itemIndex, "srd");
-                    const displayName = option.name || option.equipment?.name || itemIndex;
+                    const displayName = option.name || option.equipment?.name || option.of?.name || itemIndex;
+                    const atCap = !isSelected && pickedInGroup >= choose;
+                    const letter = String.fromCharCode(65 + optIdx); // A, B, C…
+
+                    const handleClick = () => {
+                      if (atCap) return;
+                      if (choose === 1) {
+                        pickSingleFromGroup(itemIndex);
+                      } else {
+                        handleItemToggle(itemIndex, "srd", quantity);
+                      }
+                    };
 
                     return (
-                      <div key={itemIndex} className="flex items-center justify-between p-2 border rounded-md hover:bg-muted/50">
-                        <div className="flex items-center gap-2 flex-1">
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={() => handleItemToggle(itemIndex, "srd", 1)}
-                            className="h-4 w-4"
-                          />
-                          <div className="flex-1">
-                            <span className="font-medium">{displayName}</span>
+                      <button
+                        type="button"
+                        key={`${itemIndex}-${optIdx}`}
+                        onClick={handleClick}
+                        disabled={atCap}
+                        className={`text-left rounded-md border p-2.5 transition-colors ${
+                          isSelected
+                            ? "border-primary/60 bg-primary/10"
+                            : atCap
+                              ? "border-border bg-background opacity-40 cursor-not-allowed"
+                              : "border-border bg-background hover:border-primary/40 hover:bg-primary/5"
+                        }`}
+                      >
+                        <div className="flex items-start gap-2">
+                          <span className={`mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[10px] font-bold ${
+                            isSelected
+                              ? "border-primary bg-primary text-primary-foreground"
+                              : "border-border text-muted-foreground"
+                          }`}>
+                            {isSelected ? "✓" : letter}
+                          </span>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-medium leading-tight">
+                              {displayName}
+                              {quantity > 1 && (
+                                <span className="ml-1 text-xs text-muted-foreground">
+                                  ×{quantity}
+                                </span>
+                              )}
+                            </div>
                             {eqData && (
-                              <div className="text-xs text-muted-foreground">
-                                {eqData.equipment_category && <span>{eqData.equipment_category}</span>}
+                              <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-[10px] text-muted-foreground">
+                                {eqData.equipment_category && (
+                                  <span>{eqData.equipment_category}</span>
+                                )}
                                 {eqData.cost && (
-                                  <span className="ml-2">
+                                  <span>
                                     {eqData.cost.quantity} {eqData.cost.unit}
                                   </span>
+                                )}
+                                {typeof eqData.weight === "number" && (
+                                  <span>{eqData.weight} lb</span>
                                 )}
                               </div>
                             )}
                           </div>
+                          {isSelected && choose > 1 && (
+                            <div
+                              className="flex items-center gap-1"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-6 w-6 p-0"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleQuantityChange(itemIndex, "srd", quantity - 1);
+                                }}
+                                disabled={quantity <= 1}
+                              >
+                                -
+                              </Button>
+                              <span className="w-6 text-center text-xs">{quantity}</span>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-6 w-6 p-0"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleQuantityChange(itemIndex, "srd", quantity + 1);
+                                }}
+                              >
+                                +
+                              </Button>
+                            </div>
+                          )}
                         </div>
-                        {isSelected && (
-                          <div className="flex items-center gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleQuantityChange(itemIndex, "srd", quantity - 1)}
-                              disabled={quantity <= 1}
-                            >
-                              -
-                            </Button>
-                            <span className="w-8 text-center">{quantity}</span>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleQuantityChange(itemIndex, "srd", quantity + 1)}
-                            >
-                              +
-                            </Button>
-                          </div>
-                        )}
-                      </div>
+                      </button>
                     );
                   })}
                 </div>
@@ -5941,24 +6863,74 @@ function EquipmentStep({
             );
           })}
 
-          {/* Selected Equipment Summary */}
-          {selectedItems.size > 0 && (
-            <div className="border-t pt-4">
-              <h4 className="font-medium mb-2">Selected Equipment ({selectedItems.size} items)</h4>
-              <div className="space-y-1">
-                {Array.from(selectedItems.entries()).map(([key, quantity]) => {
-                  const [source, ...indexParts] = key.split('-');
-                  const index = indexParts.join('-');
-                  const eqData = getEquipmentByIndex(index, source as "srd" | "homebrew");
-                  return (
-                    <div key={key} className="text-sm p-2 bg-muted/50 rounded">
-                      {eqData?.name || index} {quantity > 1 && `×${quantity}`}
+          {/* Selected Equipment Summary — running totals so the
+              player sees encumbrance + market value at a glance. */}
+          {selectedItems.size > 0 && (() => {
+            let totalCopper = 0;
+            let totalWeight = 0;
+            const rows: Array<{ name: string; qty: number; cost: string; weight: string }> = [];
+            for (const [key, quantity] of selectedItems.entries()) {
+              const [source, ...indexParts] = key.split("-");
+              const index = indexParts.join("-");
+              const eqData = getEquipmentByIndex(index, source as "srd" | "homebrew");
+              const name = eqData?.name || index;
+              // Convert cost to copper for totalling.
+              if (eqData?.cost) {
+                const q = (eqData.cost as any).quantity ?? 0;
+                const unit = ((eqData.cost as any).unit ?? "gp").toLowerCase();
+                const mult =
+                  unit === "cp" ? 1 :
+                  unit === "sp" ? 10 :
+                  unit === "ep" ? 50 :
+                  unit === "gp" ? 100 :
+                  unit === "pp" ? 1000 : 100;
+                totalCopper += q * mult * quantity;
+              }
+              if (typeof eqData?.weight === "number") {
+                totalWeight += eqData.weight * quantity;
+              }
+              rows.push({
+                name,
+                qty: quantity,
+                cost: eqData?.cost
+                  ? `${(eqData.cost as any).quantity} ${(eqData.cost as any).unit}`
+                  : "—",
+                weight: typeof eqData?.weight === "number" ? `${eqData.weight} lb` : "—",
+              });
+            }
+            const totalGp = (totalCopper / 100).toFixed(2).replace(/\.00$/, "");
+            return (
+              <div className="border-t pt-4">
+                <div className="flex items-baseline justify-between mb-2">
+                  <h4 className="font-medium">
+                    Selected Equipment ({selectedItems.size} item{selectedItems.size === 1 ? "" : "s"})
+                  </h4>
+                  <div className="text-[11px] text-muted-foreground flex gap-3">
+                    <span>Total: <span className="font-semibold">{totalGp} gp</span></span>
+                    <span>Weight: <span className="font-semibold">{totalWeight.toFixed(1)} lb</span></span>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  {rows.map((r, i) => (
+                    <div
+                      key={i}
+                      className="flex items-center justify-between text-sm p-2 bg-muted/40 rounded gap-2"
+                    >
+                      <span className="flex-1 min-w-0 truncate">
+                        {r.name}
+                        {r.qty > 1 && (
+                          <span className="ml-1 text-xs text-muted-foreground">×{r.qty}</span>
+                        )}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground shrink-0">
+                        {r.cost} · {r.weight}
+                      </span>
                     </div>
-                  );
-                })}
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {(!startingEquipment?.starting_equipment && equipmentChoices.length === 0) && (
             <p className="text-sm text-muted-foreground">
@@ -6023,7 +6995,7 @@ function ReviewStep({
               <span className="font-medium">Name:</span> {formData.name || "Unnamed"}
             </div>
             <div>
-              <span className="font-medium">Species:</span> {selectedRace?.name || "Not selected"}
+              <span className="font-medium">Race:</span> {selectedRace?.name || "Not selected"}
             </div>
             <div>
               <span className="font-medium">Class:</span> {selectedClass?.name || "Not selected"}
@@ -6099,6 +7071,166 @@ function ReviewStep({
           </CardContent>
         </Card>
       </div>
+
+      {/* Derived stats — computed from the picks above so the player
+          can sanity-check their sheet before saving. AC uses a simple
+          10 + DEX baseline (refined by equipped armor at runtime);
+          HP uses class hit die max at L1 + CON mod. Saves and skills
+          fold in proficiency bonuses from class + background picks. */}
+      {(() => {
+        const dexMod = getAbilityModifier(getFinalAbilityScore("dexterity"));
+        const conMod = getAbilityModifier(getFinalAbilityScore("constitution"));
+        const wisMod = getAbilityModifier(getFinalAbilityScore("wisdom"));
+        const strScore = getFinalAbilityScore("strength");
+
+        // Save proficiencies from primary class.
+        const saveProfs = new Set(
+          (selectedClass?.saving_throws ?? []).map((s) =>
+            String(s).toLowerCase().slice(0, 3)
+          )
+        );
+
+        // Skill proficiencies from: (a) class skill picks the user made
+        // on the Class step + (b) background skill grants.
+        const skillProfs = new Set<string>();
+        for (const s of formData.featureChoices.skillProficiencies ?? [])
+          skillProfs.add(toSkillKey(s));
+        if (selectedBackground?.skill_proficiencies) {
+          for (const s of selectedBackground.skill_proficiencies.split(
+            /[,;]\s*/
+          ))
+            skillProfs.add(toSkillKey(s));
+        }
+        // 2024 background proficiencies are jsonb.
+        const bgProfs = (selectedBackground as unknown as {
+          proficiencies?: Array<{ type: string; name: string }>;
+        })?.proficiencies;
+        if (Array.isArray(bgProfs)) {
+          for (const p of bgProfs) {
+            if (p.type === "skill") skillProfs.add(toSkillKey(p.name));
+          }
+        }
+
+        const hitDie = selectedClass?.hit_die ?? 8;
+        const hp = hitDie + conMod + (formData.level - 1) * (Math.floor(hitDie / 2) + 1 + conMod);
+
+        const passivePerception =
+          10 + wisMod + (skillProfs.has("perception") ? proficiencyBonus : 0);
+
+        const carryingCapacity = strScore * 15;
+
+        return (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Combat Stats */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Strength size={20} />
+                  Combat Stats
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-1.5 text-sm">
+                <StatRow label="Armor Class" value={`${10 + dexMod}`} sub="10 + DEX (no armor)" />
+                <StatRow label="Hit Points" value={`${hp}`} sub={`${hitDie}+CON at L1`} />
+                <StatRow label="Initiative" value={fmtMod(dexMod)} />
+                <StatRow label="Speed" value={`${selectedRace?.speed ?? 30} ft`} />
+                <StatRow label="Passive Perception" value={`${passivePerception}`} />
+                <StatRow label="Proficiency Bonus" value={`+${proficiencyBonus}`} />
+                <StatRow label="Carry Capacity" value={`${carryingCapacity} lb`} sub={`STR ${strScore} × 15`} />
+              </CardContent>
+            </Card>
+
+            {/* Saves */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Strength size={20} />
+                  Saving Throws
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-1 text-sm">
+                {abilities.map((a) => {
+                  const mod = getAbilityModifier(getFinalAbilityScore(a));
+                  const proficient = saveProfs.has(a.slice(0, 3));
+                  const total = mod + (proficient ? proficiencyBonus : 0);
+                  return (
+                    <div
+                      key={a}
+                      className="flex items-center justify-between"
+                    >
+                      <span className="capitalize">
+                        {proficient && (
+                          <span className="text-amber-400 mr-1">●</span>
+                        )}
+                        {!proficient && (
+                          <span className="text-muted-foreground/40 mr-1">○</span>
+                        )}
+                        {a}
+                      </span>
+                      <span
+                        className={cn(
+                          "font-mono tabular-nums",
+                          proficient && "font-bold text-amber-300"
+                        )}
+                      >
+                        {fmtMod(total)}
+                      </span>
+                    </div>
+                  );
+                })}
+              </CardContent>
+            </Card>
+
+            {/* Skills */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Strength size={20} />
+                  Skills
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-1 text-xs">
+                {DND_SKILLS.map((s) => {
+                  const abilityKey = s.ability as typeof abilities[number];
+                  const mod = getAbilityModifier(
+                    getFinalAbilityScore(abilityKey)
+                  );
+                  const proficient = skillProfs.has(s.name);
+                  const total = mod + (proficient ? proficiencyBonus : 0);
+                  return (
+                    <div
+                      key={s.name}
+                      className="flex items-center justify-between"
+                    >
+                      <span>
+                        {proficient ? (
+                          <span className="text-amber-400 mr-1">●</span>
+                        ) : (
+                          <span className="text-muted-foreground/40 mr-1">○</span>
+                        )}
+                        <span className="capitalize">
+                          {s.name.replace(/-/g, " ")}
+                        </span>
+                        <span className="text-muted-foreground ml-1 text-[10px]">
+                          ({String(s.ability).slice(0, 3).toUpperCase()})
+                        </span>
+                      </span>
+                      <span
+                        className={cn(
+                          "font-mono tabular-nums",
+                          proficient && "font-bold text-amber-300"
+                        )}
+                      >
+                        {fmtMod(total)}
+                      </span>
+                    </div>
+                  );
+                })}
+              </CardContent>
+            </Card>
+          </div>
+        );
+      })()}
 
       {selectedRace && (
         <Card>
@@ -6378,5 +7510,40 @@ function ReviewStep({
       )}
     </div>
   );
+}
+
+// ── Review-step helpers ──────────────────────────────────────────────
+
+function StatRow({
+  label,
+  value,
+  sub,
+}: {
+  label: string;
+  value: string | number;
+  sub?: string;
+}) {
+  return (
+    <div className="flex items-baseline justify-between gap-2">
+      <div>
+        <p className="font-medium">{label}</p>
+        {sub && <p className="text-[10px] text-muted-foreground">{sub}</p>}
+      </div>
+      <p className="font-mono font-bold text-base text-amber-300 tabular-nums">
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function fmtMod(n: number): string {
+  return n >= 0 ? `+${n}` : `${n}`;
+}
+
+/** Normalize an arbitrary skill name string into the DND_SKILLS key
+ *  shape (kebab-case, lowercase). Handles "Sleight of Hand",
+ *  "Animal Handling", "sleight-of-hand", "Insight", etc. */
+function toSkillKey(raw: string): string {
+  return raw.trim().toLowerCase().replace(/[\s_]+/g, "-");
 }
 

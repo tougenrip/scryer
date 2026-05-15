@@ -2,10 +2,62 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useVttNotes, type Note, type NoteVisibility } from "@/hooks/useVttNotes";
+import { useCampaignCalendarLive } from "@/hooks/useCampaignCalendarLive";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { Plus, Trash2, Save, Lock, User, Users, Eye } from "lucide-react";
+import {
+  Plus,
+  Trash2,
+  Save,
+  Lock,
+  User,
+  Users,
+  Eye,
+  Calendar as CalendarIcon,
+  CalendarOff,
+} from "lucide-react";
+
+const DEFAULT_MONTHS = [
+  "First-Month",
+  "Second-Month",
+  "Third-Month",
+  "Fourth-Month",
+  "Fifth-Month",
+  "Sixth-Month",
+  "Seventh-Month",
+  "Eighth-Month",
+  "Ninth-Month",
+  "Tenth-Month",
+  "Eleventh-Month",
+  "Twelfth-Month",
+];
+
+function isDated(n: Note): boolean {
+  return (
+    n.in_world_year != null &&
+    n.in_world_month != null &&
+    n.in_world_day != null
+  );
+}
+
+function dateKey(n: Note): number {
+  if (!isDated(n)) return -Infinity;
+  return (
+    (n.in_world_year as number) * 10000 +
+    (n.in_world_month as number) * 100 +
+    (n.in_world_day as number)
+  );
+}
+
+function formatInWorldDate(n: Note, monthNames: string[]): string {
+  if (!isDated(n)) return "";
+  const m =
+    monthNames[
+      ((n.in_world_month as number) - 1 + monthNames.length) % monthNames.length
+    ];
+  return `${n.in_world_day} ${m} ${n.in_world_year}`;
+}
 
 interface Props {
   campaignId: string | null;
@@ -26,6 +78,14 @@ const VISIBILITY_TABS: Array<{
 
 export function NotesPanel({ campaignId, userId, isDm }: Props) {
   const { notes, createNote, updateNote, deleteNote } = useVttNotes(campaignId);
+  const { calendar } = useCampaignCalendarLive(campaignId);
+  const monthNames = useMemo(
+    () =>
+      calendar?.custom_month_names && calendar.custom_month_names.length > 0
+        ? calendar.custom_month_names
+        : DEFAULT_MONTHS,
+    [calendar]
+  );
   const [tab, setTab] = useState<NoteVisibility>("owner");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [draftTitle, setDraftTitle] = useState("");
@@ -37,10 +97,20 @@ export function NotesPanel({ campaignId, userId, isDm }: Props) {
     [isDm]
   );
 
-  const filtered = useMemo(
-    () => notes.filter((n) => n.visibility === tab),
-    [notes, tab]
-  );
+  const filtered = useMemo(() => {
+    const list = notes.filter((n) => n.visibility === tab);
+    // Dated entries first (newest in-world date), then undated ones by
+    // updated_at — the dated rows feel like a journal log; the undated
+    // rows are quick reference notes.
+    return list.sort((a, b) => {
+      const aDated = isDated(a);
+      const bDated = isDated(b);
+      if (aDated && bDated) return dateKey(b) - dateKey(a);
+      if (aDated) return -1;
+      if (bDated) return 1;
+      return b.updated_at.localeCompare(a.updated_at);
+    });
+  }, [notes, tab]);
 
   const selected = useMemo(
     () => filtered.find((n) => n.id === selectedId) ?? null,
@@ -77,6 +147,26 @@ export function NotesPanel({ campaignId, userId, isDm }: Props) {
       authorUserId: userId,
     });
     if (created) setSelectedId(created.id);
+  };
+
+  /** Toggle the in-world date stamp on the selected note. Stamps with
+   *  the current calendar date when adding; clears all three columns
+   *  when removing. */
+  const handleToggleDate = async () => {
+    if (!selected || !calendar) return;
+    if (isDated(selected)) {
+      await updateNote(selected.id, {
+        in_world_year: null,
+        in_world_month: null,
+        in_world_day: null,
+      });
+    } else {
+      await updateNote(selected.id, {
+        in_world_year: calendar.current_year,
+        in_world_month: calendar.current_month,
+        in_world_day: calendar.current_day,
+      });
+    }
   };
 
   const handleSave = async () => {
@@ -137,6 +227,7 @@ export function NotesPanel({ campaignId, userId, isDm }: Props) {
             type="button"
             onClick={handleCreate}
             className="flex items-center justify-center gap-1 px-2 py-2 text-xs text-amber-400 hover:bg-amber-500/10 border-b border-border"
+            title="New note — toggle the calendar icon in the editor to date it"
           >
             <Plus className="h-3.5 w-3.5" />
             New
@@ -158,11 +249,18 @@ export function NotesPanel({ campaignId, userId, isDm }: Props) {
                   )}
                   title={n.title || "Untitled"}
                 >
-                  <p className="truncate text-xs font-medium">
-                    {n.title || "Untitled"}
-                  </p>
+                  <div className="flex items-center gap-1">
+                    {isDated(n) && (
+                      <CalendarIcon className="h-3 w-3 text-amber-400 shrink-0" />
+                    )}
+                    <p className="truncate text-xs font-medium">
+                      {n.title || "Untitled"}
+                    </p>
+                  </div>
                   <p className="truncate text-[9px] text-muted-foreground mt-0.5">
-                    {relativeTime(n.updated_at)}
+                    {isDated(n)
+                      ? formatInWorldDate(n, monthNames)
+                      : relativeTime(n.updated_at)}
                   </p>
                 </button>
               ))
@@ -194,8 +292,39 @@ export function NotesPanel({ campaignId, userId, isDm }: Props) {
                     Read-only
                   </span>
                 )}
+                {/* Date chip — visible when the note is dated; clicking
+                    on it (DM/author only) clears the stamp. Always
+                    visible to readers as context. */}
+                {isDated(selected) && (
+                  <span
+                    className="inline-flex items-center gap-1 text-[10px] text-amber-400/90 tabular-nums"
+                    title="In-world date"
+                  >
+                    <CalendarIcon className="h-3 w-3" />
+                    {formatInWorldDate(selected, monthNames)}
+                  </span>
+                )}
                 {isAuthor && (
                   <>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 text-muted-foreground hover:text-amber-400"
+                      onClick={handleToggleDate}
+                      disabled={!calendar}
+                      title={
+                        isDated(selected)
+                          ? "Remove in-world date"
+                          : "Stamp with current in-world date"
+                      }
+                    >
+                      {isDated(selected) ? (
+                        <CalendarOff className="h-3.5 w-3.5" />
+                      ) : (
+                        <CalendarIcon className="h-3.5 w-3.5" />
+                      )}
+                    </Button>
                     {dirty && (
                       <Button
                         type="button"

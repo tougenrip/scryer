@@ -16,6 +16,7 @@ import {
   Cloud,
   Sun,
   SunMoon,
+  Flame,
   Crown,
   SkipForward,
   ScrollText,
@@ -26,10 +27,12 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { VttPrivateToggle } from "@/components/vtt/vtt-overlay-controls";
 import { VttDrawingsTool } from "@/components/vtt/vtt-drawings-tool";
 import { VttShortcutsHelp } from "@/components/vtt/vtt-shortcuts-help";
+import { SfxAudioBridge } from "@/components/tools/SfxAudioBridge";
 import { VttTokenActionsBar } from "@/components/vtt/vtt-token-actions-bar";
 import { useVttStore } from "@/lib/store/vtt-store";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useCampaign } from "@/hooks/useCampaigns";
 import { cn } from "@/lib/utils";
 import {
@@ -60,7 +63,7 @@ import { HandoutsLayer } from "@/components/vtt/handouts/handouts-layer";
 import { NotesPanel } from "@/components/vtt/notes/notes-panel";
 import { PartyPanel } from "@/components/vtt/party/party-panel";
 import { CharacterCardsLayer } from "@/components/vtt/party/character-cards-layer";
-import { DiceHistoryPanel } from "@/components/vtt/dice-history/dice-history-panel";
+import { VttRandomTablesPanel } from "@/components/vtt/random-tables-panel";
 import { DuelLayer } from "@/components/vtt/loot/duel/duel-modal";
 import { useLootDuels } from "@/hooks/useLootDuels";
 import { VttFogControls } from "@/components/vtt/vtt-fog-controls";
@@ -69,6 +72,14 @@ import { useCombat } from "@/hooks/useCombat";
 import type { RollResult } from "@/contexts/dice-roller-context";
 
 export const dynamic = "force-dynamic";
+
+const LazyMusicAndSoundboardPanel = nextDynamic(
+  () =>
+    import("@/components/tools/MusicAndSoundboardPanel").then(
+      (mod) => mod.MusicAndSoundboardPanel
+    ),
+  { ssr: false }
+);
 
 const LazyMusicPlayer = nextDynamic(
   () => import("@/components/tools/MusicPlayer").then((mod) => mod.MusicPlayer),
@@ -113,6 +124,49 @@ export default function VttPage() {
   const router = useRouter();
   const campaignId = params.campaignId as string;
   const mapId = searchParams.get("map");
+  // Mobile companion embeds this page in an iframe with `?embed=mobile`.
+  // In that mode we strip chrome (top bar, sidebars, day-cycle emblem)
+  // so the canvas fills the available pixels — players already have a
+  // tab bar and header in the parent companion shell.
+  const embedMode = searchParams.get("embed") === "mobile";
+  const isMobile = useIsMobile();
+
+  // One-time prompt suggesting the mobile companion when the desktop
+  // VTT loads on a phone-sized viewport. The full VTT is not designed
+  // for small screens; the companion at /m/... is. Dismissal is
+  // remembered per-campaign in localStorage so we don't nag.
+  useEffect(() => {
+    if (!isMobile || !campaignId) return;
+    if (embedMode) return; // we ARE the companion's embedded view
+    if (typeof window === "undefined") return;
+    // If we're inside any iframe (likely the companion), don't recurse.
+    if (window.top !== window.self) return;
+    const key = `vtt:mobile-suggest-dismissed:${campaignId}`;
+    if (window.localStorage.getItem(key) === "1") return;
+    const dismiss = () => window.localStorage.setItem(key, "1");
+    const id = toast(
+      "On mobile? Open the companion view — it's built for phones.",
+      {
+        duration: 12000,
+        action: {
+          label: "Open",
+          onClick: () => {
+            dismiss();
+            router.push(`/m/campaigns/${campaignId}`);
+          },
+        },
+        cancel: {
+          label: "Stay here",
+          onClick: dismiss,
+        },
+        onDismiss: dismiss,
+        onAutoClose: dismiss,
+      }
+    );
+    return () => {
+      toast.dismiss(id);
+    };
+  }, [isMobile, campaignId, router, embedMode]);
 
   const {
     setMapId,
@@ -375,9 +429,11 @@ export default function VttPage() {
         className="relative h-screen w-screen flex flex-col bg-neutral-950 text-foreground overflow-hidden"
       >
         <audio ref={sharedAudioRef} className="hidden" />
+        <SfxAudioBridge campaignId={campaignId} />
         <VttShortcutsHelp />
 
-        {/* Top bar */}
+        {/* Top bar — hidden when embedded in the mobile companion. */}
+        {!embedMode && (
         <header className="shrink-0 z-30 flex items-center justify-between gap-3 px-3 py-2 border-b border-border bg-card">
           <div className="flex items-center gap-2 min-w-0">
             <Button
@@ -491,6 +547,30 @@ export default function VttPage() {
             {isDm && mapId && (
               <div className="flex items-center gap-0.5 rounded-md border border-amber-500/30 bg-amber-500/5 p-0.5">
                 <VttPrivateToggle />
+                {/* Light source placement — single click drops a torch
+                    at the cursor; the placement handler in GameCanvas
+                    enforces DM-only via RLS, but the button is gated
+                    here so non-DMs never see it. */}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant={activeTool === "light" ? "default" : "ghost"}
+                      size="icon"
+                      className={cn(
+                        "h-8 w-8",
+                        activeTool === "light"
+                          ? "bg-primary text-primary-foreground"
+                          : "text-muted-foreground"
+                      )}
+                      onClick={() =>
+                        setActiveTool(activeTool === "light" ? "select" : "light")
+                      }
+                    >
+                      <Flame className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Light source</TooltipContent>
+                </Tooltip>
                 <VttGridControls mapId={mapId} isDm={!!isDm} mapLoading={loading} />
                 <VttFogControls mapId={mapId} isDm={!!isDm} mapLoading={loading} />
                 <Popover>
@@ -627,6 +707,7 @@ export default function VttPage() {
             })()}
           </div>
         </header>
+        )}
 
         <div className="flex min-h-0 flex-1 flex-col relative">
           <div className="relative min-h-0 min-w-0 flex-1">
@@ -658,6 +739,7 @@ export default function VttPage() {
             ) : (
               <VttQuestHud campaignId={campaignId} isDm={!!isDm} />
             )}
+            {!embedMode && (
             <VttLeftSidebar
               activeTab={leftDock}
               onActiveTabChange={setLeftDock}
@@ -697,15 +779,12 @@ export default function VttPage() {
                 )
               }
               musicPanel={
-                <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-3 bg-card">
-                  <LazyMusicPlayer
-                    key={musicPlayerKey.current}
-                    campaignId={campaignId}
-                    isDm={!!isDm}
-                    isVisible
-                    audioRef={sharedAudioRef}
-                  />
-                </div>
+                <LazyMusicAndSoundboardPanel
+                  campaignId={campaignId}
+                  isDm={!!isDm}
+                  audioRef={sharedAudioRef}
+                  musicKey={musicPlayerKey.current}
+                />
               }
               objectivesPanel={
                 <div className="min-h-0 flex-1 overflow-hidden p-3 bg-card">
@@ -744,18 +823,22 @@ export default function VttPage() {
                   isDm={!!isDm}
                 />
               }
-              dicePanel={<DiceHistoryPanel campaignId={campaignId} />}
+              tablesPanel={<VttRandomTablesPanel campaignId={campaignId} isDm={!!isDm} />}
               partyBadge={hasLiveDuelForMe}
             />
+            )}
             <FloatingCardLayer campaignId={campaignId} userId={userId} />
             <HandoutsLayer campaignId={campaignId} userId={userId} isDm={!!isDm} />
             <CharacterCardsLayer campaignId={campaignId} userId={userId} />
             <DuelLayer campaignId={campaignId} userId={userId} />
-            <VttDayCycleEmblem
-              campaignId={campaignId}
-              isDm={!!isDm}
-              rightDrawerOpen={rightDock.inspector || rightDock.chat}
-            />
+            {!embedMode && (
+              <VttDayCycleEmblem
+                campaignId={campaignId}
+                isDm={!!isDm}
+                rightDrawerOpen={rightDock.inspector || rightDock.chat}
+              />
+            )}
+            {!embedMode && (
             <VttRightSidebar
               openState={rightDock}
               onToggleTab={(tab) => setRightDock(prev => ({ ...prev, [tab]: !prev[tab] }))}
@@ -813,6 +896,7 @@ export default function VttPage() {
                 </div>
               }
             />
+            )}
           </div>
         </div>
       </div>
